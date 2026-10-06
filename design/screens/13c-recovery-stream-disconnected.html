@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Recovery: Stream disconnected</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.con{display:grid;grid-template-columns:minmax(0,1fr) 462px;gap:16px;height:100%}
+.left{display:grid;grid-template-rows:auto auto auto 1fr;gap:12px;min-height:0}
+.mons{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.srcs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ctl{display:flex;flex-direction:row;align-items:center;gap:12px;padding:8px 12px;height:76px}
+.ctl .grp{display:flex;gap:10px;align-items:center}
+.ctl .vr{width:1px;align-self:stretch;background:var(--line);margin:4px 4px}
+.low{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;min-height:0}
+.gfx{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gfx .btn{justify-content:flex-start;height:40px}
+.gfx .btn .st{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:.07em;color:var(--text-3)}
+.gfx .btn.on{border-color:var(--ready);background:var(--ready-wash)}.gfx .btn.on .st{color:var(--ready)}
+.mix{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;height:100%}
+.ch{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
+.ch .nm{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:600}
+.ch .vol{display:flex;gap:10px;align-items:stretch;height:92px;grid-column:1/-1}
+.ch .vol .meter.v{height:100%;width:10px}
+.ch .vol .fd{width:4px;border-radius:2px;background:var(--line-strong);position:relative;margin:4px 10px}
+.ch .vol .fd::after{content:"";position:absolute;left:50%;top:var(--v,30%);width:22px;height:10px;border-radius:3px;background:#dfe7f2;transform:translateX(-50%)}
+.right{display:grid;grid-template-rows:auto 1fr auto;gap:12px;min-height:0}
+.gs{display:grid;gap:10px;padding:12px}
+.gs2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.gs{min-width:0}.clockbox .led{font-size:56px}.score-block .led{font-size:52px}
+.gs3{display:flex;align-items:center;gap:14px}
+.sponsor{display:grid;gap:10px;padding:12px 14px}
+.cd{height:4px;border-radius:2px;background:var(--line-strong);overflow:hidden}.cd b{display:block;height:100%;width:62%;background:var(--action)}
+.health{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--text-2)}
+.health span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.health b{color:var(--text);font-weight:600}
+.pill.check{width:auto;height:24px;border:0;border-radius:var(--r-pill);display:inline-flex;place-items:normal;align-items:center}.ev.mark{width:auto;height:auto;background:none;border-radius:0;display:flex;color:inherit}.right>*{min-width:0}.topbar .pill{flex:none}.clockbox .led{font-size:52px}.score-block .led{font-size:48px}.stage{display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px}.con{height:auto;min-height:0}
+.stage>.banner{min-width:0}.banner .sp{flex:1}.banner .sub{color:var(--text-2);font-size:12.5px}
+.pop{position:absolute;top:60px;right:16px;width:392px;z-index:5;box-shadow:var(--shadow-float);background:var(--raised)}
+.pop .crow:last-child{border-bottom:0}.pop .crow{padding:10px 14px}
+.hx{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:var(--r-ctl);background:var(--raised);border:1px solid var(--line-strong);font-size:12px;color:var(--text-2)}
+.hx b{color:var(--text);font-weight:600}.hx .i.d{width:12px;height:12px}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper compact">
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Setup</span></div><i class="sep"></i>
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Check</span></div><i class="sep"></i>
+      <div class="st on live"><b>3</b><span>Live</span></div><i class="sep"></i>
+      <div class="st"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon sm" style="margin-left:4px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">48</span></div>
+      <div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>3</span><span class="clk">04:21</span></div>
+      <div class="team"><span class="score">44</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <div class="sp"></div>
+    <div class="hx"><span style="display:flex;align-items:center;gap:6px"><svg class="i" style="color:var(--program)"><use href="#i-wifioff"/></svg><b>YouTube</b> disconnected</span>
+      <svg class="i d" style="transform:rotate(180deg)"><use href="#i-down"/></svg></div>
+    <span class="pill check">Reconnecting</span><span class="mono" style="font-size:14px;font-weight:600">01:12:38</span>
+    <button class="btn danger sm" style="height:32px"><svg class="i"><use href="#i-stop"/></svg>End broadcast</button>
+  </header>
+
+  <main class="stage">
+<div class="banner warn"><svg class="i lg"><use href="#i-refresh"/></svg>
+  <span><b>Reconnecting to YouTube…</b> recording is safe.</span><span class="chip warn tnum">Attempt 3 of 10</span>
+  <button class="btn sm"><svg class="i sm"><use href="#i-link"/></svg>Switch to backup destination</button></div>
+   <div class="con">
+    <section class="left">
+      <div class="mons">
+        <div class="monitor pvw"><div class="feed baseline"></div><span class="tag">PREVIEW</span><span class="src">2 · Baseline</span></div>
+        <div class="monitor pgm"><div class="feed center"></div>
+          <div class="bug"><div class="tm h"><i></i>WIL</div><div class="sc">48</div><div class="sc" style="background:#e6ecf4">44</div><div class="tm a">LIO<i></i></div><div class="cl"><small style="font:700 .7em var(--ui);color:#9FB0C5;margin-right:4px">Q</small>3<small style="margin:0 6px;opacity:.0"> </small>4:21</div></div>
+          <span class="tag"><svg class="i sm"><use href="#i-rec"/></svg>PROGRAM</span><span class="src">1 · Center court</span></div>
+      </div>
+
+      <div class="srcs">
+        <div class="tile pgm"><div class="feed center"></div><span class="k">1</span><span class="hd pill live noDot" style="height:18px;padding:0 7px;font-size:10px">On air</span>
+          <div class="meta"><span class="dot ok"></span>Center court<div class="meter mt" data-lv="13" style="width:54px"></div></div></div>
+        <div class="tile pvw"><div class="feed baseline"></div><span class="k">2</span><span class="hd pill ready noDot" style="height:18px;padding:0 7px;font-size:10px">Next</span>
+          <div class="meta"><span class="dot ok"></span>Baseline<div class="meter mt" data-lv="9" style="width:54px"></div></div></div>
+        <div class="tile"><div class="feed bench"></div><span class="k">3</span>
+          <div class="meta"><span class="dot ok"></span>Bench<div class="meter mt" data-lv="6" style="width:54px"></div></div></div>
+        <div class="tile off"><div class="feed score"></div><span class="k">4</span>
+          <div class="ov"><svg class="i lg"><use href="#i-alert"/></svg><span style="font-size:12px">Reconnecting…</span></div>
+          <div class="meta"><span class="dot warn"></span>Scoreboard screen<div class="meter mt" data-lv="0" style="width:54px"></div></div></div>
+      </div>
+
+      <div class="panel ctl">
+        <div class="grp">
+          <button class="btn pri xl" style="width:150px"><svg class="i lg"><use href="#i-cut"/></svg>Cut <span class="kbd">Enter</span></button>
+          <button class="btn xl" style="width:176px"><svg class="i lg"><use href="#i-fade"/></svg>Fade <span class="kbd">⇧ Enter</span></button>
+        </div>
+        <div class="field" style="width:96px"><div class="select mono" style="height:32px">0.5 s</div></div>
+        <span class="vr"></span>
+        <div class="grp">
+          <button class="btn xl" style="width:178px"><svg class="i lg"><use href="#i-replay"/></svg>Replay 10 s <span class="kbd">R</span></button>
+          <div class="seg"><span class="on">1×</span><span>½×</span><span>¼×</span></div>
+        </div>
+        <div class="sp"></div>
+        <button class="btn lg"><svg class="i"><use href="#i-pip"/></svg>PiP</button>
+      </div>
+
+      <div class="low">
+        <div class="panel">
+          <div class="ph"><h3>Graphics</h3><span class="sp"></span><span class="faint" style="font-size:12px">Theme: Hardwood</span></div>
+          <div class="pb"><div class="gfx">
+            <button class="btn on"><svg class="i"><use href="#i-eye"/></svg>Score bug <span class="st">ON</span></button>
+            <button class="btn"><svg class="i"><use href="#i-users"/></svg>Starting five · Home</button>
+            <button class="btn"><svg class="i"><use href="#i-star"/></svg>Player #12 Reyes</button>
+            <button class="btn"><svg class="i"><use href="#i-users"/></svg>Starting five · Away</button>
+            <button class="btn"><svg class="i"><use href="#i-clock"/></svg>Halftime card</button>
+            <button class="btn"><svg class="i"><use href="#i-sponsor"/></svg>Sponsor corner</button>
+          </div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Audio</h3><span class="sp"></span><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Limiter on</span></div>
+          <div class="pb"><div class="mix">
+            <div class="ch"><div class="nm"><svg class="i"><use href="#i-mic"/></svg>Commentary<span class="sp"></span><svg class="i" style="color:var(--text-3)"><use href="#i-vol"/></svg></div>
+              <div class="vol"><div class="meter v" data-lv="12" data-n="18"></div><div class="fd" style="--v:26%"></div></div></div>
+            <div class="ch"><div class="nm"><svg class="i"><use href="#i-vol"/></svg>Crowd<span class="sp"></span><svg class="i" style="color:var(--text-3)"><use href="#i-vol"/></svg></div>
+              <div class="vol"><div class="meter v" data-lv="7" data-n="18"></div><div class="fd" style="--v:52%"></div></div></div>
+            <div class="ch"><div class="nm"><svg class="i"><use href="#i-sliders"/></svg>Program<span class="sp"></span><svg class="i" style="color:var(--text-3)"><use href="#i-vol"/></svg></div>
+              <div class="vol"><div class="meter v" data-lv="14" data-n="18"></div><div class="fd" style="--v:34%"></div></div></div>
+          </div></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right">
+      <div class="panel">
+        <div class="ph"><h3>Game state</h3><span class="sp"></span><svg class="i" style="color:var(--ready)" aria-label="Phone remote connected"><use href="#i-phone"/></svg>
+          <div class="seg"><span>Q1</span><span>Q2</span><span class="on">Q3</span><span>Q4</span></div></div>
+        <div class="gs">
+          <div class="clockbox"><span class="led">04:21</span>
+            <div class="col-g" style="gap:8px;align-items:flex-end">
+              <button class="btn lg" style="width:112px"><svg class="i"><use href="#i-pause"/></svg>Stop <span class="kbd">C</span></button>
+              <div class="row" style="gap:6px"><button class="btn sm">−1s</button><button class="btn sm">+1s</button></div>
+            </div>
+          </div>
+          <div class="gs2">
+            <div class="score-block">
+              <div class="nm"><i style="background:var(--home)"></i>Wildcats<span class="sp"></span><span class="pips"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+              <div class="led">48</div>
+              <div class="plus"><button class="btn">+1</button><button class="btn">+2</button><button class="btn">+3</button></div>
+            </div>
+            <div class="score-block">
+              <div class="nm"><i style="background:var(--away)"></i>Lions<span class="sp"></span><span class="pips"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></div>
+              <div class="led">44</div>
+              <div class="plus"><button class="btn">+1</button><button class="btn">+2</button><button class="btn">+3</button></div>
+            </div>
+          </div>
+          <div class="gs3">
+            <span class="lbl">Timeouts</span><span class="muted">WIL</span><span class="pips"><i class="on"></i><i class="on"></i><i></i></span>
+            <span class="muted">LIO</span><span class="pips"><i class="on"></i><i></i><i></i></span>
+            <span class="sp"></span><span class="chip" title="Possession"><svg class="i sm"><use href="#i-left"/></svg>Wildcats</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="min-height:0">
+        <div class="ph"><h3>Events</h3><span class="sp"></span><button class="btn sm"><svg class="i sm"><use href="#i-flag"/></svg>Mark moment <span class="kbd">M</span></button></div>
+        <div class="scroll" style="flex:1">
+          <div class="ev score"><span class="t">04:55</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span><b>Wildcats</b> 3-pointer · #12 Reyes</span><button class="btn sm ghost x"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+          <div class="ev foul"><span class="t">05:30</span><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><span><b>Lions</b> foul · #4 Okafor</span><button class="btn sm ghost x"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+          <div class="ev to"><span class="t">06:12</span><span class="g"><svg class="i"><use href="#i-timeout"/></svg></span><span><b>Lions</b> timeout</span><button class="btn sm ghost x"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+          <div class="ev score"><span class="t">06:40</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span><b>Lions</b> layup · #23 Brooks</span><button class="btn sm ghost x"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+          <div class="ev mark"><span class="t">07:05</span><span class="g"><svg class="i"><use href="#i-mark"/></svg></span><span>Marked moment</span><button class="btn sm ghost x"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        </div>
+      </div>
+
+      <div class="panel sponsor">
+        <div class="row"><span class="lbl">Next sponsor break</span><span class="sp"></span><span class="chip">At next timeout</span></div>
+        <div class="row"><span class="logo-ph" style="background:#1f7a8c">SD</span>
+          <div style="min-width:0"><div style="font-weight:650;font-size:15px">Smith Dental</div><div class="muted" style="font-size:12px">15 s video read · 9 of 12 airings left</div></div></div>
+        <div class="row"><button class="btn pri" style="flex:1.3"><svg class="i"><use href="#i-bolt"/></svg>Fire now <span class="kbd">F</span></button><button class="btn">Skip</button><button class="btn">Delay</button></div>
+        <div class="faint" style="font-size:12px">Last aired · Harbor Pizza 13 min ago · Eastside Credit Union Q1</div>
+      </div>
+    </aside>
+   </div>
+  </main>
+</div>
+<div class="panel pop"><div class="ph"><h3>Connection health</h3></div>
+  <div class="crow"><span class="st err"><svg class="i"><use href="#i-wifioff"/></svg></span><div><div class="nm">YouTube · main</div><div class="rs">Disconnected 00:41 ago · retrying, attempt 3 of 10</div></div></div>
+  <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div><div class="nm">YouTube · backup key</div><div class="rs">Ready · switch takes about 5 s</div></div></div>
+  <div class="crow"><span class="st ok"><svg class="i"><use href="#i-rec"/></svg></span><div><div class="nm">Recording to Main Gym PC</div><div class="rs">Safe · 214 GB free · about 9 h left</div></div></div>
+  <div class="crow"><span class="st warn"><svg class="i"><use href="#i-wifi"/></svg></span><div><div class="nm">Upload</div><div class="rs"><span class="tnum">0.0</span> Mbps · 38 dropped frames</div></div></div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

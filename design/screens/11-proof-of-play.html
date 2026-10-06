@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Proof of Play</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.pg{display:grid;grid-template-rows:auto auto auto auto minmax(0,1fr);gap:16px;height:100%;min-height:0}
+.body{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;min-height:0}
+.filters{display:flex;align-items:flex-end;gap:12px}
+.filters .field{min-width:0}
+.sum{flex-direction:row;display:flex;align-items:center;gap:0;height:56px;padding:0 8px}
+.sum>div{display:flex;align-items:baseline;gap:8px;padding:0 20px}
+.sum b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.sum .vr{width:1px;height:28px;background:var(--line);padding:0}
+.tbl.t2 td,.tbl.t2 th{padding:0 10px}
+.tbl.t2 td{height:44px}
+.paper{background:var(--text);color:var(--ground);border-radius:6px;padding:20px;display:grid;gap:10px;align-content:start;min-height:0}
+.paper h4{margin:0;font-size:16px;font-weight:700}
+.paper .pm{font-size:12px;color:var(--ground);opacity:1}
+.paper .pr{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:5px 0;border-top:1px solid var(--text-2)}
+.paper .pr span:last-child{font-family:var(--mono);white-space:nowrap}
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#"><svg class="i lg"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i lg"><use href="#i-cal"/></svg>Games</a>
+    <a href="#" aria-current="page"><svg class="i lg"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i lg"><use href="#i-book"/></svg>Library</a>
+    <a href="#"><svg class="i lg"><use href="#i-gear"/></svg>Settings</a>
+    <span class="sp"></span>
+    <div class="foot"><span>Version 1.0 beta</span><span>214 GB free</span></div>
+  </nav>
+  <div class="col">
+    <header class="topbar">
+      <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, sponsors</div>
+      <span class="sp"></span>
+      <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+      <span class="avatar">NW</span>
+    </header>
+    <main class="main-pad">
+     <div class="pg">
+      <div class="row">
+        <h1 class="t">Sponsors</h1><span class="sp"></span>
+        <button class="btn"><svg class="i"><use href="#i-down2"/></svg>Export CSV</button>
+        <button class="btn pri"><svg class="i"><use href="#i-film"/></svg>Export PDF</button>
+      </div>
+      <div class="tabs" style="margin-top:-8px"><span>Library</span><span class="on">Reports</span></div>
+
+      <div class="filters">
+        <div class="field" style="width:200px"><label>Sponsor</label><div class="select">All sponsors</div></div>
+        <div class="field" style="width:200px"><label>Season or game</label><div class="select">2026-27 season</div></div>
+        <div class="field" style="width:240px"><label>Date range</label><div class="select"><svg class="i"><use href="#i-cal"/></svg>Sep 1 to Oct 5, 2026</div></div>
+        <span class="sp"></span>
+        <span class="chip"><svg class="i sm"><use href="#i-info"/></svg>Sample data</span>
+      </div>
+
+      <div class="panel sum">
+        <div><b>10</b><span class="muted">airings</span></div><span class="vr"></span>
+        <div><b>2:30</b><span class="muted">total airtime</span></div><span class="vr"></span>
+        <div><b>2</b><span class="muted">games</span></div><span class="vr"></span>
+        <div><span class="muted">8 aired</span><span class="faint">1 skipped</span><span class="faint">1 delayed</span></div>
+      </div>
+
+      <div class="body">
+        <div class="panel" style="min-height:0">
+          <table class="tbl t2">
+            <thead><tr><th>Game</th><th>When</th><th>Sponsor</th><th>Asset</th><th class="n">Length</th><th>Outcome</th></tr></thead>
+            <tbody>
+              <tr><td>Oct 2 vs Lions</td><td class="m">Q1 06:12</td><td>Harbor Pizza</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Oct 2 vs Lions</td><td class="m">Q2 03:40</td><td>Smith Dental</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Oct 2 vs Lions</td><td class="m">Half</td><td>Eastside CU</td><td class="muted">Announcer read</td><td class="n m">0:12</td><td><span class="pill noDot" style="background:var(--caution-wash);color:var(--caution)"><svg class="i sm"><use href="#i-clock"/></svg>Delayed</span></td></tr>
+              <tr><td>Oct 2 vs Lions</td><td class="m">Q3 05:21</td><td>Harbor Pizza</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Oct 2 vs Lions</td><td class="m">Q4 02:08</td><td>Smith Dental</td><td class="muted">Corner logo</td><td class="n m">0:10</td><td><span class="pill off noDot"><svg class="i sm"><use href="#i-minus"/></svg>Skipped</span></td></tr>
+              <tr><td>Sep 25 vs Rams</td><td class="m">Q1 07:30</td><td>Smith Dental</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Sep 25 vs Rams</td><td class="m">Q2 04:02</td><td>Harbor Pizza</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Sep 25 vs Rams</td><td class="m">Half</td><td>Smith Dental</td><td class="muted">15 s video</td><td class="n m">0:15</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td>Sep 25 vs Rams</td><td class="m">Q3 03:15</td><td>Eastside CU</td><td class="muted">Announcer read</td><td class="n m">0:12</td><td><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+              <tr><td style="border-bottom:0">Sep 25 vs Rams</td><td class="m" style="border-bottom:0">Q4 06:48</td><td style="border-bottom:0">Harbor Pizza</td><td class="muted" style="border-bottom:0">Corner logo</td><td class="n m" style="border-bottom:0">0:10</td><td style="border-bottom:0"><span class="pill ready noDot"><svg class="i sm"><use href="#i-check"/></svg>Aired</span></td></tr>
+            </tbody>
+          </table>
+          <div class="row" style="margin-top:auto;padding:10px 14px;border-top:1px solid var(--line)">
+            <svg class="i" style="color:var(--text-3)"><use href="#i-info"/></svg>
+            <span class="faint">Viewer counts are only shown when you enter them.</span><span class="sp"></span>
+            <button class="btn sm ghost"><svg class="i sm"><use href="#i-plus"/></svg>Enter viewer count</button>
+          </div>
+        </div>
+
+        <aside class="panel" style="min-height:0">
+          <div class="ph"><h3>PDF preview</h3><span class="sp"></span><span class="faint" style="font-size:12px">Page 1 of 1</span><button class="btn sm ghost" aria-label="Close preview"><svg class="i sm"><use href="#i-x"/></svg></button></div>
+          <div class="pb" style="padding:12px;display:grid">
+            <div class="paper">
+              <h4>Proof of play</h4>
+              <div class="pm">Westfield Wildcats · 2026-27 season<br>Sep 1 to Oct 5, 2026 · Sample data</div>
+              <div class="pr"><span>Airings</span><span>10</span></div>
+              <div class="pr"><span>Total airtime</span><span>2:30</span></div>
+              <div class="pr"><span>Games</span><span>2</span></div>
+              <div class="pr"><span>Oct 2 vs Lions</span><span>5 airings</span></div>
+              <div class="pr"><span>Sep 25 vs Rams</span><span>5 airings</span></div>
+              <div class="pr"><span>Smith Dental</span><span>3 airings</span></div>
+              <div class="pr"><span>Harbor Pizza</span><span>4 airings</span></div>
+              <div class="pr"><span>Eastside CU</span><span>2 airings</span></div>
+              <div class="pm" style="margin-top:6px">Viewer counts are not included unless entered by the school.</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+     </div>
+    </main>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

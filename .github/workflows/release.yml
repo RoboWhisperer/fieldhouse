@@ -1,0 +1,96 @@
+name: Release
+
+# Push a tag like v0.1.0 (it must match desktop/package.json "version"). Builds installers on each OS and
+# attaches them to a DRAFT GitHub Release. You publish the draft by hand after trying the installers.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the draft release
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  name: linux, targets: "bun-linux-x64",                    builder: "--linux" }
+          - { os: windows-latest, name: win,   targets: "bun-windows-x64",                  builder: "--win --x64" }
+          - { os: macos-latest,   name: mac,   targets: "bun-darwin-arm64 bun-darwin-x64",  builder: "--mac --arm64 --x64" }
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Signing is optional. Without these secrets the installers are built unsigned.
+      CSC_LINK: ${{ secrets.CSC_LINK }}                       # macOS Developer ID .p12 (base64 or URL)
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}               # Windows code-signing .pfx
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Tag must match the app version
+        run: |
+          v=$(node -p "require('./desktop/package.json').version")
+          [ "refs/tags/v$v" = "$GITHUB_REF" ] || { echo "tag $GITHUB_REF does not match desktop/package.json version $v"; exit 1; }
+
+      - run: bun test
+
+      - name: Compile the sidecar
+        run: for t in ${{ matrix.targets }}; do bun scripts/build-sidecar.ts "$t"; done
+      - name: Smoke test the sidecar built for this runner
+        run: bun scripts/smoke-sidecar.ts
+
+      - name: Decide on signing
+        run: |
+          [ -z "$CSC_LINK$WIN_CSC_LINK" ] && echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV" || true
+          [ -n "$APPLE_ID" ] && [ -n "$CSC_LINK" ] && echo "NOTARIZE=-c.mac.notarize=true" >> "$GITHUB_ENV" || true
+
+      - name: Build installers
+        working-directory: desktop
+        run: |
+          npm ci
+          npx electron-builder ${{ matrix.builder }} --publish never $NOTARIZE
+
+      - name: Collect installers and update metadata
+        run: |
+          mkdir out
+          cd desktop/dist
+          for f in *.AppImage *.deb *.exe *.dmg *.zip latest*.yml *.blockmap; do [ -f "$f" ] && cp "$f" ../../out/ || true; done
+          ls -la ../../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  draft-release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: installers-*
+          merge-multiple: true
+      - name: Checksums
+        working-directory: out
+        run: sha256sum $(ls | grep -v '^SHA256SUMS$') > SHA256SUMS && cat SHA256SUMS
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" out/* --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "Fieldhouse $GITHUB_REF_NAME"

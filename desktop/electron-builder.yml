@@ -1,0 +1,53 @@
+appId: app.fieldhouse.desktop
+productName: Fieldhouse
+copyright: Fieldhouse contributors
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.js
+  - preload.js
+  - error.html
+  - error.js
+  - assets/**
+  - package.json
+asar: true
+extraResources:
+  - from: build/server-${arch} # staged by `bun run desktop:sidecar` (scripts/build-sidecar.ts)
+    to: server
+publish:
+  provider: github            # owner/repo come from package.json "repository"
+  releaseType: draft
+
+linux:
+  target: [AppImage, deb]
+  executableName: fieldhouse
+  category: AudioVideo
+  icon: build/icon.png
+  maintainer: Fieldhouse contributors <noreply@fieldhouse.invalid>
+  synopsis: Free sports broadcast production
+deb:
+  packageName: fieldhouse
+  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
+
+win:
+  target: [{ target: nsis, arch: [x64] }]
+  icon: build/icon.png        # electron-builder derives the .ico
+  # Signing: set WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD (or CSC_LINK/CSC_KEY_PASSWORD). Unsigned builds show SmartScreen warnings.
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false   # never delete games or recordings
+
+mac:
+  target: [{ target: dmg, arch: [arm64, x64] }, { target: zip, arch: [arm64, x64] }]
+  icon: build/icon.png        # derived to .icns
+  category: public.app-category.video
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Signing: CSC_LINK + CSC_KEY_PASSWORD. Notarization: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+  notarize: false             # set to true in the release workflow when the Apple secrets exist (see desktop/README.md)

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Fieldhouse graphics</title>
+<style>
+:root{--ink:#0B1018;--panel:#1A2433;--led:#FFB224;--ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:transparent;overflow:hidden;font-family:var(--ui)}
+/* Transparent 1920x1080 page for an OBS browser source. One page draws every on-air graphic:
+   score bug, lower third, slate, sponsor corner. All driven by the same state the app uses. */
+.bug,.lower,.slate,.spons{position:absolute;opacity:0;transition:opacity .3s}
+.on{opacity:1}
+.bug{left:64px;bottom:64px;display:flex;height:56px;border-radius:6px;overflow:hidden;font:800 24px/1 var(--ui);box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.tm{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--ink);color:#fff;letter-spacing:.04em}
+.tm i{width:6px;align-self:stretch}
+.sc{display:grid;place-items:center;min-width:64px;padding:0 12px;background:#fff;color:var(--ink);font-size:30px;font-variant-numeric:tabular-nums}
+.sc+.sc{background:#E6ECF4}
+.cl{display:flex;align-items:center;gap:10px;padding:8px 18px;background:var(--panel);color:var(--led)}
+.cl small{font:700 15px var(--ui);color:#9FB0C5}
+.seg{display:flex;align-items:center;gap:3px;height:28px}
+.seg svg{height:28px;width:auto;display:block}
+.sc.flash{animation:fl .2s}
+@keyframes fl{from{background:var(--led)}}
+.lower{left:64px;bottom:140px;min-width:420px;background:var(--ink);color:#fff;border-radius:6px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.lower b{display:block;padding:12px 20px 4px;font-size:30px}
+.lower span{display:block;padding:0 20px 12px;font-size:20px;color:#9FB0C5}
+.lower i{display:block;height:6px;background:var(--hc,#F5A524)}
+.slate{inset:0;display:grid;place-items:center;background:var(--ink);color:#fff;text-align:center}
+.slate div{font:700 64px/1.2 var(--ui);max-width:1200px}
+.spons{right:64px;top:64px;display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--ink);color:#fff;border-radius:6px;font:700 22px var(--ui);box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.spons i{width:36px;height:36px;border-radius:8px;background:var(--sc,#1f7a8c)}
+.spons small{display:block;font:600 14px var(--ui);color:#9FB0C5}
+@media (prefers-reduced-motion:reduce){.sc.flash{animation:none}.bug,.lower,.slate,.spons{transition:none}}
+</style></head>
+<body>
+<div class="bug" id="bug">
+  <div class="tm"><i id="hc"></i><span id="ha">HOME</span></div>
+  <div class="sc" id="hs">0</div><div class="sc" id="as">0</div>
+  <div class="tm"><span id="aa">AWAY</span><i id="ac"></i></div>
+  <div class="cl"><small id="pd">Q1</small><span id="ck" class="seg"></span></div>
+</div>
+<div class="lower" id="lower"><b id="lt"></b><span id="ls"></span><i></i></div>
+<div class="slate" id="slate"><div id="st"></div></div>
+<div class="spons" id="spons"><i id="si"></i><div><small>Brought to you by</small><span id="sn"></span></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+let st = null, recvAt = 0;
+const mmss = (ms) => { const s = Math.ceil(ms / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+
+// Seven-segment digits drawn as SVG. OBS's embedded browser has no monospace font and does not load web fonts,
+// so the clock must not depend on any font. Looks the same in every browser.
+const SEG = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
+const hx = (y) => `0.9,${y} 8.1,${y} 9,${y + 0.9} 8.1,${y + 1.8} 0.9,${y + 1.8} 0,${y + 0.9}`;
+const vt = (x, a, b) => `${x + 0.9},${a} ${x + 1.8},${a + 0.9} ${x + 1.8},${b - 0.9} ${x + 0.9},${b} ${x},${b - 0.9} ${x},${a + 0.9}`;
+const SHAPE = { a: hx(0), g: hx(8.1), d: hx(16.2), f: vt(0, 1, 8.9), b: vt(7.2, 1, 8.9), e: vt(0, 9.1, 17), c: vt(7.2, 9.1, 17) };
+const digit = (n) => `<svg viewBox="0 0 9 18" aria-hidden="true">${[..."abcdefg"].map((k) => `<polygon points="${SHAPE[k]}" fill="${SEG[n].includes(k) ? "#FFB224" : "#3A2A0C"}"/>`).join("")}</svg>`;
+const colon = '<svg viewBox="0 0 3 18" aria-hidden="true"><rect x="0.5" y="4.5" width="2" height="2" fill="#FFB224"/><rect x="0.5" y="11.5" width="2" height="2" fill="#FFB224"/></svg>';
+let shown = "";
+const led = (txt) => { if (txt === shown) return; shown = txt; $("ck").innerHTML = [...txt].map((c) => (c === ":" ? colon : digit(+c))).join(""); $("ck").setAttribute("aria-label", txt); };
+function render() {
+  const g = st && st.game; if (!g) return;
+  // clock is interpolated locally from the server's reading; the server stays the source of truth
+  led(mmss(g.running ? Math.max(0, g.clockMs - (performance.now() - recvAt)) : g.clockMs));
+}
+function show(s) {
+  const g = s.game, gr = s.graphics, d = s.gameDoc;
+  if (g) {
+    const flash = (id, v) => { if ($(id).textContent !== String(v)) { $(id).textContent = v; $(id).classList.remove("flash"); void $(id).offsetWidth; $(id).classList.add("flash"); } };
+    flash("hs", g.home.score); flash("as", g.away.score);
+    $("ha").textContent = g.home.abbr; $("aa").textContent = g.away.abbr;
+    $("pd").textContent = g.period > 4 ? "OT" + (g.period - 4 > 1 ? g.period - 4 : "") : "Q" + g.period;
+    if (d) { $("hc").style.background = d.home.color; $("ac").style.background = d.away.color; }
+  }
+  $("bug").classList.toggle("on", !!g && gr.scorebug);
+  $("lower").classList.toggle("on", !!gr.lower);
+  if (gr.lower) { $("lt").textContent = gr.lower.title; $("ls").textContent = gr.lower.sub; $("lower").style.setProperty("--hc", d ? d.home.color : "#F5A524"); }
+  $("slate").classList.toggle("on", !!gr.slate);
+  if (gr.slate) $("st").textContent = gr.slate;
+  $("spons").classList.toggle("on", !!gr.sponsor);
+  if (gr.sponsor) { $("sn").textContent = gr.sponsor.name; $("si").style.setProperty("--sc", gr.sponsor.color); }
+  st = s; recvAt = performance.now();
+  try { render(); } catch (e) { fail = e.message; } // never let a clock error stop the rest of the graphics
+  if (DEBUG) debug();
+}
+(function connect() {
+  const ws = new WebSocket("ws://" + location.host + "/ws");
+  ws.onmessage = (m) => show(JSON.parse(m.data));
+  ws.onclose = () => setTimeout(connect, 1000); // survives a server restart; graphics hold the last state meanwhile
+})();
+setInterval(render, 100);
+const DEBUG = location.search.includes("debug"); // ?debug prints what this browser really did (OBS's embedded Chromium differs from a normal one)
+let fail = "", dbg;
+function debug() {
+  if (!dbg) { dbg = document.createElement("pre"); dbg.style.cssText = "position:absolute;top:8px;left:8px;margin:0;padding:8px;background:#000;color:#0f0;font:16px sans-serif;white-space:pre-wrap;max-width:1000px"; document.body.append(dbg); }
+  const t = (f) => { try { return f(); } catch (e) { return "ERR " + e.message; } };
+  const txt = "ua: " + t(() => navigator.userAgent) + "\nvisibility: " + t(() => document.visibilityState) +
+    "\nfonts: " + t(() => document.fonts.status + " " + [...document.fonts].map((f) => f.family + ":" + f.status).join(",")) +
+    "\nck: " + t(() => { const e = document.getElementById("ck"); return `"${e.getAttribute("aria-label")}" digits=${e.querySelectorAll("svg").length} w=${e.offsetWidth}`; }) +
+    "\ngame: " + t(() => JSON.stringify(st && st.game && { c: st.game.clockMs, r: st.game.running })) + "\nrender error: " + fail;
+  dbg.textContent = txt;
+  fetch("/api/overlay-debug", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: txt }) }).catch(() => {});
+}
+</script>
+</body></html>

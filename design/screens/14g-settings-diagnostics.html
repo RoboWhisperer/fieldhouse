@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Settings: Diagnostics</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.wrap{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;min-height:0}
+.pg{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;height:100%;min-height:0}
+.two{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;min-height:0}
+.nav{display:grid;gap:2px;align-content:start}
+.nav a{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:var(--r-ctl);color:var(--text-2);text-decoration:none;font-weight:550}
+.nav a[aria-current]{background:var(--raised);color:var(--text)}
+.nav a:hover{background:var(--raised)}
+.cp{display:grid;gap:16px;align-content:start;min-width:0;min-height:0}
+.dst{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dst:last-child{border-bottom:0}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center}
+.sys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:14px 16px}
+.sys div{display:grid;gap:2px;min-width:0}
+.sys b{font-weight:600}
+.wrapx{display:flex;align-items:center;gap:12px;padding:14px 32px;background:var(--raised);border-top:1px solid var(--line-strong)}
+.lg3{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
+.r3{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr);gap:16px}
+.log{display:flex;flex-direction:column;font:12px/1 var(--mono)}
+.log div{display:grid;grid-template-columns:62px 72px minmax(0,1fr);gap:10px;align-items:center;height:24px;padding:0 14px;border-bottom:1px solid var(--line);color:var(--text-2)}
+.log div:last-child{border-bottom:0}.log .pill{justify-content:flex-start;height:20px;font-size:11px}
+.log span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.si{display:flex;flex-direction:column;justify-content:space-between;padding:6px 14px;flex:1}
+.si div{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:center;min-height:28px}
+.si dt{color:var(--text-3)}.si b{font-weight:600}
+.cx{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.cx ul{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.cx li{display:flex;align-items:center;gap:6px}
+.cx .i{width:14px;height:14px}
+svg text{font:12px var(--ui)}
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#"><svg class="i lg"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i lg"><use href="#i-cal"/></svg>Games</a>
+    <a href="#"><svg class="i lg"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i lg"><use href="#i-book"/></svg>Library</a>
+    <a href="#" aria-current="page"><svg class="i lg"><use href="#i-gear"/></svg>Settings</a>
+    <span class="sp"></span>
+    <div class="foot"><span>Version 1.0 beta</span><span>214 GB free</span></div>
+  </nav>
+  <div class="col">
+    <header class="topbar">
+      <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, sponsors</div>
+      <span class="sp"></span>
+      <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+      <span class="avatar">NW</span>
+    </header>
+    <div class="wrap">
+     <main class="main-pad">
+      <div class="pg">
+       <h1 class="t">Settings</h1>
+       <div class="two">
+        <nav class="nav">
+          <a href="#"><svg class="i"><use href="#i-link"/></svg>Destinations</a>
+          <a href="#"><svg class="i"><use href="#i-film"/></svg>Graphics themes</a>
+          <a href="#"><svg class="i"><use href="#i-ball"/></svg>Sport profile</a>
+          <a href="#"><svg class="i"><use href="#i-sliders"/></svg>Keyboard shortcuts</a>
+          <a href="#"><svg class="i"><use href="#i-phone"/></svg>Remote</a>
+          <a href="#"><svg class="i"><use href="#i-disk"/></svg>Storage</a>
+          <a href="#" aria-current="page"><svg class="i"><use href="#i-help"/></svg>Diagnostics</a>
+          <a href="#"><svg class="i"><use href="#i-book"/></svg>About and open source</a>
+        </nav>
+                <div class="cp">
+          <div class="panel">
+            <div class="ph"><h3>Last game health</h3><span class="muted" style="margin-left:6px">Oct 2 vs Jefferson Hawks, bitrate in Mbps over game time</span><span class="sp"></span><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>38 dropped frames</span></div>
+            <div style="padding:10px 14px 6px">
+              <svg viewBox="0 0 882 150" width="882" height="150" role="img" aria-label="Bitrate over game time, steady near 6 Mbps with a dip to 2.1 Mbps at 1:03">
+                <g stroke="var(--line)" stroke-width="1"><line x1="44" x2="870" y1="97" y2="97"/><line x1="44" x2="870" y1="68" y2="68"/><line x1="44" x2="870" y1="39" y2="39"/><line x1="44" x2="870" y1="10" y2="10"/></g>
+                <g stroke="var(--line)" stroke-width="1" stroke-dasharray="2 4">X<line x1="44" x2="870" y1="97" y2="97"/><line x1="44" x2="870" y1="68" y2="68"/><line x1="44" x2="870" y1="39" y2="39"/><line x1="44" x2="870" y1="10" y2="10"/></g>
+                <line x1="44" x2="870" y1="126" y2="126" stroke="var(--line-strong)"/>
+                <g fill="var(--text-3)"><text x="36" y="130.0" text-anchor="end">0</text><text x="36" y="101.0" text-anchor="end">2</text><text x="36" y="72.0" text-anchor="end">4</text><text x="36" y="43.0" text-anchor="end">6</text><text x="36" y="14.0" text-anchor="end">8</text></g>
+                <g fill="var(--text-3)"><text x="44" y="145" text-anchor="start">0:00</text><text x="254" y="145" text-anchor="middle">0:30</text><text x="674" y="145" text-anchor="middle">1:30</text><text x="870" y="145" text-anchor="end">1:58</text></g>
+                <text x="485" y="145" text-anchor="middle" fill="var(--caution)" font-weight="700">1:03</text>
+                <polyline points="44,40.4 86,39.0 128,37.6 170,40.4 212,39.0 254,37.6 296,40.4 338,39.0 380,37.6 422,40.4 457,41.9 471,65.1 485,95.5 499,59.3 520,41.9 548,39.0 590,37.6 632,40.4 674,39.0 716,37.6 758,40.4 800,39.0 842,37.6 870,39.0" fill="none" stroke="var(--action)" stroke-width="2.25" stroke-linejoin="round"/>
+                <circle cx="485" cy="95.6" r="5" fill="var(--panel)" stroke="var(--caution)" stroke-width="2.5"/>
+                <text x="497" y="112" fill="var(--caution)" font-weight="650">Upload dip, 38 dropped frames</text>
+                <text x="880" y="30" text-anchor="end" fill="var(--text-2)">Steady near 6 Mbps</text>
+              </svg>
+            </div>
+          </div>
+          <div class="lg3">
+            <div class="panel">
+              <div class="ph"><h3>Recent log</h3><span class="sp"></span><span class="seg"><span class="on">All</span><span>Warnings</span><span>Errors</span></span></div>
+              <div class="log">
+                <div><span>20:41:07</span><span class="pill info">Info</span><span>Stream started to YouTube, 6 Mbps</span></div>
+                <div><span>20:41:09</span><span class="pill info">Info</span><span>Center cam connected, 1080p60</span></div>
+                <div><span>21:44:12</span><span class="pill check">Warn</span><span>Upload fell below 2.5 Mbps</span></div>
+                <div><span>21:44:19</span><span class="pill check">Warn</span><span>Dropped 38 frames in 14 s</span></div>
+                <div><span>21:44:26</span><span class="pill info">Info</span><span>Upload recovered, bitrate stable</span></div>
+                <div><span>21:52:03</span><span class="pill err">Error</span><span>Scoreboard serial read timed out</span></div>
+                <div><span>21:52:05</span><span class="pill info">Info</span><span>Scoreboard reconnected</span></div>
+                <div><span>22:15:40</span><span class="pill info">Info</span><span>Recording segment 2 saved</span></div>
+                <div><span>22:39:02</span><span class="pill info">Info</span><span>Stream ended after 1:58</span></div>
+                <div><span>22:39:04</span><span class="pill info">Info</span><span>Game saved to Library</span></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><h3>System info</h3></div>
+              <dl class="si" style="margin:0">
+                <div><dt>OS</dt><b>Ubuntu 24.04 (x86_64)</b></div>
+                <div><dt>Cores</dt><b>8</b></div>
+                <div><dt>RAM</dt><b>16 GB</b></div>
+                <div><dt>GPU</dt><b>NVIDIA GTX 1660</b></div>
+                <div><dt>Encoder</dt><span class="row" style="gap:8px"><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>h264 hardware</span><span class="faint">not software</span></span></div>
+                <div><dt>Engine version</dt><b class="mono">30.2.3</b></div>
+                <div><dt>App version</dt><b>1.0 beta</b></div>
+                <div><dt>Build number</dt><b class="mono">214</b></div>
+              </dl>
+            </div>
+          </div>
+          <div class="r3">
+            <div class="panel">
+              <div class="ph"><h3>Export</h3></div>
+              <div class="pb col-g">
+                <button class="btn pri" style="align-self:flex-start"><svg class="i"><use href="#i-down2"/></svg>Export diagnostics bundle</button>
+                <div class="cx">
+                  <div><b>Contains</b><ul class="muted"><li><svg class="i" style="color:var(--ready)"><use href="#i-check"/></svg>Logs</li><li><svg class="i" style="color:var(--ready)"><use href="#i-check"/></svg>Config</li><li><svg class="i" style="color:var(--ready)"><use href="#i-check"/></svg>System info</li></ul></div>
+                  <div><b>Does not contain</b><ul class="muted"><li><svg class="i" style="color:var(--text-3)"><use href="#i-x"/></svg>Stream keys</li><li><svg class="i" style="color:var(--text-3)"><use href="#i-x"/></svg>Rosters</li><li><svg class="i" style="color:var(--text-3)"><use href="#i-x"/></svg>Recordings</li></ul></div>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><h3>Share diagnostics</h3></div>
+              <div class="pb col-g">
+                <span class="muted">Fieldhouse is open source, so you can attach the bundle to a public GitHub issue. Review it first, because anything you attach is public.</span>
+                <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn sm"><svg class="i sm"><use href="#i-folder"/></svg>Reveal bundle in folder</button><button class="btn sm"><svg class="i sm"><use href="#i-eye"/></svg>Preview contents</button></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><h3>Telemetry</h3><span class="sp"></span><span class="pill off">Off</span></div>
+              <div class="pb col-g">
+                <div class="row"><span class="switch" role="switch" aria-checked="false"></span><b>Send anonymous usage data</b></div>
+                <span class="muted">Fieldhouse never sends data unless you turn this on. Opt-in is anonymous: version, OS and crash signature only.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+       </div>
+      </div>
+     </main>
+    </div>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

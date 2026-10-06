@@ -1,0 +1,33 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "web/screens/console.js"
+        ],
+        "createdAt": "2026-10-05T22:40:25.301Z",
+        "reason": "Fieldhouse: .l3 is the on-air lower-third graphic, whose left accent bar is a broadcast convention, not a UI card"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "web/screens/console.js"
+        ],
+        "createdAt": "2026-10-05T22:40:25.335Z",
+        "reason": "Fieldhouse: monitor/tile <img> elements get their src from the 250 ms snapshot poller; empty alt with no src renders nothing"
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fieldhouse</title>
+<style>
+  body { margin: 0; height: 100vh; display: grid; place-items: center; background: #0B1018; color: #E6EAF2; font: 16px system-ui, sans-serif; }
+  main { max-width: 32rem; padding: 2rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .75rem; }
+  p { color: #9AA6B8; line-height: 1.5; }
+  button { background: #2E6FD8; color: #fff; border: 0; border-radius: 8px; padding: .65rem 1.1rem; font: inherit; cursor: pointer; margin-right: .5rem; }
+  button.quiet { background: #1B2536; }
+</style>
+<main>
+  <h1>Fieldhouse could not start its engine</h1>
+  <p>The background service stopped several times in a row. Your games and recordings are safe on disk. Open the logs to see why, then restart the app.</p>
+  <button id="logs">Show logs</button><button id="data" class="quiet">Show data folder</button>
+</main>
+<script src="error.js"></script>

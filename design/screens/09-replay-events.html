@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Replay and Events</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.rp{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:16px;height:100%}
+.lc{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;min-width:0;min-height:0}
+.top2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;min-width:0}
+.tr{display:flex;align-items:center;gap:10px;margin-top:10px;min-width:0}
+.tr .btn{width:40px;padding:0}
+.tr .slider{flex:1}
+.tr .slider b{width:33%}
+.clip{display:flex;flex-direction:column;gap:12px;padding:14px;min-width:0}
+.io{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.io .mono{font-size:15px;font-weight:600}
+.io .btn{width:40px;padding:0}
+/* timeline */
+.tl{display:grid;grid-template-columns:104px minmax(0,1fr);grid-template-rows:28px repeat(4,minmax(0,1fr));flex:1;min-height:0;position:relative}
+.tl .lab{display:flex;align-items:center;gap:8px;padding:0 12px 0 14px;border-top:1px solid var(--line);font-weight:600;font-size:12.5px;color:var(--text-2)}
+.tl .lab b{margin-left:auto;font-weight:600;color:var(--text-3);font-variant-numeric:tabular-nums}
+.tl .lane{position:relative;border-top:1px solid var(--line)}
+.tl .axis{position:relative;font:11px/28px var(--mono);color:var(--text-3)}
+.ev.mark{width:auto;height:auto;border-radius:0;background:none;color:inherit;display:flex}
+.tl .axis span{position:absolute;top:0;transform:translateX(-50%)}
+.tl .axis span:first-child{transform:none}.tl .axis span:last-child{transform:translateX(-100%)}
+.tl .ev{position:absolute;top:50%;transform:translate(-50%,-50%);padding:0;border:0;flex-direction:column;gap:3px}
+.tl .ev .g{width:26px;height:26px}.tl .ev .g .i{width:15px;height:15px}
+.tl .ev .td{width:7px;height:7px;border-radius:50%}
+.tl .ev.sel .g{outline:2px solid var(--action-hi);outline-offset:2px}
+.ov{position:absolute;left:104px;right:0;top:0;bottom:0;pointer-events:none;overflow:hidden}
+.ov .gl{position:absolute;top:28px;bottom:0;width:1px;background:var(--line)}
+.ov .fut{position:absolute;top:28px;bottom:0;right:0;background:var(--inset);opacity:.78;display:grid;place-items:center;color:var(--text-3);font-size:12.5px}
+.ov .rng{position:absolute;top:28px;bottom:0;background:rgba(61,139,253,.18)}
+.ov .hd2{position:absolute;top:28px;bottom:0;width:2px;background:var(--action-hi)}
+.ov .hd2::before{content:"";position:absolute;top:-2px;left:-4px;width:10px;height:18px;border-radius:3px;background:var(--action-hi)}
+.ov .ph2{position:absolute;top:2px;bottom:0;width:2px;background:var(--text);margin-left:-1px}
+.ov .ph2::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top-color:var(--text);border-bottom:0;width:12px}
+.evl .ev{height:44px;padding:0 14px;min-width:0}
+.evl .ev .tx{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evl .ev.cur{background:var(--action-wash)}
+.evl .gl2{padding:8px 14px 6px;background:var(--inset);border-bottom:1px solid var(--line)}
+.key{display:flex;gap:6px}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper compact">
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Setup</span></div><i class="sep"></i>
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Check</span></div><i class="sep"></i>
+      <div class="st on live"><b>3</b><span>Live</span></div><i class="sep"></i>
+      <div class="st"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon sm" style="margin-left:4px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">48</span></div>
+      <div class="mid" style="display:flex"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>3</span><span class="clk">04:21</span></div>
+      <div class="team"><span class="score">44</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <h2 class="t" style="font-size:16px;margin-left:8px">Replay and events</h2>
+    <div class="sp"></div>
+    <span class="pill live">Live</span><span class="mono" style="font-size:14px;font-weight:600">01:12:38</span>
+    <button class="btn ghost sm" style="height:32px"><svg class="i"><use href="#i-left"/></svg>Back to console</button>
+  </header>
+
+  <main class="stage">
+   <div class="rp">
+    <section class="lc">
+      <div class="top2">
+        <div style="min-width:0">
+          <div class="monitor"><div class="feed center"></div>
+            <div class="bug"><div class="tm h"><i></i>WIL</div><div class="sc">45</div><div class="sc" style="background:#e6ecf4">41</div><div class="tm a">LIO<i></i></div><div class="cl"><small style="font:700 .7em var(--ui);color:#9FB0C5;margin-right:4px">Q</small>3<small style="margin:0 6px;opacity:0"> </small>4:55</div></div>
+            <span class="tag" style="background:var(--action)"><svg class="i sm"><use href="#i-replay"/></svg>REPLAY</span><span class="src" style="left:auto;right:8px">1 · Center court · 0.5×</span></div>
+          <div class="tr">
+            <button class="btn" aria-label="Step back"><svg class="i"><use href="#i-left"/></svg></button>
+            <button class="btn" aria-label="Play"><svg class="i"><use href="#i-play"/></svg></button>
+            <button class="btn" aria-label="Step forward"><svg class="i"><use href="#i-right"/></svg></button>
+            <span class="mono muted" style="font-size:12.5px">0:08</span><div class="slider" style="--v:33%"><b></b></div><span class="mono muted" style="font-size:12.5px">0:24</span>
+            <div class="seg"><span>1×</span><span class="on">½×</span><span>¼×</span></div>
+          </div>
+        </div>
+        <div class="panel clip">
+          <div class="col-g" style="gap:6px">
+            <div class="row" style="gap:8px"><span class="ev score" style="padding:0;border:0"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span></span><b>3-pointer</b><span class="sp"></span><span class="led" style="font-size:20px">04:55</span></div>
+            <span class="muted" style="font-size:12.5px"><b style="color:var(--text)">Wildcats</b> · #12 Reyes · Q3</span>
+          </div>
+          <hr class="hr">
+          <div class="io">
+            <span class="lbl">In</span><span class="mono">05:07</span><button class="btn sm">−1s</button><button class="btn sm">+1s</button>
+            <span class="lbl">Out</span><span class="mono">04:43</span><button class="btn sm">−1s</button><button class="btn sm">+1s</button>
+          </div>
+          <div class="field"><span class="fl">Angle</span><div class="select"><svg class="i" style="color:var(--text-2)"><use href="#i-video"/></svg>1 · Center court</div></div>
+          <div class="row" style="gap:8px"><span class="muted">Clip length</span><span class="sp"></span><span class="mono" style="font-weight:600">24 s</span></div>
+          <div class="sp"></div>
+          <button class="btn pri lg" style="width:100%"><svg class="i"><use href="#i-play"/></svg>Play to program</button>
+          <button class="btn lg" style="width:100%"><svg class="i"><use href="#i-star"/></svg>Save to highlights</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Timeline</h3><span class="muted" style="font-size:12px">Game clock, counting down</span><span class="sp"></span>
+          <div class="seg"><span>Q1</span><span>Q2</span><span class="on">Q3</span><span>Q4</span></div></div>
+        <div class="pb" style="display:flex;padding:0 14px 0 0">
+          <div class="tl">
+            <div></div>
+            <div class="axis"><span style="left:0">12:00</span><span style="left:16.67%">10:00</span><span style="left:33.33%">08:00</span><span style="left:50%">06:00</span><span style="left:66.67%">04:00</span><span style="left:83.33%">02:00</span><span style="left:100%">00:00</span></div>
+
+            <div class="lab"><span class="ev score" style="position:static;transform:none;display:block"><span class="g" style="width:22px;height:22px"><svg class="i"><use href="#i-ball"/></svg></span></span>Score<b>5</b></div>
+            <div class="lane">
+              <span class="ev score" style="left:5.6%"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><i class="td" style="background:var(--home)"></i></span>
+              <span class="ev score" style="left:20.1%"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><i class="td" style="background:var(--away)"></i></span>
+              <span class="ev score" style="left:31.7%"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><i class="td" style="background:var(--home)"></i></span>
+              <span class="ev score" style="left:44.4%"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><i class="td" style="background:var(--away)"></i></span>
+              <span class="ev score sel" style="left:59%"><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><i class="td" style="background:var(--home)"></i></span>
+            </div>
+
+            <div class="lab"><span class="ev foul" style="position:static;transform:none;display:block"><span class="g" style="width:22px;height:22px"><svg class="i"><use href="#i-whistle"/></svg></span></span>Foul<b>3</b></div>
+            <div class="lane">
+              <span class="ev foul" style="left:10%"><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><i class="td" style="background:var(--away)"></i></span>
+              <span class="ev foul" style="left:37.5%"><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><i class="td" style="background:var(--home)"></i></span>
+              <span class="ev foul" style="left:54.2%"><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><i class="td" style="background:var(--home)"></i></span>
+            </div>
+
+            <div class="lab"><span class="ev to" style="position:static;transform:none;display:block"><span class="g" style="width:22px;height:22px"><svg class="i"><use href="#i-timeout"/></svg></span></span>Timeout<b>1</b></div>
+            <div class="lane">
+              <span class="ev to" style="left:48.3%"><span class="g"><svg class="i"><use href="#i-timeout"/></svg></span><i class="td" style="background:var(--away)"></i></span>
+            </div>
+
+            <div class="lab"><span class="ev mark" style="position:static;transform:none;display:block"><span class="g" style="width:22px;height:22px"><svg class="i"><use href="#i-mark"/></svg></span></span>Marked<b>1</b></div>
+            <div class="lane">
+              <span class="ev mark" style="left:41%"><span class="g"><svg class="i"><use href="#i-mark"/></svg></span></span>
+            </div>
+
+            <div class="ov">
+              <i class="gl" style="left:16.67%"></i><i class="gl" style="left:33.33%"></i><i class="gl" style="left:50%"></i><i class="gl" style="left:66.67%"></i><i class="gl" style="left:83.33%"></i>
+              <div class="fut" style="left:63.75%">Not played yet</div>
+              <div class="rng" style="left:57.4%;width:3.3%"></div>
+              <i class="hd2" style="left:57.4%"></i><i class="hd2" style="left:60.7%"></i>
+              <i class="ph2" style="left:59%"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel evl">
+      <div class="ph"><h3>Events</h3><span class="sp"></span><span class="chip">10 in Q3</span><button class="btn sm"><svg class="i sm"><use href="#i-flag"/></svg>Mark moment</button></div>
+      <div style="padding:10px 14px;border-bottom:1px solid var(--line)"><div class="seg"><span class="on">All</span><span>Score</span><span>Foul</span><span>Timeout</span><span>Mark</span></div></div>
+      <div class="scroll" style="flex:1">
+        <div class="gl2 lbl">Q3</div>
+        <div class="ev score cur"><span class="t">04:55</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Wildcats</b> 3-pointer · #12 Reyes</span><button class="btn sm"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev foul"><span class="t">05:30</span><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><span class="tx"><b>Wildcats</b> foul · #4 Okafor</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev to"><span class="t">06:12</span><span class="g"><svg class="i"><use href="#i-timeout"/></svg></span><span class="tx"><b>Lions</b> timeout</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev score"><span class="t">06:40</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Lions</b> layup · #23 Brooks</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev mark"><span class="t">07:05</span><span class="g"><svg class="i"><use href="#i-mark"/></svg></span><span class="tx">Marked moment</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev foul"><span class="t">07:30</span><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><span class="tx"><b>Wildcats</b> foul · #4 Okafor</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev score"><span class="t">08:12</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Wildcats</b> 3-pointer · #12 Reyes</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev score"><span class="t">09:35</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Lions</b> 3-pointer · #23 Brooks</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev foul"><span class="t">10:48</span><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><span class="tx"><b>Lions</b> foul · #23 Brooks</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev score"><span class="t">11:20</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Wildcats</b> layup · #4 Okafor</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="gl2 lbl">Q2</div>
+        <div class="ev score"><span class="t">00:48</span><span class="g"><svg class="i"><use href="#i-ball"/></svg></span><span class="tx"><b>Lions</b> 3-pointer · #23 Brooks</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+        <div class="ev foul" style="border-bottom:0"><span class="t">02:10</span><span class="g"><svg class="i"><use href="#i-whistle"/></svg></span><span class="tx"><b>Wildcats</b> foul · #12 Reyes</span><button class="btn sm ghost"><svg class="i sm"><use href="#i-replay"/></svg>Replay</button></div>
+      </div>
+    </aside>
+   </div>
+  </main>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

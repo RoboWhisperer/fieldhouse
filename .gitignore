@@ -1,0 +1,5 @@
+data/
+design/_shots/
+node_modules/
+desktop/dist/
+desktop/build/server-*/

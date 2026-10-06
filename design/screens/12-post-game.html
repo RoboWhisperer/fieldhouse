@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Post-Game and Highlights</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.con{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:16px;height:100%}
+.left{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;min-height:0;min-width:0}
+.top{display:grid;grid-template-columns:704px minmax(0,1fr);gap:16px;min-width:0}
+.pl{display:grid;gap:8px;min-width:0}
+.pl .monitor{width:100%}
+.ctrl{display:flex;align-items:center;gap:12px;height:40px}
+.scrub{flex:1;height:6px;border-radius:3px;background:var(--line-strong);position:relative}
+.scrub b{position:absolute;left:0;top:0;bottom:0;width:41%;border-radius:3px;background:var(--action)}
+.scrub::after{content:"";position:absolute;top:50%;left:41%;width:12px;height:12px;border-radius:50%;background:var(--text);transform:translate(-50%,-50%)}
+.fl{display:grid;gap:4px;padding:12px 14px;border-bottom:1px solid var(--line);min-width:0}
+.fl:last-child{border-bottom:0}
+.fl .fn{font:12px/1.4 var(--mono);color:var(--text-2);word-break:break-all}
+.tl{padding:12px 14px;display:grid;grid-template-columns:96px minmax(0,1fr);gap:0 12px;align-items:center}
+.tl .ln{height:44px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.tl .tr{position:relative;height:44px;border-bottom:1px solid var(--line)}
+.tl .tr.ax{height:24px;font:11px/24px var(--mono);color:var(--text-3)}
+.tl .tr.ax span{position:absolute;top:0;transform:translateX(-50%)}
+.tl .tr i{position:absolute;top:50%;width:4px;height:16px;border-radius:2px;transform:translate(-50%,-50%);background:var(--text-2)}
+.tl .tr i.h{background:var(--home)}.tl .tr i.a{background:var(--away)}
+.tl .tr i.f{background:var(--caution)}.tl .tr i.t{background:var(--action-hi)}.tl .tr i.m{background:#B7A4FF}
+.tl .ph2{position:relative}
+.hl{display:grid;grid-template-columns:18px 18px 62px minmax(0,1fr) 44px;gap:10px;align-items:center;padding:0 14px;height:48px;border-bottom:1px solid var(--line);font-size:13px}
+.hl .tm{font:12px var(--mono);color:var(--text-3)}
+.hl .ds{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hl .du{font:12px var(--mono);color:var(--text-2);text-align:right}
+.hl.off .ds,.hl.off .du{color:var(--text-3)}
+.hl .dg{color:var(--text-3)}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper compact">
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Setup</span></div><i class="sep"></i>
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Check</span></div><i class="sep"></i>
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Live</span></div><i class="sep"></i>
+      <div class="st on"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon sm" style="margin-left:4px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">62</span></div>
+      <div class="mid"><span class="tag">Final</span><span class="clk">00:00</span></div>
+      <div class="team"><span class="score">55</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <div class="sp"></div>
+    <span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Remux finished</span>
+    <span class="faint" style="font-size:12px">Oct 5, 2026 · Main Gym</span>
+    <button class="btn ghost sm" style="height:32px"><svg class="i"><use href="#i-home"/></svg>Exit to Home</button>
+  </header>
+
+  <main class="stage">
+   <div class="con">
+    <section class="left">
+      <div class="top">
+        <div class="pl">
+          <div class="monitor"><div class="feed center"></div>
+            <span class="tag"><svg class="i sm"><use href="#i-rec"/></svg>RECORDING</span><span class="src">Program · 0:48:12</span></div>
+          <div class="ctrl">
+            <button class="btn sm" aria-label="Play"><svg class="i sm"><use href="#i-play"/></svg></button>
+            <span class="mono muted">0:48:12</span><div class="scrub"><b></b></div><span class="mono muted">1:58:42</span>
+            <div class="seg"><span class="on">1×</span><span>½×</span></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Files and exports</h3></div>
+          <div class="fl"><span class="lbl">Recording</span><span class="fn">2026-10-05_Wildcats-v-Lions_program.mp4</span><span class="faint">14.2 GB · 1:58:42</span>
+            <button class="btn sm" style="justify-self:start;margin-top:4px"><svg class="i sm"><use href="#i-folder"/></svg>Open folder</button></div>
+          <div class="fl"><span class="lbl">Events (42)</span>
+            <div class="row" style="gap:8px"><button class="btn sm"><svg class="i sm"><use href="#i-down2"/></svg>CSV</button><button class="btn sm"><svg class="i sm"><use href="#i-down2"/></svg>JSON</button></div></div>
+          <div class="fl"><span class="lbl">Per-source files</span><span class="faint">Not recorded (off for this game)</span></div>
+          <div class="fl"><span class="lbl">Sponsors</span><span class="faint">5 airings recorded</span>
+            <a href="#" class="row" style="gap:6px;color:var(--action-hi);font-weight:600;text-decoration:none"><svg class="i sm"><use href="#i-chart"/></svg>Proof-of-play report</a></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ph"><h3>Event timeline</h3><span class="sp"></span>
+          <span class="row faint" style="gap:12px;font-size:12px"><span class="row" style="gap:6px"><i class="swatch" style="background:var(--home)"></i>Wildcats</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--away)"></i>Lions</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--caution)"></i>Foul</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--action-hi)"></i>Timeout</span><span class="row" style="gap:6px"><i class="swatch" style="background:#B7A4FF"></i>Marked</span></span></div>
+        <div class="tl">
+          <span></span><div class="tr ax"><span style="left:0%;transform:none">0:00</span><span style="left:24%">Q2</span><span style="left:50%">Half</span><span style="left:74%">Q4</span><span style="left:99%;transform:translateX(-100%)">1:58</span></div>
+          <div class="ln"><svg class="i sm"><use href="#i-ball"/></svg>Wildcats</div>
+          <div class="tr"><i class="h" style="left:6%"></i><i class="h" style="left:10%"></i><i class="h" style="left:14%"></i><i class="h" style="left:20%"></i><i class="h" style="left:27%"></i><i class="h" style="left:33%"></i><i class="h" style="left:38%"></i><i class="h" style="left:45%"></i><i class="h" style="left:57%"></i><i class="h" style="left:63%"></i><i class="h" style="left:68%"></i><i class="h" style="left:76%"></i><i class="h" style="left:84%"></i><i class="h" style="left:92%"></i><i class="h" style="left:97%"></i></div>
+          <div class="ln"><svg class="i sm"><use href="#i-ball"/></svg>Lions</div>
+          <div class="tr"><i class="a" style="left:8%"></i><i class="a" style="left:12%"></i><i class="a" style="left:18%"></i><i class="a" style="left:30%"></i><i class="a" style="left:41%"></i><i class="a" style="left:60%"></i><i class="a" style="left:66%"></i><i class="a" style="left:73%"></i><i class="a" style="left:81%"></i><i class="a" style="left:88%"></i></div>
+          <div class="ln"><svg class="i sm"><use href="#i-whistle"/></svg>Fouls</div>
+          <div class="tr"><i class="f" style="left:9%"></i><i class="f" style="left:16%"></i><i class="f" style="left:25%"></i><i class="f" style="left:36%"></i><i class="f" style="left:44%"></i><i class="f" style="left:59%"></i><i class="f" style="left:70%"></i><i class="f" style="left:79%"></i><i class="f" style="left:90%"></i></div>
+          <div class="ln"><svg class="i sm"><use href="#i-timeout"/></svg>Timeouts</div>
+          <div class="tr"><i class="t" style="left:15%"></i><i class="t" style="left:34%"></i><i class="t" style="left:64%"></i><i class="t" style="left:85%"></i></div>
+          <div class="ln"><svg class="i sm"><use href="#i-mark"/></svg>Marked</div>
+          <div class="tr" style="border-bottom:0"><i class="m" style="left:22%"></i><i class="m" style="left:67%"></i><i class="m" style="left:93%"></i></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="ph"><h3>Highlights</h3><span class="sp"></span><span class="chip"><svg class="i sm"><use href="#i-film"/></svg>8 of 12 clips</span></div>
+      <div class="row" style="padding:10px 14px;border-bottom:1px solid var(--line)">
+        <span class="switch on"></span><div style="min-width:0"><div style="font-weight:600">Title card</div><div class="faint" style="font-size:12px">Wildcats 62, Lions 55 · Oct 5</div></div>
+        <span class="sp"></span><div class="select" style="height:32px;width:160px;white-space:nowrap">Pre 5 s · Post 3 s</div>
+      </div>
+      <div class="scroll" style="flex:1">
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q1 06:48</span><span class="ds"><b>Wildcats</b> 3-pointer · #12 Reyes</span><span class="du">0:12</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q1 04:30</span><span class="ds"><b>Wildcats</b> steal and layup · #7 Diaz</span><span class="du">0:11</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q1 02:15</span><span class="ds"><b>Lions</b> layup · #23 Brooks</span><span class="du">0:10</span></div>
+        <div class="hl off"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check"></span><span class="tm">Q2 07:15</span><span class="ds"><b>Lions</b> 3-pointer · #4 Okafor</span><span class="du">0:12</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q2 05:30</span><span class="ds"><b>Wildcats</b> fast-break layup · #7 Diaz</span><span class="du">0:11</span></div>
+        <div class="hl off"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check"></span><span class="tm">Q2 00:41</span><span class="ds"><b>Lions</b> free throw · #4 Okafor</span><span class="du">0:12</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q3 07:40</span><span class="ds"><b>Wildcats</b> and-one · #23 Hall</span><span class="du">0:13</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q3 04:55</span><span class="ds"><b>Wildcats</b> 3-pointer · #12 Reyes</span><span class="du">0:12</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q3 01:20</span><span class="ds">Marked moment · steal and dunk</span><span class="du">0:14</span></div>
+        <div class="hl off"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check"></span><span class="tm">Q4 05:45</span><span class="ds"><b>Lions</b> dunk · #23 Brooks</span><span class="du">0:11</span></div>
+        <div class="hl off"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check"></span><span class="tm">Q4 03:02</span><span class="ds"><b>Lions</b> 3-pointer · #4 Okafor</span><span class="du">0:10</span></div>
+        <div class="hl"><span class="dg"><svg class="i"><use href="#i-drag"/></svg></span><span class="check on"><svg class="i"><use href="#i-check"/></svg></span><span class="tm">Q4 00:09</span><span class="ds"><b>Wildcats</b> go-ahead layup · #23 Hall</span><span class="du">0:13</span></div>
+      </div>
+      <div class="row" style="padding:12px 14px;border-top:1px solid var(--line)">
+        <div style="min-width:0"><div class="faint" style="font-size:12px">Total length</div><div class="mono" style="font-size:16px;font-weight:650">1:40</div></div>
+        <span class="sp"></span>
+        <button class="btn pri lg"><svg class="i"><use href="#i-film"/></svg>Export highlights</button>
+      </div>
+    </aside>
+   </div>
+  </main>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

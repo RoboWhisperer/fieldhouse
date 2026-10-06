@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test + sidecar smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest   # pin an exact version once the project settles on one
+      - run: bun test
+      - name: Compile the sidecar for this OS
+        run: bun scripts/build-sidecar.ts
+      - name: Smoke test the compiled sidecar (API, UI, embedded assets, SIGTERM exit)
+        run: bun scripts/smoke-sidecar.ts
+
+  desktop-lint:
+    name: desktop shell syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check desktop/main.js && node --check desktop/preload.js && node --check desktop/error.js

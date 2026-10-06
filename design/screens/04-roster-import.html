@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Roster Import</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.ro{display:grid;grid-template-columns:420px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:16px;height:100%}
+.ro .full{grid-column:1/-1}
+.map{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.map .select{height:32px}
+.file{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--inset)}
+.tbl.dn td{height:40px}
+.tbl.dn td.nm{width:64px}
+.tbl tr.dup td{background:var(--caution-wash)}
+.num{display:inline-grid;place-items:center;min-width:36px;height:28px;border-radius:6px;border:1px solid var(--line);background:var(--inset);font:600 13px var(--mono)}
+.tr-dup .num{border-color:var(--caution);color:var(--caution)}
+.foot{display:flex;align-items:center;gap:12px}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper">
+      <div class="st on"><b>1</b><span>Setup</span></div><i class="sep"></i>
+      <div class="st"><b>2</b><span>Check</span></div><i class="sep"></i>
+      <div class="st live"><b>3</b><span>Live</span></div><i class="sep"></i>
+      <div class="st"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon pre" style="margin-left:8px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">00</span></div>
+      <div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>1</span><span class="clk">00:00</span><span class="tag">Tip-off 7:00 PM</span></div>
+      <div class="team"><span class="score">00</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <div class="sp"></div>
+    <button class="btn ghost sm">Save and exit</button>
+  </header>
+  <main class="stage">
+   <div class="ro">
+    <div class="tabs full">
+      <span class="on"><i class="swatch" style="background:var(--home);margin-right:8px"></i>Home · Westfield Wildcats (12)</span>
+      <span><i class="swatch" style="background:var(--away);margin-right:8px"></i>Away · Lincoln Lions (0)</span>
+    </div>
+
+    <section class="panel">
+      <div class="ph"><h3>Import from CSV</h3><span class="sp"></span><button class="btn sm ghost">Paste from spreadsheet</button></div>
+      <div class="pb col-g" style="gap:16px">
+        <div class="file"><svg class="i lg" style="color:var(--ready)"><use href="#i-check"/></svg>
+          <div style="min-width:0"><div style="font-weight:600">wildcats-roster-2026.csv</div><div class="faint" style="font-size:12px">12 players found · columns detected</div></div>
+          <span class="sp"></span><button class="btn sm ghost">Replace</button></div>
+        <div class="field"><span class="fl">Match columns</span>
+          <div class="map">
+            <div class="col-g" style="gap:4px"><span class="hint">Number</span><div class="select">jersey_no</div></div>
+            <div class="col-g" style="gap:4px"><span class="hint">Name</span><div class="select">last_name</div></div>
+            <div class="col-g" style="gap:4px"><span class="hint">Position</span><div class="select">pos</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="muted" style="font-weight:600;margin-bottom:6px">Preview of first rows</div>
+          <table class="tbl dn">
+            <thead><tr><th>jersey_no</th><th>last_name</th><th>pos</th></tr></thead>
+            <tbody>
+              <tr><td class="m">12</td><td>Reyes</td><td>G</td></tr>
+              <tr><td class="m">4</td><td>Okafor</td><td>F</td></tr>
+              <tr><td class="m">23</td><td>Brooks</td><td>G</td></tr>
+              <tr><td class="m">7</td><td>Nguyen</td><td>F</td></tr>
+              <tr><td class="m">15</td><td>Davis</td><td>C</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="file" style="border-style:dashed;justify-content:center;color:var(--text-2)"><svg class="i"><use href="#i-up2"/></svg>Drop a different CSV here to replace</div>
+        <button class="btn" style="align-self:flex-start"><svg class="i"><use href="#i-plus"/></svg>Add player manually</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="ph"><h3>Roster</h3><span class="sp"></span><span class="muted">5 starters selected</span></div>
+      <div class="banner warn" style="margin:12px 14px 0"><svg class="i"><use href="#i-alert"/></svg><span><b>Number 23 is used twice.</b> Change one of them before going live.</span><span class="sp"></span><button class="btn sm">Jump to row</button></div>
+      <div class="scroll" style="flex:1;padding:4px 0">
+        <table class="tbl dn">
+          <thead><tr><th>#</th><th>Name</th><th>Position</th><th>Starter</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="num">4</span></td><td>Okafor</td><td class="muted">Forward</td><td><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td></td></tr>
+            <tr><td><span class="num">5</span></td><td>Hall</td><td class="muted">Guard</td><td><span class="check"></span></td><td></td></tr>
+            <tr><td><span class="num">7</span></td><td>Nguyen</td><td class="muted">Forward</td><td><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td></td></tr>
+            <tr><td><span class="num">10</span></td><td>Patel</td><td class="muted">Guard</td><td><span class="check"></span></td><td></td></tr>
+            <tr><td><span class="num">11</span></td><td>Kim</td><td class="muted">Guard</td><td><span class="check"></span></td><td></td></tr>
+            <tr><td><span class="num">12</span></td><td>Reyes</td><td class="muted">Guard</td><td><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td></td></tr>
+            <tr><td><span class="num">15</span></td><td>Davis</td><td class="muted">Center</td><td><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td></td></tr>
+            <tr><td><span class="num">21</span></td><td>Walker</td><td class="muted">Forward</td><td><span class="check"></span></td><td></td></tr>
+            <tr class="dup tr-dup"><td><span class="num">23</span></td><td>Brooks</td><td class="muted">Guard</td><td><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="n"><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>Duplicate #23</span></td></tr>
+            <tr class="dup tr-dup"><td><span class="num">23</span></td><td>Bryant</td><td class="muted">Forward</td><td><span class="check"></span></td><td class="n"><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>Duplicate #23</span></td></tr>
+            <tr><td><span class="num">30</span></td><td>Simmons</td><td class="muted">Guard</td><td><span class="check"></span></td><td></td></tr>
+            <tr><td><span class="num">33</span></td><td>Torres</td><td class="muted">Center</td><td><span class="check"></span></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="foot full">
+      <button class="btn ghost"><svg class="i"><use href="#i-left"/></svg>Back</button>
+      <span class="sp"></span>
+      <button class="btn ghost">Use numbers only</button>
+      <button class="btn pri lg">Continue to Sources<svg class="i"><use href="#i-right"/></svg></button>
+    </div>
+   </div>
+  </main>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

@@ -1,0 +1,195 @@
+<title>Fieldhouse UI Design</title>
+<style>
+/* Board concept: a design-file viewer (layers left, canvas center, inspector right) in the product's own ink-navy; the frames are the only bright things on it. */
+:root{
+  color-scheme:dark;
+  --bg:#080C12; --dot:#1a2331; --panel:#101722; --raised:#18212F; --line:#243044; --line2:#33425A;
+  --text:#EAF0F7; --text2:#9FB0C5; --text3:#8294AC; --action:#3D8BFD; --action-wash:#13294A; --ready:#2FB67C; --caution:#FF8A3D;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+}
+html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);font:13px/1.4 var(--ui);overflow:hidden}
+:root{padding:0!important}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid #5B9EFF;outline-offset:2px}
+.app{position:fixed;inset:0;display:grid;grid-template-columns:240px minmax(0,1fr) 288px;grid-template-rows:44px minmax(0,1fr);}
+.tb{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);min-width:0}
+.tb .mk{width:24px;height:24px;border-radius:6px;background:var(--action);display:grid;place-items:center;flex:none}
+.tb .mk svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tb h1{font-size:13px;font-weight:650;margin:0;white-space:nowrap}
+.tb .st{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--caution);background:#38210F;padding:3px 8px;border-radius:999px}
+.tb .sp{flex:1}
+.tb .grp{display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px}
+.tb button{height:28px;min-width:28px;padding:0 9px;border-radius:6px;border:0;background:transparent;color:var(--text2);font-weight:600;font-size:12px}
+.tb button:hover{background:var(--raised);color:var(--text)}
+.tb button[aria-pressed=true]{background:var(--action-wash);color:#9CC4FF}
+.tb .z{font:600 12px var(--mono);color:var(--text2);min-width:48px;text-align:center}
+.lay,.insp{background:var(--panel);min-height:0;overflow:auto}
+.lay{border-right:1px solid var(--line)} .insp{border-left:1px solid var(--line)}
+.lay h2,.insp h2{margin:0;padding:12px 14px 8px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)}
+.sec{padding:10px 14px 4px;font-size:12px;font-weight:650;color:var(--text2);display:flex;align-items:center;gap:6px}
+.sec::before{content:"";width:6px;height:6px;border-right:1.5px solid var(--text3);border-bottom:1.5px solid var(--text3);transform:rotate(45deg) translate(-1px,-1px);margin-right:3px}
+.li{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 14px 0 30px;border:0;background:transparent;text-align:left;color:var(--text2);font-size:12.5px}
+.li:hover{background:var(--raised);color:var(--text)}
+.li[aria-current=true]{background:var(--action-wash);color:var(--text)}
+.li svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;flex:none}
+.li .n{margin-left:auto;font:11px var(--mono);color:var(--text3)}
+.cv{position:relative;overflow:hidden;cursor:grab;background:var(--bg);background-image:radial-gradient(var(--dot) 1.2px,transparent 1.2px);background-size:24px 24px;touch-action:none;min-width:0}
+.cv.pan{cursor:grabbing}
+.world{position:absolute;left:0;top:0;transform-origin:0 0}
+.fr{position:absolute}
+.fr .lb{position:absolute;left:0;bottom:100%;margin-bottom:14px;display:flex;align-items:baseline;gap:10px;white-space:nowrap;font-size:26px;font-weight:620;color:#c9d5e6;cursor:pointer;letter-spacing:-.01em}
+.fr .lb small{font:500 18px var(--mono);color:var(--text3)}
+.fr .box{position:absolute;inset:0;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--line2),0 30px 80px rgba(0,0,0,.5);background:#0B1018}
+.fr.sel .box{box-shadow:0 0 0 4px var(--action),0 30px 80px rgba(0,0,0,.5)}
+.fr iframe{border:0;display:block;width:100%;height:100%;pointer-events:none;background:#0B1018}
+.fr.live iframe{pointer-events:auto}
+.fr .hit{position:absolute;inset:0}.fr.live .hit{display:none}
+.sectl{position:absolute;font-size:44px;font-weight:650;color:#e6edf7;letter-spacing:-.02em;white-space:nowrap}
+.sectl small{display:block;font-size:20px;font-weight:450;color:var(--text3);letter-spacing:0;margin-top:6px}
+svg.flow{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.insp .box{padding:0 14px 14px;display:grid;gap:12px}
+.insp .nm{font-size:16px;font-weight:650}
+.insp dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12.5px}
+.insp dt{color:var(--text3)}.insp dd{margin:0;color:var(--text);font-family:var(--mono);font-size:12px}
+.insp p{margin:0;color:var(--text2);font-size:12.5px}
+.insp .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--raised);font-size:11.5px;color:var(--text2);margin:0 4px 4px 0}
+.insp ul{margin:0;padding-left:16px;color:var(--text2);font-size:12.5px;display:grid;gap:4px}
+.insp .hr{height:1px;background:var(--line);margin:2px 0}
+.hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:rgba(16,23,34,.92);border:1px solid var(--line2);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--text2);white-space:nowrap}
+.hint b{color:var(--text);font-weight:600}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr);grid-template-rows:44px minmax(0,1fr)}.lay,.insp{display:none}.hint{display:none}.tb .hide-s{display:none}}
+</style>
+
+<div class="app">
+  <header class="tb">
+    <span class="mk"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3v18M5.6 5.6c3 2.8 3 10 0 12.8M18.4 5.6c-3 2.8-3 10 0 12.8"/></svg></span>
+    <h1>Fieldhouse · UI Design</h1><span class="st">Draft v0.1</span>
+    <span class="sp"></span>
+    <div class="grp"><button id="b-prev" title="Previous frame (←)" aria-label="Previous frame">‹</button><button id="b-next" title="Next frame (→)" aria-label="Next frame">›</button></div>
+    <div class="grp hide-s"><button id="b-int" aria-pressed="false" title="Let the selected frame receive clicks and hover (I)">Interact</button></div>
+    <div class="grp"><button id="b-out" aria-label="Zoom out">−</button><span class="z" id="zv">100%</span><button id="b-in" aria-label="Zoom in">+</button><button id="b-fit" title="Fit all (0)">Fit</button><button id="b-100" title="100% (1)">100%</button></div>
+  </header>
+  <nav class="lay" id="layers" aria-label="Layers"><h2>Layers</h2></nav>
+  <main class="cv" id="cv" tabindex="0" aria-label="Design canvas">
+    <div class="world" id="world"><svg class="flow" id="flow" width="1" height="1"></svg></div>
+    <div class="hint"><b>Scroll</b> to pan · <b>Ctrl/⌘ + scroll</b> to zoom · <b>Drag</b> to move · <b>Double-click</b> a frame to focus · <b>←/→</b> step through</div>
+  </main>
+  <aside class="insp" id="insp" aria-label="Inspector"><h2>Inspect</h2><div class="box" id="ib"></div></aside>
+</div>
+
+<script>
+(function(){
+  var D={w:1440,h:900}, P={w:390,h:844}, PX=1560, PY=1180;
+  var F=[
+   {id:'tokens',f:'00-tokens.html',t:'Design tokens',s:'Foundations',x:0,y:0,d:D,n:'Color, type, spacing, elevation. Single dark look, committed ink-navy shell; amber is reserved for game numerals.',spec:'§2 Visual system',notes:['Contrast checked ≥ 4.5:1 for body text','Red = on air or failure only','LED face carries digits, colon and dash only']},
+   {id:'components',f:'00-components.html',t:'Component library',s:'Foundations',x:PX,y:0,d:D,n:'Buttons, pills, tiles, ribbon states, checklist rows, banners.',spec:'§4 Shared components',notes:['Primary operator targets ≥ 48px','Every state is icon + text + color','Live pill is the only ambient animation']},
+   {id:'newgame',f:'03-new-game.html',t:'New game',s:'Game Night · Setup & Check',x:0,y:PY,d:D,n:'Teams, details, destinations. The Game Ribbon previews live as you type.',spec:'§5.3',notes:['Clones the last game at the same venue','Destination connection tested inline']},
+   {id:'roster',f:'04-roster-import.html',t:'Roster import',s:'Game Night · Setup & Check',x:PX,y:PY,d:D,n:'CSV drop, column mapping, editable roster, duplicate-number warning.',spec:'§5.4',notes:['Skippable: "Use numbers only"','Parse errors flag the row with a fix']},
+   {id:'venue',f:'05-venue-sources.html',t:'Venue & sources',s:'Game Night · Setup & Check',x:PX*2,y:PY,d:D,n:'Detect devices, assign to four slots, save the venue setup.',spec:'§5.5',notes:['One source is valid','Unplugged device shows Reconnect']},
+   {id:'preflight',f:'06-preflight.html',t:'Preflight check',s:'Game Night · Setup & Check',x:PX*3,y:PY,d:D,n:'The gate to going live. Fails block Go live; warnings need acknowledgment.',spec:'§5.6',notes:['Go live disabled until blockers clear','Test stream privately is P1']},
+   {id:'console',f:'07-live-console.html',t:'Live production console',s:'Game Night · Live & Wrap-up',x:0,y:PY*2,d:D,n:'The anchor screen: monitors, sources, transitions, graphics, audio, game state, events, sponsor break.',spec:'§5.7',notes:['Enter = Cut · ⇧Enter = Fade · R = Replay · F = Fire sponsor','End broadcast requires a 1.5 s hold','Score bug updates within ~100 ms of a score change']},
+   {id:'replay',f:'09-replay-events.html',t:'Replay & events',s:'Game Night · Live & Wrap-up',x:PX,y:PY*2,d:D,n:'Event timeline built from the Game Ribbon grammar; in/out handles; play to program.',spec:'§5.9',notes:['Replay on screen < ~2 s after keypress','Marks appear as the game is played']},
+   {id:'postgame',f:'12-post-game.html',t:'Post-game & highlights',s:'Game Night · Live & Wrap-up',x:PX*2,y:PY*2,d:D,n:'Final ribbon, recording, auto-selected highlight clips, exports.',spec:'§5.12',notes:['Highlights = each score with pre/post roll','Remux progress shown while finalizing']},
+   {id:'phone',f:'08-phone-remote.html',t:'Phone remote',s:'Game Night · Live & Wrap-up',x:PX*3,y:PY*2,d:P,n:'Second operator drives the clock and score from a phone browser on the gym Wi-Fi.',spec:'§5.8',notes:['Pairs by QR code from the console','Targets ≥ 56px in the thumb zone']},
+   {id:'onboarding',f:'01-onboarding.html',t:'Onboarding',s:'Manage',x:0,y:PY*3,d:D,n:'First run: detect a camera, practice broadcast, honest trial status.',spec:'§5.1',notes:['Skip path with a test pattern','Free and open source: no account, no trial, no license check']},
+   {id:'home',f:'02-home.html',t:'Home & schedule',s:'Manage',x:PX,y:PY*3,d:D,n:'Next game hero with Start game night; upcoming, recent, season summary.',spec:'§5.2',notes:['Resume live game bar appears after a crash','Storage banner when space is low']},
+   {id:'sponsors',f:'10-sponsor-library.html',t:'Sponsor library',s:'Manage',x:PX*2,y:PY*3,d:D,n:'Sponsors, assets, plain-language rules, and a break planner.',spec:'§5.10',notes:['Rule conflicts resolved by priority order','Operator-triggered by default (U-3)']},
+   {id:'proof',f:'11-proof-of-play.html',t:'Proof of play',s:'Manage',x:PX*3,y:PY*3,d:D,n:'Airings table, filters, CSV/PDF export, PDF preview drawer.',spec:'§5.11',notes:['No invented audience numbers','Viewer counts only if entered by hand']},
+   {id:'settings',f:'14-settings.html',t:'Settings · Destinations',s:'Settings',x:0,y:PY*5,d:D,n:'YouTube, Facebook, custom RTMP with masked stream key; unsaved-changes guard.',spec:'§5.14',notes:['Stream keys masked, Reveal on demand','Unsaved-changes guard']},
+   {id:'set-themes',f:'14b-settings-themes.html',t:'Settings · Graphics themes',s:'Settings',x:PX,y:PY*5,d:D,n:'Four built-in themes with team colors. Themes are plain HTML and CSS files.',spec:'§5.14',notes:['No theme editor in v1','Contrast check on team colors']},
+   {id:'set-sport',f:'14c-settings-sport-profile.html',t:'Settings · Sport profile',s:'Settings',x:PX*2,y:PY*5,d:D,n:'Basketball rules, clock behavior, scoring. Other sports are community contributions.',spec:'§5.14',notes:['Profiles are data plus small logic','Football and volleyball come later']},
+   {id:'set-keys',f:'14d-settings-shortcuts.html',t:'Settings · Keyboard shortcuts',s:'Settings',x:PX*3,y:PY*5,d:D,n:'Grouped keymap with edit, conflict warning, copy as text.',spec:'§5.14',notes:['Printing is unavailable: Copy as text instead']},
+   {id:'set-remote',f:'14e-settings-remote.html',t:'Settings · Remote',s:'Settings',x:0,y:PY*6,d:D,n:'QR and pairing code for the phone remote; connected devices and permissions.',spec:'§5.8 · §5.14',notes:['Works on gym Wi-Fi, no internet or account']},
+   {id:'set-storage',f:'14f-settings-storage.html',t:'Settings · Storage',s:'Settings',x:PX,y:PY*6,d:D,n:'Recordings folder, disk usage, retention, guarded deletion.',spec:'§5.14',notes:['Recordings never leave the computer unless exported']},
+   {id:'set-diag',f:'14g-settings-diagnostics.html',t:'Settings · Diagnostics',s:'Settings',x:PX*2,y:PY*6,d:D,n:'Last-game health chart, log viewer, diagnostics bundle, opt-in telemetry (off).',spec:'§5.14',notes:['Bundle excludes stream keys and rosters','Telemetry is opt-in and off by default']},
+   {id:'set-about',f:'14h-settings-about.html',t:'Settings · About and open source',s:'Settings',x:PX*3,y:PY*6,d:D,n:'Free and open source: license, source, ways to help, third-party notices. No license keys.',spec:'§5.14',notes:['Working license choice GPL-3.0-or-later (D-07)','Repository link is a placeholder']},
+   {id:'r-restored',f:'13a-recovery-restored.html',t:'Restored after crash',s:'Recovery states',x:0,y:PY*4,d:D,n:'Relaunch restores clock, score, sponsor counts; recording resumed.',spec:'§5.13',notes:['Check clock opens the editor','Resume within one minute']},
+   {id:'r-source',f:'13b-recovery-source-dropped.html',t:'Source dropped',s:'Recovery states',x:PX,y:PY*4,d:D,n:'Program shows a designed slate; one-click switch to another camera.',spec:'§5.13',notes:['Auto-return on reconnect with a 5 s toast']},
+   {id:'r-stream',f:'13c-recovery-stream-disconnected.html',t:'Stream disconnected',s:'Recovery states',x:PX*2,y:PY*4,d:D,n:'Recording is safe; reconnect attempts and backup destination.',spec:'§5.13',notes:['Recording never depends on the stream']},
+   {id:'r-disk',f:'13d-recovery-disk-low.html',t:'Disk nearly full',s:'Recovery states',x:PX*3,y:PY*4,d:D,n:'Minutes remaining and a guarded clean-up of old recordings.',spec:'§5.13',notes:['Delete requires typing the game name']}
+  ];
+  var flow=[['newgame','roster','Continue'],['roster','venue','Continue'],['venue','preflight','Run checks'],['preflight','console','Go live'],['console','postgame','End broadcast']];
+  var cv=document.getElementById('cv'), world=document.getElementById('world'), svg=document.getElementById('flow'), layers=document.getElementById('layers'), ib=document.getElementById('ib'), zv=document.getElementById('zv');
+  var view={x:0,y:0,k:.2}, sel=null, byId={};
+
+  // sections
+  var secs=[], seen={};
+  F.forEach(function(f){ if(!seen[f.s]){seen[f.s]=1; secs.push({n:f.s,x:f.x,y:f.y});} });
+  var secNote={'Foundations':'Tokens and the component library','Game Night · Setup & Check':'Setup → Check: four steps before going on air','Game Night · Live & Wrap-up':'The live console, replay, post-game, and the phone remote','Manage':'Home, onboarding, sponsors, reports','Settings':'Every settings section, one frame each','Recovery states':'Designed failure states, not afterthoughts'};
+  secs.forEach(function(s){ var d=document.createElement('div'); d.className='sectl'; d.style.left=s.x+'px'; d.style.top=(s.y-190)+'px'; d.innerHTML=s.n+'<small>'+(secNote[s.n]||'')+'</small>'; world.appendChild(d); });
+
+  F.forEach(function(f){
+    byId[f.id]=f; f.w=f.d.w; f.h=f.d.h;
+    var el=document.createElement('div'); el.className='fr'; el.style.cssText='left:'+f.x+'px;top:'+f.y+'px;width:'+f.w+'px;height:'+f.h+'px';
+    el.innerHTML='<div class="lb">'+f.t+' <small>'+f.w+'×'+f.h+'</small></div><div class="box"><iframe loading="lazy" title="'+f.t+'" src="screens/'+f.f+'" width="'+f.w+'" height="'+f.h+'"></iframe><div class="hit"></div></div>';
+    el.addEventListener('dblclick',function(){select(f.id,true)});
+    el.querySelector('.hit').addEventListener('click',function(){select(f.id,false)});
+    el.querySelector('.lb').addEventListener('click',function(){select(f.id,true)});
+    f.el=el; world.appendChild(el);
+  });
+
+  // layers
+  var cur=''; F.forEach(function(f){
+    if(f.s!==cur){cur=f.s; var h=document.createElement('div'); h.className='sec'; h.textContent=cur; layers.appendChild(h);}
+    var b=document.createElement('button'); b.className='li'; b.dataset.id=f.id;
+    b.innerHTML='<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/></svg><span>'+f.t+'</span><span class="n">'+f.spec.replace('§','')+'</span>';
+    b.onclick=function(){select(f.id,true)}; f.li=b; layers.appendChild(b);
+  });
+
+  // flow connectors
+  function drawFlow(){
+    var out='<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5B9EFF"/></marker></defs>';
+    flow.forEach(function(c){
+      var a=byId[c[0]], b=byId[c[1]], p, lx, ly;
+      if(a.y===b.y){ var x1=a.x+a.w, y1=a.y+a.h/2, x2=b.x; p='M'+x1+' '+y1+'L'+(x2-6)+' '+y1; lx=(x1+x2)/2; ly=y1-16; }
+      else { var x1=a.x+a.w/2, y1=a.y+a.h, x2=b.x+b.w/2, y2=b.y, my=(y1+y2)/2+10; p='M'+x1+' '+y1+'L'+x1+' '+my+'L'+x2+' '+my+'L'+x2+' '+(y2-20); lx=(x1+x2)/2; ly=my-16; }
+      out+='<path d="'+p+'" fill="none" stroke="#5B9EFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ah)"/>';
+      out+='<text x="'+lx+'" y="'+ly+'" text-anchor="middle" font-size="22" font-weight="600" fill="#9CC4FF" font-family="system-ui,sans-serif">'+c[2]+'</text>';
+    });
+    svg.innerHTML=out;
+  }
+  drawFlow();
+
+  function apply(){ world.style.transform='translate('+view.x+'px,'+view.y+'px) scale('+view.k+')'; zv.textContent=Math.round(view.k*100)+'%'; }
+  function bounds(list){ var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; list.forEach(function(f){x0=Math.min(x0,f.x);y0=Math.min(y0,f.y-200);x1=Math.max(x1,f.x+f.w);y1=Math.max(y1,f.y+f.h)}); return {x:x0,y:y0,w:x1-x0,h:y1-y0}; }
+  function fit(r,pad,anim){ var W=cv.clientWidth,H=cv.clientHeight,k=Math.min((W-pad*2)/r.w,(H-pad*2)/r.h); k=Math.max(.04,Math.min(2,k)); view.k=k; view.x=(W-r.w*k)/2-r.x*k; view.y=(H-r.h*k)/2-r.y*k; world.style.transition=anim?'transform .35s cubic-bezier(.16,1,.3,1)':'none'; apply(); }
+  function fitAll(){ fit(bounds(F),40,true); }
+  function zoomAt(f,cx,cy){ var k=Math.max(.04,Math.min(3,view.k*f)); view.x=cx-(cx-view.x)*(k/view.k); view.y=cy-(cy-view.y)*(k/view.k); view.k=k; world.style.transition='none'; apply(); }
+  function select(id,focus){
+    sel=id; F.forEach(function(f){ f.el.classList.toggle('sel',f.id===id); f.li.setAttribute('aria-current',f.id===id); if(f.id!==id) f.el.classList.remove('live'); });
+    document.getElementById('b-int').setAttribute('aria-pressed','false');
+    var f=byId[id]; if(focus) fit({x:f.x,y:f.y-60,w:f.w,h:f.h+60},60,true);
+    f.li.scrollIntoView({block:'nearest'});
+    ib.innerHTML='<div class="nm">'+f.t+'</div><div><span class="pill">'+f.s+'</span><span class="pill">'+f.spec+'</span></div><p>'+f.n+'</p><div class="hr"></div><dl><dt>Frame</dt><dd>'+f.w+' × '+f.h+'</dd><dt>File</dt><dd>screens/'+f.f.replace('.html','')+'</dd><dt>Shell</dt><dd>'+(f.s==='Manage'?'Manage (rail)':f.s.indexOf('Game Night')===0?'Game Night':'Reference')+'</dd></dl><div class="hr"></div><ul>'+f.notes.map(function(n){return '<li>'+n+'</li>'}).join('')+'</ul>';
+    try{ history.replaceState(null,'','#'+id.replace(/[^a-z]/g,'')); }catch(e){}
+  }
+  function step(d){ var i=F.findIndex(function(f){return f.id===sel}); i=(i+d+F.length)%F.length; select(F[i].id,true); }
+
+  // input
+  var drag=null, space=false;
+  cv.addEventListener('wheel',function(e){ e.preventDefault(); var r=cv.getBoundingClientRect(); if(e.ctrlKey||e.metaKey){ zoomAt(Math.exp(-e.deltaY*.0025),e.clientX-r.left,e.clientY-r.top); } else { view.x-=e.deltaX; view.y-=e.deltaY; world.style.transition='none'; apply(); } },{passive:false});
+  cv.addEventListener('pointerdown',function(e){ if(e.target.closest('.lb')||e.target.closest('iframe'))return; drag={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y,m:false}; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove',function(e){ if(!drag)return; var dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.abs(dx)+Math.abs(dy)>3){drag.m=true;cv.classList.add('pan')} if(drag.m){ view.x=drag.vx+dx; view.y=drag.vy+dy; world.style.transition='none'; apply(); } });
+  function up(){ drag=null; cv.classList.remove('pan'); }
+  cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+  document.addEventListener('keydown',function(e){
+    if(e.target.tagName==='IFRAME')return;
+    if(e.key==='ArrowRight'){e.preventDefault();step(1)} else if(e.key==='ArrowLeft'){e.preventDefault();step(-1)}
+    else if(e.key==='0'||e.key==='Escape'){fitAll()} else if(e.key==='1'){ var r=cv.getBoundingClientRect(); zoomAt(1/view.k,r.width/2,r.height/2) }
+    else if(e.key==='+'||e.key==='='){var r2=cv.getBoundingClientRect();zoomAt(1.25,r2.width/2,r2.height/2)} else if(e.key==='-'){var r3=cv.getBoundingClientRect();zoomAt(.8,r3.width/2,r3.height/2)}
+    else if((e.key==='i'||e.key==='I')&&sel){ document.getElementById('b-int').click() }
+    else if(e.key==='Enter'&&sel){ select(sel,true) }
+  });
+  function btn(id,fn){document.getElementById(id).addEventListener('click',fn)}
+  btn('b-fit',fitAll); btn('b-100',function(){var r=cv.getBoundingClientRect();zoomAt(1/view.k,r.width/2,r.height/2)});
+  btn('b-in',function(){var r=cv.getBoundingClientRect();zoomAt(1.25,r.width/2,r.height/2)}); btn('b-out',function(){var r=cv.getBoundingClientRect();zoomAt(.8,r.width/2,r.height/2)});
+  btn('b-prev',function(){step(-1)}); btn('b-next',function(){step(1)});
+  btn('b-int',function(){ if(!sel)return; var f=byId[sel], on=!f.el.classList.contains('live'); f.el.classList.toggle('live',on); document.getElementById('b-int').setAttribute('aria-pressed',on); });
+  window.addEventListener('resize',function(){ if(!sel)fitAll(); });
+
+  // start
+  var h=(location.hash||'').replace('#',''), start=null; F.forEach(function(f){ if(f.id.replace(/[^a-z]/g,'')===h) start=f.id; });
+  if(start){ select(start,false); var f0=byId[start]; fit({x:f0.x,y:f0.y-60,w:f0.w,h:f0.h+60},60,false); } else { fitAll(); select('console',false); fitAll(); }
+})();
+</script>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Settings</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.wrap{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;min-height:0}
+.pg{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;height:100%;min-height:0}
+.two{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;min-height:0}
+.nav{display:grid;gap:2px;align-content:start}
+.nav a{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:var(--r-ctl);color:var(--text-2);text-decoration:none;font-weight:550}
+.nav a[aria-current]{background:var(--raised);color:var(--text)}
+.nav a:hover{background:var(--raised)}
+.cp{display:grid;gap:16px;align-content:start;min-width:0;min-height:0}
+.dst{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dst:last-child{border-bottom:0}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center}
+.sys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:14px 16px}
+.sys div{display:grid;gap:2px;min-width:0}
+.sys b{font-weight:600}
+.dirty{display:flex;align-items:center;gap:12px;padding:14px 32px;background:var(--raised);border-top:1px solid var(--line-strong)}
+.r1{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;min-height:0}
+.stack{display:flex;gap:2px;height:22px;border-radius:4px;overflow:hidden;background:var(--line-strong)}
+.stack b{display:block;height:100%}
+.leg{display:grid;grid-template-columns:repeat(4,auto);gap:8px 16px;justify-content:start}
+.leg span{display:flex;align-items:center;gap:6px;color:var(--text-2)}
+.leg i{width:10px;height:10px;border-radius:2px;display:block}
+.fr{display:grid;gap:6px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.fr:last-child{border-bottom:0}
+.pill.check{align-items:center}.tbl td,.tbl th{padding:0 12px}.cat{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.cat i{width:10px;height:10px;border-radius:2px;display:block}.tbl td{height:40px}
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#"><svg class="i lg"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i lg"><use href="#i-cal"/></svg>Games</a>
+    <a href="#"><svg class="i lg"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i lg"><use href="#i-book"/></svg>Library</a>
+    <a href="#" aria-current="page"><svg class="i lg"><use href="#i-gear"/></svg>Settings</a>
+    <span class="sp"></span>
+    <div class="foot"><span>Version 1.0 beta</span><span>214 GB free</span></div>
+  </nav>
+  <div class="col">
+    <header class="topbar">
+      <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, sponsors</div>
+      <span class="sp"></span>
+      <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+      <span class="avatar">NW</span>
+    </header>
+    <div class="wrap">
+     <main class="main-pad">
+      <div class="pg">
+       <h1 class="t">Settings</h1>
+       <div class="two">
+        <nav class="nav">
+          <a href="#"><svg class="i"><use href="#i-link"/></svg>Destinations</a>
+          <a href="#"><svg class="i"><use href="#i-film"/></svg>Graphics themes</a>
+          <a href="#"><svg class="i"><use href="#i-ball"/></svg>Sport profile</a>
+          <a href="#"><svg class="i"><use href="#i-sliders"/></svg>Keyboard shortcuts</a>
+          <a href="#"><svg class="i"><use href="#i-phone"/></svg>Remote</a>
+          <a href="#" aria-current="page"><svg class="i"><use href="#i-disk"/></svg>Storage</a>
+          <a href="#"><svg class="i"><use href="#i-help"/></svg>Diagnostics</a>
+          <a href="#"><svg class="i"><use href="#i-book"/></svg>About and open source</a>
+        </nav>
+        <div class="cp">
+<div class="r1">
+ <div class="panel"><div class="ph"><h3>Recordings folder and disk</h3></div>
+  <div class="pb" style="display:grid;gap:12px;align-content:start">
+   <div class="row"><div class="input mono" style="flex:1"><svg class="i" style="color:var(--text-2)"><use href="#i-folder"/></svg>/home/coach/Fieldhouse/Recordings</div><button class="btn"><svg class="i"><use href="#i-folder"/></svg>Change</button></div>
+   <div class="row" style="align-items:baseline"><span style="font-size:22px;font-weight:700" class="tnum">214 GB free</span><span class="muted">of 500 GB</span><span class="sp"></span><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>About 75 hours of recording left</span></div>
+   <div class="stack"><b style="width:47.6%;background:var(--action)"></b><b style="width:7.2%;background:var(--ready)"></b><b style="width:2.4%;background:var(--caution)"></b><b style="flex:1;background:var(--line-strong)"></b></div>
+   <div><div class="cat"><i style="background:var(--action)"></i><span><b>Recordings</b> <span class="muted">12 games, full-length video</span></span><span class="tnum">238 GB</span></div><div class="cat"><i style="background:var(--ready)"></i><span><b>Highlights</b> <span class="muted">Clips and replays you saved</span></span><span class="tnum">36 GB</span></div><div class="cat"><i style="background:var(--caution)"></i><span><b>App data</b> <span class="muted">Settings, graphics, logs</span></span><span class="tnum">12 GB</span></div><div class="cat"><i style="background:var(--line-strong)"></i><span><b>Free</b> <span class="muted">Available for new recordings</span></span><span class="tnum">214 GB</span></div></div>
+  </div></div>
+ <div class="panel"><div class="ph"><h3>Recording</h3></div>
+  <div class="fr"><span class="fl muted">Record format</span><b>MKV segments</b><span class="hint">Crash-safe. Remuxed to MP4 when you stop.</span></div>
+  <div class="fr"><span class="fl muted">Quality preset</span><div class="seg" style="justify-self:start"><span class="on">Standard</span><span>High</span></div></div>
+  <div class="fr"><span class="fl muted">Keep recordings for</span><div class="select">Never delete automatically</div><span class="hint">Other choices: 90 days, One season.</span></div>
+  <div class="fr"><div class="row"><span class="fl muted">Warn me when free space is below</span><span class="sp"></span><b class="tnum">40 GB</b></div><div class="slider" style="--v:20%;flex:none"><b style="width:20%"></b></div></div>
+ </div>
+</div>
+<div class="panel"><div class="ph"><h3>Recent recordings</h3></div>
+<table class="tbl"><thead><tr><th></th><th>Game</th><th>Date</th><th class="n">Size</th><th>Status</th></tr></thead><tbody>
+<tr><td style="width:36px"><span class="check"></span></td><td>Wildcats vs Lincoln Lions</td><td class="m">Oct 2, 2026</td><td class="n">4.2 GB</td><td><span class="pill ready">Saved</span></td></tr><tr><td style="width:36px"><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td>Wildcats at Central Tigers</td><td class="m">Sep 27, 2026</td><td class="n">3.8 GB</td><td><span class="pill info">Not exported</span></td></tr><tr><td style="width:36px"><span class="check on"><svg class="i"><use href="#i-check"/></svg></span></td><td>Wildcats vs Eastside Eagles</td><td class="m">Sep 20, 2026</td><td class="n">2.9 GB</td><td><span class="pill check">Needs remux</span></td></tr><tr><td style="width:36px"><span class="check"></span></td><td>Wildcats vs Northgate</td><td class="m">Sep 13, 2026</td><td class="n">4.0 GB</td><td><span class="pill ready">Saved</span></td></tr>
+</tbody></table>
+<div class="row" style="padding:10px 14px;border-top:1px solid var(--line)"><svg class="i" style="color:var(--text-2)"><use href="#i-lock"/></svg><span class="muted">Recordings never leave this computer unless you export them. To delete, type the game name to confirm.</span><span class="sp"></span><button class="btn danger"><svg class="i"><use href="#i-x"/></svg>Delete selected (2)</button></div>
+</div>
+</div>
+        </div>
+       </div>
+      </div>
+     </main>
+    </div>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

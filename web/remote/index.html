@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0B1018"><meta name="referrer" content="no-referrer">
+<title>Fieldhouse Remote</title>
+<link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/ui.css"><link rel="stylesheet" href="/remote/remote.css">
+</head>
+<body class="remote">
+
+<!-- Pairing -->
+<main class="gate" id="s-pair" hidden>
+  <div class="gate-in">
+    <div class="brand-row"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span><b>Fieldhouse Remote</b></div>
+    <h1>Connect to the console</h1>
+    <p class="muted">Run the clock and score from this phone. It works on the gym Wi-Fi with no internet and no account.</p>
+    <form id="pf" autocomplete="off" novalidate>
+      <div class="field"><label for="code">Pairing code</label>
+        <input class="input big mono" id="code" name="code" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="WILD-4821" maxlength="24" aria-describedby="code-h">
+        <span class="hint" id="code-h">Shown on the console. Scanning its QR code fills this in.</span></div>
+      <div class="field"><label for="name">Your name</label>
+        <input class="input big" id="name" name="name" autocomplete="name" autocapitalize="words" spellcheck="false" enterkeyhint="go" placeholder="Coach Dana" maxlength="40" aria-describedby="perr"></div>
+      <p class="hint err perr" id="perr" role="alert"></p>
+      <button class="btn pri xl wide" id="pgo" type="submit">Connect</button>
+    </form>
+  </div>
+</main>
+
+<!-- Waiting for the console to approve -->
+<main class="gate" id="s-wait" hidden>
+  <div class="gate-in">
+    <div class="brand-row"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span><b>Fieldhouse Remote</b></div>
+    <h1>Waiting for the console</h1>
+    <p class="muted">Someone at the console needs to tap Allow for <b id="wait-name"></b>. This page connects by itself once they do.</p>
+    <p class="hint err perr" id="werr" role="alert"></p>
+    <button class="btn xl wide" id="wcancel" type="button">Cancel</button>
+  </div>
+</main>
+
+<!-- Cannot continue (remote off, wrong network, console unreachable) -->
+<main class="gate" id="s-msg" hidden>
+  <div class="gate-in">
+    <div class="brand-row"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span><b>Fieldhouse Remote</b></div>
+    <h1 id="msg-h">Cannot connect</h1>
+    <p class="muted" id="msg-p" role="status"></p>
+    <button class="btn pri xl wide" id="msg-retry" type="button">Try again</button>
+  </div>
+</main>
+
+<!-- Live scoring -->
+<div class="pr" id="s-live" hidden>
+  <div class="top">
+    <span class="mark sm"><svg class="i sm"><use href="#i-ball"/></svg></span>
+    <span class="ttl" id="title">Fieldhouse</span>
+    <span class="sp"></span>
+    <span class="chip" id="conn" role="status"><span class="dot"></span><span id="conn-t">Connecting</span></span>
+  </div>
+  <div class="main">
+    <div class="banner warn" id="banner" role="status" hidden><svg class="i"><use href="#i-alert"/></svg><div><b id="banner-h"></b><div class="muted" id="banner-p"></div></div></div>
+    <div class="ribbon sm" aria-label="Game">
+      <i class="cap" id="r-hc"></i>
+      <div class="team"><span id="r-ha">HOME</span> <span class="score" id="r-hs">0</span></div>
+      <div class="mid"><span class="per"><small id="r-pre">Q</small><span id="r-per">1</span></span><span class="clk" data-clock>00:00</span></div>
+      <div class="team"><span class="score" id="r-as">0</span> <span id="r-aa">AWAY</span></div>
+      <i class="cap" id="r-ac"></i>
+    </div>
+    <button class="clkbtn" id="clk" type="button" data-ctl><svg class="i xl"><use id="clk-i" href="#i-play"/></svg>
+      <span class="tx"><span id="clk-t">Start clock</span><small id="clk-s">Stopped</small></span>
+      <span class="disp"><span class="led" data-clock>00:00</span></span></button>
+    <div class="scores">
+      <div class="score-block" data-team="home"><div class="nm"><i></i><span class="tn">Home</span></div><div class="led sc" aria-live="off">0</div>
+        <div class="plus"><button class="btn" data-ctl data-pts="1">+1</button><button class="btn" data-ctl data-pts="2">+2</button><button class="btn" data-ctl data-pts="3">+3</button></div></div>
+      <div class="score-block" data-team="away"><div class="nm"><i></i><span class="tn">Away</span></div><div class="led sc" aria-live="off">0</div>
+        <div class="plus"><button class="btn" data-ctl data-pts="1">+1</button><button class="btn" data-ctl data-pts="2">+2</button><button class="btn" data-ctl data-pts="3">+3</button></div></div>
+    </div>
+    <div class="under">
+      <div class="toast" id="note" role="status" aria-live="polite" hidden><svg class="i"><use id="note-i" href="#i-info"/></svg>
+        <div class="nt"><b id="note-h"></b><div class="muted" id="note-p"></div></div>
+        <button class="btn sm ghost" id="note-act" type="button" hidden></button></div>
+      <button class="btn lg ghost wide" id="undo-last" type="button" data-ctl><svg class="i"><use href="#i-undo"/></svg><span id="undo-t">Undo last</span></button>
+    </div>
+  </div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="tabs" role="tablist" aria-label="More controls">
+      <button role="tab" id="t-foul" aria-controls="p-foul" aria-selected="true" data-tab="foul">Fouls &amp; timeouts</button>
+      <button role="tab" id="t-per" aria-controls="p-per" aria-selected="false" data-tab="per" tabindex="-1">Period</button>
+      <button role="tab" id="t-log" aria-controls="p-log" aria-selected="false" data-tab="log" tabindex="-1">Undo log</button>
+    </div>
+    <div class="body" id="p-foul" role="tabpanel" aria-labelledby="t-foul">
+      <div class="tm2" data-team="home"><div class="h"><i></i><span class="tn">Home</span><span class="chip warn bn" hidden>Bonus</span></div>
+        <div class="stp"><button class="btn" data-ctl data-foul="-1" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led fv">0</span><button class="btn" data-ctl data-foul="1" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
+      <div class="tm2" data-team="away"><div class="h"><i></i><span class="tn">Away</span><span class="chip warn bn" hidden>Bonus</span></div>
+        <div class="stp"><button class="btn" data-ctl data-foul="-1" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led fv">0</span><button class="btn" data-ctl data-foul="1" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
+    </div>
+    <div class="body" id="p-per" role="tabpanel" aria-labelledby="t-per" hidden>
+      <div class="field"><span class="fl">Period</span><div class="pbtns" id="pbtns"></div><span class="hint" id="p-hint">Changing the period resets the clock and team fouls.</span></div>
+      <div class="field"><span class="fl">Fix the clock</span>
+        <div class="nudge"><button class="btn" data-ctl data-nudge="-10000">&minus;10 s</button><button class="btn" data-ctl data-nudge="-1000">&minus;1 s</button><button class="btn" data-ctl data-nudge="1000">+1 s</button><button class="btn" data-ctl data-nudge="10000">+10 s</button></div></div>
+    </div>
+    <div class="body" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>
+      <button class="btn lg" id="mark" type="button" data-ctl hidden><svg class="i"><use href="#i-flag"/></svg>Mark moment</button>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+<script src="/icons.js"></script><script src="/remote/remote.js"></script>
+</body></html>

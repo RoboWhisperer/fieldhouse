@@ -1,0 +1,55 @@
+name: Bug report
+description: Something did not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Fieldhouse is maintained by volunteers, so replies are best-effort.
+        **Do not post stream keys, pairing codes or student names.**
+  - type: input
+    id: version
+    attributes:
+      label: Fieldhouse version
+      description: Settings, then About and open source.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine
+      description: Settings shows which one is running.
+      options: [OBS Studio, Fake (practice/demo), Not sure]
+    validations:
+      required: true
+  - type: input
+    id: obs
+    attributes:
+      label: OBS version and install type
+      description: Only if the engine is OBS. For example "30.2, Flatpak" or "native".
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ..."
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics bundle (optional)
+      description: |
+        Settings, then Diagnostics, then Export diagnostics bundle. **Open the file and read it first.**
+        It is meant to hide stream keys and pairing codes, but you are responsible for checking before you
+        paste or attach it to a public issue. Remove anything you do not want public.

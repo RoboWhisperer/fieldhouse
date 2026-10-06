@@ -1,0 +1,19 @@
+{
+  "name": "fieldhouse",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/server.ts",
+    "demo": "DEMO=1 bun src/server.ts",
+    "test": "bun test",
+    "desktop:sidecar": "bun scripts/build-sidecar.ts",
+    "desktop:install": "cd desktop && npm install",
+    "desktop:dev": "cd desktop && npx electron .",
+    "desktop:build": "bun scripts/build-sidecar.ts && cd desktop && npm install && npx electron-builder",
+    "desktop:pack": "bun scripts/build-sidecar.ts && cd desktop && npm install && npx electron-builder --dir"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fieldhouse-app/fieldhouse.git"
+  }
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Settings</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.wrap{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;min-height:0}
+.pg{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;height:100%;min-height:0}
+.two{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;min-height:0}
+.nav{display:grid;gap:2px;align-content:start}
+.nav a{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:var(--r-ctl);color:var(--text-2);text-decoration:none;font-weight:550}
+.nav a[aria-current]{background:var(--raised);color:var(--text)}
+.nav a:hover{background:var(--raised)}
+.cp{display:grid;gap:16px;align-content:start;min-width:0;min-height:0}
+.dst{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dst:last-child{border-bottom:0}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center}
+.sys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:14px 16px}
+.sys div{display:grid;gap:2px;min-width:0}
+.sys b{font-weight:600}
+.dirty{display:flex;align-items:center;gap:12px;padding:14px 32px;background:var(--raised);border-top:1px solid var(--line-strong)}
+
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#"><svg class="i lg"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i lg"><use href="#i-cal"/></svg>Games</a>
+    <a href="#"><svg class="i lg"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i lg"><use href="#i-book"/></svg>Library</a>
+    <a href="#" aria-current="page"><svg class="i lg"><use href="#i-gear"/></svg>Settings</a>
+    <span class="sp"></span>
+    <div class="foot"><span>Version 1.0 beta</span><span>214 GB free</span></div>
+  </nav>
+  <div class="col">
+    <header class="topbar">
+      <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, sponsors</div>
+      <span class="sp"></span>
+      <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+      <span class="avatar">NW</span>
+    </header>
+    <div class="wrap">
+     <main class="main-pad">
+      <div class="pg">
+       <h1 class="t">Settings</h1>
+       <div class="two">
+        <nav class="nav">
+          <a href="#"><svg class="i"><use href="#i-link"/></svg>Destinations</a>
+          <a href="#" aria-current="page"><svg class="i"><use href="#i-film"/></svg>Graphics themes</a>
+          <a href="#"><svg class="i"><use href="#i-ball"/></svg>Sport profile</a>
+          <a href="#"><svg class="i"><use href="#i-sliders"/></svg>Keyboard shortcuts</a>
+          <a href="#"><svg class="i"><use href="#i-phone"/></svg>Remote</a>
+          <a href="#"><svg class="i"><use href="#i-disk"/></svg>Storage</a>
+          <a href="#"><svg class="i"><use href="#i-help"/></svg>Diagnostics</a>
+          <a href="#"><svg class="i"><use href="#i-book"/></svg>About and open source</a>
+        </nav>
+        <div class="cp">
+<div class="panel"><div class="ph"><h3>Built-in themes</h3></div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding:14px"><div class="card-btn" style="border:2px solid var(--action);background:var(--action-wash);display:grid;gap:10px;min-width:0"><div style="position:relative;height:92px;border-radius:6px;overflow:hidden;background:#6b4a2a"><div style="position:absolute;left:8px;top:8px;display:flex;height:16px;border-radius:3px;overflow:hidden;font:800 8px/16px var(--ui);color:#fff;background:#0b1018"><span style="width:4px;background:var(--home)"></span><span style="padding:0 5px">WIL</span><span style="padding:0 5px;background:#fff;color:#0b1018">48</span><span style="padding:0 5px;background:#fff;color:#0b1018">44</span><span style="padding:0 5px">LIO</span><span style="width:4px;background:var(--away)"></span></div><div style="position:absolute;left:8px;right:8px;bottom:8px;height:26px;border-radius:3px;background:#0b1018;display:flex;align-items:center;gap:6px;padding:0 6px;font:800 9px var(--ui);color:#fff"><span style="width:4px;align-self:stretch;margin-left:-6px;background:var(--home)"></span>J. Reyes · 18 pts</div></div><div class="row"><div style="min-width:0"><div style="font-weight:650;font-size:14px;white-space:nowrap">Hardwood</div><div class="muted" style="font-size:12px">Court tones</div></div><span class="sp"></span><span class="pill info">Selected</span></div></div>
+<div class="card-btn" style="border:1px solid var(--line);display:grid;gap:10px;min-width:0"><div style="position:relative;height:92px;border-radius:6px;overflow:hidden;background:#101a2c"><div style="position:absolute;left:8px;top:8px;display:flex;height:16px;border-radius:3px;overflow:hidden;font:800 8px/16px var(--ui);color:#fff;background:#0b1018"><span style="width:4px;background:var(--home)"></span><span style="padding:0 5px">WIL</span><span style="padding:0 5px;background:#e6ecf4;color:#0b1018">48</span><span style="padding:0 5px;background:#e6ecf4;color:#0b1018">44</span><span style="padding:0 5px">LIO</span><span style="width:4px;background:var(--away)"></span></div><div style="position:absolute;left:8px;right:8px;bottom:8px;height:26px;border-radius:3px;background:#0b1018;display:flex;align-items:center;gap:6px;padding:0 6px;font:800 9px var(--ui);color:#fff"><span style="width:4px;align-self:stretch;margin-left:-6px;background:var(--home)"></span>J. Reyes · 18 pts</div></div><div class="row"><div style="min-width:0"><div style="font-weight:650;font-size:14px;white-space:nowrap">Midnight</div><div class="muted" style="font-size:12px">Dark navy</div></div><span class="sp"></span><span class="pill off noDot">Choose</span></div></div>
+<div class="card-btn" style="border:1px solid var(--line);display:grid;gap:10px;min-width:0"><div style="position:relative;height:92px;border-radius:6px;overflow:hidden;background:#cfd8e3"><div style="position:absolute;left:8px;top:8px;display:flex;height:16px;border-radius:3px;overflow:hidden;font:800 8px/16px var(--ui);color:#0b1018;background:#fff"><span style="width:4px;background:var(--home)"></span><span style="padding:0 5px">WIL</span><span style="padding:0 5px;background:#0b1018;color:#fff">48</span><span style="padding:0 5px;background:#0b1018;color:#fff">44</span><span style="padding:0 5px">LIO</span><span style="width:4px;background:var(--away)"></span></div><div style="position:absolute;left:8px;right:8px;bottom:8px;height:26px;border-radius:3px;background:#fff;display:flex;align-items:center;gap:6px;padding:0 6px;font:800 9px var(--ui);color:#0b1018"><span style="width:4px;align-self:stretch;margin-left:-6px;background:var(--home)"></span>J. Reyes · 18 pts</div></div><div class="row"><div style="min-width:0"><div style="font-weight:650;font-size:14px;white-space:nowrap">Clean White</div><div class="muted" style="font-size:12px">Bright feeds</div></div><span class="sp"></span><span class="pill off noDot">Choose</span></div></div>
+<div class="card-btn" style="border:1px solid var(--line);display:grid;gap:10px;min-width:0"><div style="position:relative;height:92px;border-radius:6px;overflow:hidden;background:#000"><div style="position:absolute;left:8px;top:8px;display:flex;height:16px;border-radius:3px;overflow:hidden;font:800 8px/16px var(--ui);color:#fff;background:#000"><span style="width:4px;background:var(--home)"></span><span style="padding:0 5px">WIL</span><span style="padding:0 5px;background:#fff;color:#000">48</span><span style="padding:0 5px;background:#fff;color:#000">44</span><span style="padding:0 5px">LIO</span><span style="width:4px;background:var(--away)"></span></div><div style="position:absolute;left:8px;right:8px;bottom:8px;height:26px;border-radius:3px;background:#000;display:flex;align-items:center;gap:6px;padding:0 6px;font:800 9px var(--ui);color:#fff"><span style="width:4px;align-self:stretch;margin-left:-6px;background:var(--home)"></span>J. Reyes · 18 pts</div></div><div class="row"><div style="min-width:0"><div style="font-weight:650;font-size:14px;white-space:nowrap">High Contrast</div><div class="muted" style="font-size:12px">Max legibility</div></div><span class="sp"></span><span class="pill off noDot">Choose</span></div></div>
+</div></div>
+<div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;min-height:0">
+ <div class="panel"><div class="ph"><h3>Live preview: Hardwood</h3></div>
+  <div class="pb"><div class="monitor pgm"><div class="feed center"></div>
+   <div class="bug"><div class="tm h"><i></i>WIL</div><div class="sc">48</div><div class="sc" style="background:#e6ecf4">44</div><div class="tm a">LIO<i></i></div><div class="cl"><small style="color:#9FB0C5;margin-right:4px">Q</small>3<small style="margin:0 6px;opacity:0"> </small>4:21</div></div>
+   <span class="tag">PROGRAM</span></div>
+   <div class="muted" style="margin-top:12px">Score bug and lower third share the theme. Changes show here before they reach the stream.</div>
+   <div class="row muted" style="align-items:flex-start;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><svg class="i lg"><use href="#i-info"/></svg><span style="flex:1">Themes are plain HTML and CSS files. You can add your own by dropping a folder into the themes directory.</span><button class="btn sm"><svg class="i sm"><use href="#i-folder"/></svg>Open themes folder</button></div></div></div>
+ <div class="col-g">
+  <div class="panel"><div class="ph"><h3>Team colors</h3></div><div style="padding:6px 14px">
+   <div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="swatch" style="width:28px;height:28px;border-radius:6px;background:var(--home)"></span><div style="min-width:0"><b>Wildcats</b><div class="muted mono" style="font-size:12px">#F5A524 · gold</div></div><span class="sp"></span><span class="pill ready">Readable 9.3:1</span><button class="btn sm">Change</button></div>
+   <div class="row" style="padding:10px 0"><span class="swatch" style="width:28px;height:28px;border-radius:6px;background:var(--away)"></span><div style="min-width:0"><b>Lions</b><div class="muted mono" style="font-size:12px">#8B6CFF · violet</div></div><span class="sp"></span><span class="pill check">Fair 4.6:1</span><button class="btn sm">Change</button></div>
+  </div><div class="hint" style="padding:0 14px 12px">Measured against the score bug background. Violet works for the stripe but is dim for small text.</div></div>
+  <div class="panel"><div class="ph"><h3>On the graphics</h3></div><div style="padding:4px 14px">
+   <div class="row" style="padding:12px 0;border-bottom:1px solid var(--line)"><span class="switch on"></span><div><b>Show team logos</b><div class="muted" style="font-size:12px">Beside team names in the bug</div></div></div>
+   <div class="row" style="padding:12px 0"><span class="switch on"></span><div><b>Show sponsor corner</b><div class="muted" style="font-size:12px">Small logo top right during play</div></div></div>
+  </div></div>
+ </div>
+</div>
+        </div>
+       </div>
+      </div>
+     </main>
+    </div>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

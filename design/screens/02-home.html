@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Home and Schedule</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.pg{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;height:100%}
+.lcol{display:grid;grid-template-rows:auto auto auto;gap:16px;min-width:0;align-content:start}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;padding:20px 24px}
+.vs{display:flex;align-items:center;gap:16px}
+.vs .tm{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:650}
+.vs .at{color:var(--text-3);font-weight:600}
+.rdy{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+.stat:last-child{border-bottom:0}
+.stat b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.rcol{display:grid;gap:16px;align-content:start;min-width:0}
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#" aria-current="page"><svg class="i"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i"><use href="#i-cal"/></svg>Games</a>
+    <a href="#"><svg class="i"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i"><use href="#i-book"/></svg>Library</a>
+    <a href="#"><svg class="i"><use href="#i-chart"/></svg>Reports</a>
+    <a href="#"><svg class="i"><use href="#i-gear"/></svg>Settings</a>
+    <div class="sp"></div>
+    <div class="foot"><span>Free and open source</span><span>Version 1.0.0</span></div>
+  </nav>
+  <div class="col">
+   <header class="topbar">
+     <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, teams, sponsors</div>
+     <div class="sp"></div>
+     <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+     <span class="avatar">NR</span>
+   </header>
+   <main class="main-pad">
+    <div class="pg">
+     <div class="lcol">
+      <section class="panel hero">
+        <div>
+          <h2 class="t" style="margin-bottom:12px">Next game</h2>
+          <div class="vs">
+            <div class="tm"><span class="logo-ph" style="background:var(--home);color:var(--action-ink)">WW</span>Westfield Wildcats</div>
+            <span class="at">vs</span>
+            <div class="tm"><span class="logo-ph" style="background:var(--away);color:var(--action-ink)">LL</span>Lincoln Lions</div>
+          </div>
+          <div class="muted" style="margin-top:10px;font-size:14px">Today, Oct 5 · Tip-off 7:00 PM · Main Gym</div>
+          <div class="rdy">
+            <span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Roster</span>
+            <span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Sources</span>
+            <span class="chip"><svg class="i sm"><use href="#i-clock"/></svg>Preflight not run</span>
+          </div>
+        </div>
+        <button class="btn pri xl" style="width:240px"><svg class="i lg"><use href="#i-play"/></svg>Start game night</button>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h3>Upcoming games</h3><span class="sp"></span><button class="btn sm ghost"><svg class="i sm"><use href="#i-plus"/></svg>New game</button></div>
+        <table class="tbl">
+          <thead><tr><th>Date</th><th>Matchup</th><th>Venue</th><th>Setup</th><th></th></tr></thead>
+          <tbody>
+          <tr><td class="m">Oct 5, 7:00 PM</td><td>Wildcats vs Lions</td><td class="muted">Main Gym</td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Roster, sources</span></td><td class="n"><button class="btn sm ghost">Open</button></td></tr>
+          <tr><td class="m">Oct 12, 6:30 PM</td><td>Wildcats at Jefferson Hawks</td><td class="muted">Jefferson High</td><td><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>Roster missing</span></td><td class="n"><button class="btn sm ghost">Open</button></td></tr>
+          <tr><td class="m">Oct 19, 7:00 PM</td><td>Wildcats vs Central Bears</td><td class="muted">Main Gym</td><td><span class="chip"><svg class="i sm"><use href="#i-clock"/></svg>Not started</span></td><td class="n"><button class="btn sm ghost">Open</button></td></tr>
+          <tr><td class="m">Oct 26, 7:00 PM</td><td>Wildcats vs Riverside Rams</td><td class="muted">Main Gym</td><td><span class="chip"><svg class="i sm"><use href="#i-clock"/></svg>Not started</span></td><td class="n"><button class="btn sm ghost">Open</button></td></tr>
+          <tr><td class="m">Nov 2, 6:00 PM</td><td>Wildcats at Harbor Heights</td><td class="muted">Harbor Heights Gym</td><td><span class="chip"><svg class="i sm"><use href="#i-clock"/></svg>Not started</span></td><td class="n"><button class="btn sm ghost">Open</button></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <div class="ph"><h3>Recent games</h3><span class="sp"></span><button class="btn sm ghost">All games<svg class="i sm"><use href="#i-right"/></svg></button></div>
+        <table class="tbl">
+          <thead><tr><th>Date</th><th>Matchup</th><th class="n">Score</th><th>Recording</th><th>Highlights</th></tr></thead>
+          <tbody>
+          <tr><td class="m">Sep 26</td><td>Wildcats vs Jefferson Hawks</td><td class="n">61 – 54</td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Saved · 2.8 GB</span></td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Exported</span></td></tr>
+          <tr><td class="m">Sep 19</td><td>Wildcats at Central Bears</td><td class="n">48 – 52</td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Saved · 2.5 GB</span></td><td><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>Not exported</span></td></tr>
+          <tr><td class="m">Sep 12</td><td>Wildcats vs Riverside Rams</td><td class="n">70 – 63</td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Saved · 3.1 GB</span></td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Exported</span></td></tr>
+          <tr><td class="m">Sep 5</td><td>Wildcats at Eastside Eagles</td><td class="n">55 – 49</td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Saved · 2.6 GB</span></td><td><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Exported</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+     </div>
+
+     <aside class="rcol">
+      <section class="panel">
+        <div class="ph"><h3>Season 2026-27</h3></div>
+        <div class="pb" style="padding:4px 14px">
+          <div class="stat"><span class="muted">Games streamed</span><b>3</b></div>
+          <div class="stat"><span class="muted">Hours on air</span><b>7.5</b></div>
+          <div class="stat"><span class="muted">Sponsor airings</span><b>11</b></div>
+          <div class="stat"><span class="muted">Highlights exported</span><b>2</b></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="ph"><h3>Storage</h3></div>
+        <div class="pb col-g">
+          <div class="row"><b style="font-size:20px" class="tnum">214 GB</b><span class="muted">free of 500 GB</span></div>
+          <div class="bar ok"><b style="width:57%"></b></div>
+          <div class="muted" style="font-size:12.5px">About 75 hours of recording left. Main Gym recordings use 8.4 GB.</div>
+          <button class="btn sm"><svg class="i sm"><use href="#i-folder"/></svg>Manage recordings</button>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="ph"><h3>Sponsor airings</h3></div>
+        <div class="pb" style="padding:4px 14px">
+          <div class="stat"><span>Smith Dental</span><b>4</b></div>
+          <div class="stat"><span>Harbor Pizza</span><b>4</b></div>
+          <div class="stat"><span>Eastside Credit Union</span><b>3</b></div>
+        </div>
+      </section>
+     </aside>
+    </div>
+   </main>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

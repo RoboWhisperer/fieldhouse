@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and help
+    url: https://github.com/fieldhouse-app/fieldhouse/discussions
+    about: "Placeholder repository address: update before release. Ask how-to questions here."
+  - name: Security problem
+    url: https://github.com/fieldhouse-app/fieldhouse/blob/main/SECURITY.md
+    about: Please do not file security problems as public issues. Read SECURITY.md.

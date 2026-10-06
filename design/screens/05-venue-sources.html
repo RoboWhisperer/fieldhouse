@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Venue and Sources</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.vs{display:grid;grid-template-columns:336px minmax(0,1fr) 340px;gap:16px;height:100%}
+.midc{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.dg{height:30px;display:flex;align-items:center;padding:0 14px;background:var(--inset);border-bottom:1px solid var(--line)}
+.dev.off .ic,.dev.off .tx{opacity:.7}
+.dev{display:flex;align-items:center;gap:12px;padding:0 14px;height:72px;border-bottom:1px solid var(--line);min-width:0}
+.dev .ic{width:36px;height:36px;border-radius:8px;background:var(--raised);display:grid;place-items:center;flex:none;color:var(--text-2)}
+.dev .tx{min-width:0;flex:1}
+.dev .tx b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev .tx span{display:block;font-size:12px;color:var(--text-3)}
+.dev .gr{color:var(--text-3)}
+.dev.free{background:var(--action-wash)}
+.slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.slot .meta{padding:8px 10px 2px}
+.slot .sub{padding:0 10px 9px;font-size:12px;color:var(--text-3);display:flex;gap:8px;align-items:center}
+.slot .nmx{display:flex;align-items:center;gap:8px;font-weight:650;font-size:14px}
+.slot .nmx .i{color:var(--text-3)}
+.slot .hd{display:flex;gap:6px}
+.drop{aspect-ratio:16/9;border:2px dashed var(--line-strong);border-radius:6px;margin:0;display:grid;place-items:center;align-content:center;gap:6px;text-align:center;color:var(--text-2);font-weight:600;background:var(--action-wash)}
+.drop .i{color:var(--action-hi)}
+.tile.empty-slot{border-style:dashed}
+.aud{display:flex;flex-direction:row;align-items:center;gap:14px;padding:10px 14px;height:64px}
+.kv{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.kv .k2{width:20px;height:20px;border-radius:5px;background:var(--raised);display:grid;place-items:center;font:700 11px/1 var(--mono);color:var(--text-2);flex:none}
+.kv span.v{color:var(--text-2);font-size:12px;margin-left:auto;white-space:nowrap}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper">
+      <div class="st on"><b>1</b><span>Setup</span></div><i class="sep"></i>
+      <div class="st"><b>2</b><span>Check</span></div><i class="sep"></i>
+      <div class="st live"><b>3</b><span>Live</span></div><i class="sep"></i>
+      <div class="st"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon sm" style="margin-left:4px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">00</span></div>
+      <div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>1</span><span class="clk">00:00</span></div>
+      <div class="team"><span class="score">00</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <span class="faint" style="font-size:12.5px">Tip-off 7:00 PM</span>
+    <div class="sp"></div>
+    <span class="chip"><svg class="i sm"><use href="#i-home"/></svg>Main Gym</span>
+    <button class="btn ghost sm" style="height:32px">Save and exit</button>
+  </header>
+
+  <main class="stage">
+   <div class="vs">
+    <!-- devices -->
+    <section class="panel">
+      <div class="ph"><h3>Detected devices</h3><span class="sp"></span><span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>5 found</span></div>
+      <div style="flex:1;min-height:0">
+        <div class="dg lbl">Video sources</div>
+        <div class="dev"><span class="ic"><svg class="i lg"><use href="#i-video"/></svg></span><div class="tx"><b>Logitech Brio (USB)</b><span>Camera · 1080p60</span></div><span class="chip ok">Slot 1</span></div>
+        <div class="dev"><span class="ic"><svg class="i lg"><use href="#i-video"/></svg></span><div class="tx"><b>Elgato Cam Link 4K</b><span>Capture card · 1080p60</span></div><span class="chip ok">Slot 2</span></div>
+        <div class="dev"><span class="ic"><svg class="i lg"><use href="#i-wifi"/></svg></span><div class="tx"><b>NDI: Coach iPhone</b><span>Network · 1080p30</span></div><span class="chip ok">Slot 3</span></div>
+        <div class="dev free"><span class="ic" style="background:var(--action);color:#fff"><svg class="i lg"><use href="#i-link"/></svg></span><div class="tx"><b>SRT: Press-box cam</b><span>Network · 1080p30 · not placed</span></div><svg class="i gr"><use href="#i-drag"/></svg></div>
+        <div class="dg lbl">Audio</div>
+        <div class="dev"><span class="ic"><svg class="i lg"><use href="#i-mic"/></svg></span><div class="tx"><b>Scarlett 2i2 (audio)</b><span>Microphones · 2 inputs</span></div><span class="chip ok">In use</span></div>
+        <div class="dg lbl">Remembered from last game</div>
+        <div class="dev off" style="border:0"><span class="ic"><svg class="i lg"><use href="#i-wifioff"/></svg></span><div class="tx"><b>NDI: Scoreboard PC</b><span>Not on the network</span></div><button class="btn sm">Reconnect</button></div>
+      </div>
+      <div style="padding:14px;border-top:1px solid var(--line);display:grid;gap:10px">
+        <button class="btn"><svg class="i"><use href="#i-plus"/></svg>Add network source</button>
+        <span class="hint">Don't see a device? Plug it in and it appears here within a few seconds.</span>
+      </div>
+    </section>
+
+    <!-- slots -->
+    <section class="midc">
+      <div class="col-g" style="gap:4px">
+        <h2 class="t">Sources</h2>
+        <span class="muted">Drag a device onto a slot and give it a name you will recognize. One camera is enough.</span>
+      </div>
+      <div class="slots">
+        <div class="tile slot"><div class="feed center"></div><span class="k">1</span>
+          <span class="hd"><span class="pill ready noDot" style="height:18px;padding:0 7px;font-size:10px">Live</span></span>
+          <div class="meta"><div class="nmx">Center court<svg class="i sm"><use href="#i-gear"/></svg><div class="meter mt" data-lv="13" style="width:64px;margin-left:auto"></div></div></div>
+          <div class="sub"><span class="dot ok"></span>Logitech Brio (USB) · 1080p60</div></div>
+        <div class="tile slot"><div class="feed baseline"></div><span class="k">2</span>
+          <span class="hd"><span class="pill ready noDot" style="height:18px;padding:0 7px;font-size:10px">Live</span></span>
+          <div class="meta"><div class="nmx">Baseline<svg class="i sm"><use href="#i-gear"/></svg><div class="meter mt" data-lv="9" style="width:64px;margin-left:auto"></div></div></div>
+          <div class="sub"><span class="dot ok"></span>Elgato Cam Link 4K · 1080p60</div></div>
+        <div class="tile slot"><div class="feed bench"></div><span class="k">3</span>
+          <span class="hd"><span class="pill ready noDot" style="height:18px;padding:0 7px;font-size:10px">Live</span></span>
+          <div class="meta"><div class="nmx">Bench<svg class="i sm"><use href="#i-gear"/></svg><div class="meter mt" data-lv="6" style="width:64px;margin-left:auto"></div></div></div>
+          <div class="sub"><span class="dot ok"></span>NDI: Coach iPhone · 1080p30</div></div>
+        <div class="tile slot empty-slot"><div class="drop"><svg class="i xl"><use href="#i-down2"/></svg><span>Drop a device here</span><span class="hint" style="color:var(--text-2)">Try SRT: Press-box cam</span></div><span class="k">4</span>
+          <div class="meta"><div class="nmx" style="color:var(--text-3)">Empty</div></div>
+          <div class="sub"><span class="dot"></span>Optional. Add a fourth view any time.</div></div>
+      </div>
+      <div class="panel aud">
+        <svg class="i lg" style="color:var(--text-2)"><use href="#i-mic"/></svg>
+        <div style="min-width:0"><div style="font-weight:650">Scarlett 2i2 (audio)</div><div class="faint" style="font-size:12px">Commentary on input 1, crowd on input 2</div></div>
+        <span class="sp"></span>
+        <div class="meter" data-lv="11" style="width:120px"></div>
+        <span class="chip ok"><svg class="i sm"><use href="#i-check"/></svg>Signal OK</span>
+      </div>
+      <div class="sp"></div>
+      <div class="row" style="justify-content:flex-end">
+        <span class="muted">3 of 4 slots in use</span>
+        <button class="btn pri lg">Run checks<svg class="i"><use href="#i-right"/></svg></button>
+      </div>
+    </section>
+
+    <!-- venue -->
+    <aside class="panel">
+      <div class="ph"><h3>Venue setup</h3></div>
+      <div class="pb" style="display:flex;flex-direction:column;gap:14px">
+        <div class="field"><span class="fl">Saved setup</span><div class="select"><svg class="i" style="color:var(--text-2)"><use href="#i-home"/></svg>Main Gym</div><span class="hint">Last saved Monday, 6:12 PM</span></div>
+        <div>
+          <div class="kv"><span class="k2">1</span>Center court<span class="v">Brio</span></div>
+          <div class="kv"><span class="k2">2</span>Baseline<span class="v">Cam Link 4K</span></div>
+          <div class="kv"><span class="k2">3</span>Bench<span class="v">NDI Coach iPhone</span></div>
+          <div class="kv"><span class="k2">4</span><span class="faint">Empty</span><span class="v">Not set</span></div>
+          <div class="kv" style="border:0"><span class="k2"><svg class="i sm"><use href="#i-mic"/></svg></span>Audio<span class="v">Scarlett 2i2</span></div>
+        </div>
+        <div class="banner warn" style="align-items:flex-start"><svg class="i"><use href="#i-alert"/></svg><div><b>1 change not saved</b><div class="muted" style="font-size:12px">Slot 4 differs from Main Gym.</div></div></div>
+        <div>
+          <div class="kv"><svg class="i" style="color:var(--text-2)"><use href="#i-wifi"/></svg>Gym Wi-Fi<span class="v">18 Mbps up</span></div>
+          <div class="kv"><svg class="i" style="color:var(--text-2)"><use href="#i-link"/></svg>Destination<span class="v">YouTube Live</span></div>
+          <div class="kv" style="border:0"><svg class="i" style="color:var(--text-2)"><use href="#i-disk"/></svg>Recordings<span class="v">Local drive, 214 GB free</span></div>
+        </div>
+        <div class="sp"></div>
+        <div class="row"><button class="btn" style="flex:1"><svg class="i"><use href="#i-disk"/></svg>Save</button><button class="btn" style="flex:1">Save as</button></div>
+        <span class="hint">Saved setups remember camera names and audio levels for the next game at this venue.</span>
+      </div>
+    </aside>
+   </div>
+  </main>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Settings</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.wrap{display:grid;grid-template-rows:minmax(0,1fr) auto;height:100%;min-height:0}
+.pg{display:grid;grid-template-rows:auto minmax(0,1fr);gap:16px;height:100%;min-height:0}
+.two{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;min-height:0}
+.nav{display:grid;gap:2px;align-content:start}
+.nav a{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;border-radius:var(--r-ctl);color:var(--text-2);text-decoration:none;font-weight:550}
+.nav a[aria-current]{background:var(--raised);color:var(--text)}
+.nav a:hover{background:var(--raised)}
+.cp{display:grid;gap:16px;align-content:start;min-width:0;min-height:0}
+.dst{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dst:last-child{border-bottom:0}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center}
+.sys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:14px 16px}
+.sys div{display:grid;gap:2px;min-width:0}
+.sys b{font-weight:600}
+.dirty{display:flex;align-items:center;gap:12px;padding:14px 32px;background:var(--raised);border-top:1px solid var(--line-strong)}
+
+</style></head>
+<body class="f-desk">
+<div class="mg">
+  <nav class="rail">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>Fieldhouse</div>
+    <a href="#"><svg class="i lg"><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg class="i lg"><use href="#i-cal"/></svg>Games</a>
+    <a href="#"><svg class="i lg"><use href="#i-sponsor"/></svg>Sponsors</a>
+    <a href="#"><svg class="i lg"><use href="#i-book"/></svg>Library</a>
+    <a href="#" aria-current="page"><svg class="i lg"><use href="#i-gear"/></svg>Settings</a>
+    <span class="sp"></span>
+    <div class="foot"><span>Version 1.0 beta</span><span>214 GB free</span></div>
+  </nav>
+  <div class="col">
+    <header class="topbar">
+      <div class="input" style="width:320px;color:var(--text-3)"><svg class="i"><use href="#i-search"/></svg>Search games, sponsors</div>
+      <span class="sp"></span>
+      <span class="chip"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</span>
+      <span class="avatar">NW</span>
+    </header>
+    <div class="wrap">
+     <main class="main-pad">
+      <div class="pg">
+       <h1 class="t">Settings</h1>
+       <div class="two">
+        <nav class="nav">
+          <a href="#"><svg class="i"><use href="#i-link"/></svg>Destinations</a>
+          <a href="#"><svg class="i"><use href="#i-film"/></svg>Graphics themes</a>
+          <a href="#" aria-current="page"><svg class="i"><use href="#i-ball"/></svg>Sport profile</a>
+          <a href="#"><svg class="i"><use href="#i-sliders"/></svg>Keyboard shortcuts</a>
+          <a href="#"><svg class="i"><use href="#i-phone"/></svg>Remote</a>
+          <a href="#"><svg class="i"><use href="#i-disk"/></svg>Storage</a>
+          <a href="#"><svg class="i"><use href="#i-help"/></svg>Diagnostics</a>
+          <a href="#"><svg class="i"><use href="#i-book"/></svg>About and open source</a>
+        </nav>
+        <div class="cp">
+<div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;min-height:0;align-content:start">
+ <div class="col-g" style="gap:16px"><div class="panel"><div class="ph"><h3>Basketball rules</h3><span class="sp"></span><span class="chip warn"><svg class="i sm"><use href="#i-alert"/></svg>3 edited</span></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Periods</b><div class="muted" style="font-size:12px">Number and length</div></div><div class="row" style="gap:8px"><div class="input" style="width:64px">4</div><span class="muted">x</span><div class="input" style="width:76px">8 min</div></div></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Overtime</b><div class="muted" style="font-size:12px">Length of each extra period</div></div><div class="select" style="width:120px">4 min</div></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Clock direction</b><div class="muted" style="font-size:12px">Basketball clocks count down</div></div><div class="seg"><span class="on">Counts down</span><span>Counts up</span></div></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Fouls per period</b><div class="muted" style="font-size:12px">Team fouls before bonus</div></div><div class="row" style="gap:8px"><span class="muted">Bonus at</span><div class="input" style="width:56px">5</div><span class="muted">Double at</span><div class="input f" style="width:56px">10</div></div></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Timeouts per team</b><div class="muted" style="font-size:12px">Full game</div></div><div class="input" style="width:64px">5</div></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><div style="min-width:0;flex:1"><b>Scoring buttons</b><div class="muted" style="font-size:12px">Shown on the console and remote</div></div><div class="row" style="gap:6px"><span class="chip">+1</span><span class="chip">+2</span><span class="chip">+3</span></div></div><div class="row" style="padding:10px 16px;"><div style="min-width:0;flex:1"><b>Possession arrow</b><div class="muted" style="font-size:12px">Show on the Game Ribbon</div></div><span class="switch on"></span></div></div>
+<div class="panel"><div class="ph"><h3>Stop the clock on</h3></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><span class="switch on"></span><b style="flex:1">Timeout</b></div><div class="row" style="padding:10px 16px;border-bottom:1px solid var(--line)"><span class="switch on"></span><b style="flex:1">Foul</b></div><div class="row" style="padding:10px 16px;"><span class="switch on"></span><b style="flex:1">Score, last 2 min only</b></div></div></div>
+ <div class="col-g" style="gap:16px">
+  <div class="panel"><div class="ph"><h3>Sport</h3></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px">
+   <div class="card-btn" style="border:2px solid var(--action);background:var(--action-wash);display:flex;flex-direction:column;gap:8px"><div class="row"><svg class="i lg"><use href="#i-ball"/></svg><b>Basketball</b></div><span class="pill info" style="align-self:flex-start">Selected</span></div>
+   <div class="card-btn" style="opacity:.6;display:flex;flex-direction:column;gap:8px;min-width:0"><b>Football</b><span class="pill off noDot">Coming later</span></div><div class="card-btn" style="opacity:.6;display:flex;flex-direction:column;gap:8px;min-width:0"><b>Volleyball</b><span class="pill off noDot">Coming later</span></div><div class="card-btn" style="opacity:.6;display:flex;flex-direction:column;gap:8px;min-width:0"><b>Soccer</b><span class="pill off noDot">Coming later</span></div></div>
+   <div style="padding:0 12px 12px;display:grid;gap:10px"><span class="muted">Fieldhouse is open source. Add a sport by writing a profile.</span><div class="row"><button class="btn sm"><svg class="i sm"><use href="#i-book"/></svg>Contribute a profile</button><button class="btn sm ghost">View source</button></div></div></div>
+  <div class="panel"><div class="ph"><h3>Preview on the Game Ribbon</h3></div><div class="pb" style="display:grid;gap:10px;flex:none">
+   <div class="ribbon sm"><i class="cap" style="background:var(--home)"></i><div class="team">WIL <span class="score">48</span></div><div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>3</span><span class="clk">04:21</span></div><div class="team"><span class="score">44</span> LIO</div><i class="cap" style="background:var(--away)"></i></div>
+   <div class="hint">4 periods of 8:00, counting down. Bonus after 5 team fouls.</div></div></div>
+ </div>
+</div>
+        </div>
+       </div>
+      </div>
+     </main>
+     <div class="dirty">
+       <svg class="i lg" style="color:var(--caution)"><use href="#i-alert"/></svg>
+       <span><b>You have unsaved changes.</b> <span class="muted">Double-bonus threshold, overtime length and one stop-clock rule were edited.</span></span>
+       <span class="sp"></span>
+       <button class="btn">Discard</button><button class="btn pri"><svg class="i"><use href="#i-check"/></svg>Save changes</button>
+     </div>
+    </div>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

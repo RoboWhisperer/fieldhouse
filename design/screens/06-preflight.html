@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Preflight Check</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.pf{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px;height:100%}
+.pill.check{width:auto;height:24px;border:0;display:inline-flex;align-items:center;justify-content:flex-start;border-radius:var(--r-pill)}
+.grp{padding:12px 14px 6px;background:var(--inset);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.grp .lbl{color:var(--text-2)}
+.crow{min-height:56px}
+.crow .tx{min-width:0;display:grid;gap:1px}
+.crow.bad{background:var(--program-wash)}
+.crow.cau{background:var(--caution-wash)}
+.sum{display:flex;flex-direction:column;gap:14px;padding:16px;min-height:0;flex:1}
+.cnt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cnt div{background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2)}
+.cnt b{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums}
+.cnt .i{width:14px;height:14px}
+.aud2{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:center;font-size:12.5px;color:var(--text-2)}
+</style></head>
+<body class="f-desk">
+<div class="gn">
+  <header class="topbar">
+    <div class="brand"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span></div>
+    <div class="stepper">
+      <div class="st done"><b><svg class="i sm"><use href="#i-check"/></svg></b><span>Setup</span></div><i class="sep"></i>
+      <div class="st on"><b>2</b><span>Check</span></div><i class="sep"></i>
+      <div class="st live"><b>3</b><span>Live</span></div><i class="sep"></i>
+      <div class="st"><b>4</b><span>Wrap-up</span></div>
+    </div>
+    <div class="ribbon sm pre" style="margin-left:4px">
+      <i class="cap" style="background:var(--home)"></i>
+      <div class="team">Wildcats <span class="score">00</span></div>
+      <div class="mid" style="display:flex;padding:0 14px"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>1</span><span class="clk">00:00</span></div>
+      <div class="team"><span class="score">00</span> Lions</div>
+      <i class="cap" style="background:var(--away)"></i>
+    </div>
+    <span class="faint" style="font-size:12.5px">Tip-off 7:00 PM</span>
+    <div class="sp"></div>
+    <span class="chip"><svg class="i sm"><use href="#i-home"/></svg>Main Gym</span>
+    <span class="pill check">Check</span>
+  </header>
+
+  <main class="stage">
+   <div class="pf">
+    <section class="panel">
+      <div class="ph"><h3>Preflight checks</h3><span class="sp"></span><span class="muted" style="font-size:12px">Last run just now</span><button class="btn sm"><svg class="i sm"><use href="#i-refresh"/></svg>Run again</button></div>
+      <div style="flex:1;min-height:0;overflow:hidden">
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-video"/></svg><span class="lbl">Video</span></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">All sources live</span><span class="rs">Center court, Baseline and Bench are sending video.</span></div></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">Frame rate steady</span><span class="rs">59.9 fps on every source, no dropped frames.</span></div></div>
+
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-vol"/></svg><span class="lbl">Audio</span></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">Levels present</span><span class="rs">Commentary and crowd inputs are picking up sound.</span></div></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">No clipping</span><span class="rs">Loudest peak stays 9 dB under the limit.</span></div></div>
+
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-wifi"/></svg><span class="lbl">Network</span></div>
+        <div class="crow cau"><span class="st warn"><svg class="i"><use href="#i-alert"/></svg></span><div class="tx"><span class="nm">Upload headroom is low</span><span class="rs">Upload is 8.4 Mbps and the stream needs 6 Mbps. A Wi-Fi dip could cause buffering.</span></div><span class="sp"></span><button class="btn sm">Use 4.5 Mbps</button></div>
+
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-disk"/></svg><span class="lbl">Storage</span></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">Recording space for 3 hours</span><span class="rs">214 GB free. A 3-hour game needs about 45 GB.</span></div></div>
+
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-link"/></svg><span class="lbl">Destination</span></div>
+        <div class="crow bad"><span class="st err"><svg class="i"><use href="#i-x"/></svg></span><div class="tx"><span class="nm">Stream key is not valid</span><span class="rs">YouTube did not accept the key. It may have been reset.</span></div><span class="sp"></span><button class="btn sm"><svg class="i sm"><use href="#i-key"/></svg>Fix</button></div>
+
+        <div class="grp"><svg class="i" style="color:var(--text-2)"><use href="#i-ball"/></svg><span class="lbl">Game</span></div>
+        <div class="crow"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">Roster loaded</span><span class="rs">12 Wildcats and 11 Lions, starters marked.</span></div></div>
+        <div class="crow" style="border-bottom:0"><span class="st ok"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><span class="nm">Clock set</span><span class="rs">4 periods of 12 minutes, starting at Q1.</span></div></div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="sum">
+        <div class="row" style="align-items:flex-start;gap:14px">
+          <div class="col-g" style="gap:6px;flex:1">
+            <h2 class="t">2 things to fix</h2>
+            <span class="muted">Fix the stream key to go live. The upload warning is optional.</span>
+          </div>
+          <span class="pill check">Check</span>
+        </div>
+        <div class="monitor"><div class="feed center"></div>
+          <div class="bug"><div class="tm h"><i></i>WIL</div><div class="sc">0</div><div class="sc" style="background:#e6ecf4">0</div><div class="tm a">LIO<i></i></div><div class="cl"><small style="font:700 .7em var(--ui);color:#9FB0C5;margin-right:4px">Q</small>1<small style="margin:0 6px;opacity:0"> </small>12:00</div></div>
+          <span class="tag">PROGRAM PREVIEW</span><span class="src" style="left:auto;right:8px">1 · Center court</span></div>
+        <div class="cnt">
+          <div><svg class="i" style="color:var(--ready)"><use href="#i-check"/></svg><b>7</b>passed</div>
+          <div><svg class="i" style="color:var(--caution)"><use href="#i-alert"/></svg><b>1</b>caution</div>
+          <div><svg class="i" style="color:#FF8A8E"><use href="#i-x"/></svg><b>1</b>to fix</div>
+        </div>
+        <div class="aud2">
+          <span>Commentary</span><div class="meter" data-lv="12"></div>
+          <span>Crowd</span><div class="meter" data-lv="8"></div>
+        </div>
+        <div class="col-g" style="gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+          <div class="row" style="padding:10px 12px;background:var(--program-wash);gap:10px"><svg class="i" style="color:#FF8A8E"><use href="#i-x"/></svg><div style="flex:1;min-width:0"><b>Blocks going live</b><div class="muted" style="font-size:12px">Stream key is not valid</div></div></div>
+          <div class="row" style="padding:10px 12px;background:var(--caution-wash);gap:10px"><svg class="i" style="color:var(--caution)"><use href="#i-alert"/></svg><div style="flex:1;min-width:0"><b>Can go live anyway</b><div class="muted" style="font-size:12px">Upload headroom is low</div></div></div>
+        </div>
+        <div class="sp"></div>
+        <button class="btn lg"><svg class="i"><use href="#i-link"/></svg>Test stream privately</button>
+        <div class="col-g" style="gap:8px">
+          <button class="btn pri xl dis" disabled style="width:100%"><svg class="i lg"><use href="#i-play"/></svg>Go live</button>
+          <div class="row" style="gap:8px;color:var(--text-2);font-size:12.5px"><svg class="i sm"><use href="#i-lock"/></svg>Go live turns on once the stream key check passes.</div>
+        </div>
+      </div>
+    </aside>
+   </div>
+  </main>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>

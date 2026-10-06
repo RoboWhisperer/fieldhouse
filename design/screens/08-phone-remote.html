@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=390">
+<title>Phone Remote</title>
+<link rel="stylesheet" href="../tokens.css"><link rel="stylesheet" href="../ui.css">
+<style>
+.pr{display:flex;flex-direction:column;height:100%;padding-top:44px;min-width:0}
+.pr .top{display:flex;align-items:center;gap:10px;padding:0 16px;height:36px}
+.pr .ribbon{margin:8px 16px 0;width:auto}
+.pr .ribbon .team{flex:1;justify-content:center;padding:0 6px}
+.pr .ribbon .mid{padding:0 10px}
+.clkbtn{margin:12px 16px 0;height:112px;border-radius:14px;border:0;background:var(--action);color:#fff;display:flex;align-items:center;gap:14px;padding:0 14px 0 18px;font-weight:700;text-align:left}
+.clkbtn>.i{flex:none}
+.clkbtn .tx{display:grid;gap:2px;font-size:22px;line-height:1.15;white-space:nowrap}
+.clkbtn .tx small{font-size:12.5px;font-weight:550;opacity:.9}
+.clkbtn .disp{margin-left:auto;background:#06090f;border-radius:10px;padding:14px 12px}
+.clkbtn .disp .led{font-size:34px}
+.scores{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:12px 16px 0}
+.scores .score-block{padding:10px;gap:6px}
+.scores .score-block .led{font-size:52px}
+.scores .plus{gap:6px}
+.scores .plus .btn{height:56px;padding:0;font-size:17px}
+.pr .toast{margin:10px 16px 0;padding:8px 12px;min-height:48px}
+.sheet{margin-top:10px;flex:1;min-height:0;background:var(--panel);border-top:1px solid var(--line-strong);border-radius:16px 16px 0 0;display:flex;flex-direction:column}
+.sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:6px auto 0}
+.sheet .tabs{padding:0 8px}
+.sheet .tabs span{padding:12px 10px;font-size:13px;white-space:nowrap}
+.sheet .body{padding:12px 16px 20px;display:grid;gap:12px;align-content:start}
+.tm2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;background:var(--inset);border:1px solid var(--line);border-radius:10px;padding:12px}
+.tm2 .h{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-2)}
+.tm2 .h i{width:10px;height:10px;border-radius:3px}
+.stp{display:flex;align-items:center;gap:6px}
+.stp .btn{width:48px;height:48px;padding:0}
+.stp .led{font-size:34px;flex:1;text-align:center}
+.to{display:flex;align-items:center;gap:8px}
+.to .btn{height:48px;flex:1;padding:0 8px}
+.to small{font-size:12px;color:var(--text-2)}
+</style></head>
+<body class="f-phone">
+<div class="pr">
+  <div class="top">
+    <span class="mark" style="width:24px;height:24px;border-radius:6px"><svg class="i sm"><use href="#i-ball"/></svg></span>
+    <span style="font-weight:650">Main Gym</span>
+    <span class="sp"></span>
+    <span class="chip ok" style="height:26px"><span class="dot ok"></span>Connected</span>
+  </div>
+  <div class="ribbon sm">
+    <i class="cap" style="background:var(--home)"></i>
+    <div class="team">Wil <span class="score">48</span></div>
+    <div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>3</span><span class="clk">04:21</span></div>
+    <div class="team"><span class="score">44</span> Lio</div>
+    <i class="cap" style="background:var(--away)"></i>
+  </div>
+
+  <button class="clkbtn"><svg class="i xl" style="width:32px;height:32px"><use href="#i-pause"/></svg>
+    <span class="tx">Stop clock<small>Running</small></span>
+    <span class="disp"><span class="led">04:21</span></span>
+  </button>
+
+  <div class="scores">
+    <div class="score-block">
+      <div class="nm"><i style="background:var(--home)"></i>Wildcats</div>
+      <div class="led">48</div>
+      <div class="plus"><button class="btn">+1</button><button class="btn">+2</button><button class="btn">+3</button></div>
+    </div>
+    <div class="score-block">
+      <div class="nm"><i style="background:var(--away)"></i>Lions</div>
+      <div class="led">44</div>
+      <div class="plus"><button class="btn">+1</button><button class="btn">+2</button><button class="btn">+3</button></div>
+    </div>
+  </div>
+
+  <div class="toast"><svg class="i" style="color:var(--action-hi)"><use href="#i-info"/></svg>
+    <div style="flex:1;min-width:0"><b>Console changed score</b><div class="muted" style="font-size:12px">Lions now 44, was 41</div></div>
+    <button class="btn sm ghost" style="height:32px"><svg class="i sm"><use href="#i-undo"/></svg>Undo</button></div>
+
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="tabs"><span class="on">Fouls &amp; timeouts</span><span>Period</span><span>Undo log</span></div>
+    <div class="body">
+      <div class="tm2">
+        <div class="h"><i style="background:var(--home)"></i>Wildcats</div>
+        <div class="stp"><button class="btn" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led">3</span><button class="btn" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <div class="to"><span class="pips"><i class="on"></i><i class="on"></i><i></i></span><button class="btn">Timeout</button></div>
+      </div>
+      <div class="tm2">
+        <div class="h"><i style="background:var(--away)"></i>Lions</div>
+        <div class="stp"><button class="btn" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led">2</span><button class="btn" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <div class="to"><span class="pips"><i class="on"></i><i></i><i></i></span><button class="btn">Timeout</button></div>
+      </div>
+      <div class="row" style="gap:12px"><span class="muted" style="font-weight:600">Possession</span><span class="sp"></span><div class="seg"><span class="on" style="height:44px;padding:0 18px">Wildcats</span><span style="height:44px;padding:0 18px">Lions</span></div></div>
+    </div>
+  </div>
+</div>
+<script src="../icons.js"></script><script src="../ui.js"></script>
+</body></html>
