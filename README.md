@@ -4,7 +4,7 @@ Fieldhouse is a free, open-source broadcast app for school sports. It turns a la
 
 **Who it is for:** teachers, athletic directors, booster-club parents and student crews who stream home games without a TV crew, starting with high school basketball.
 
-**Status: beta (1.0.0-beta.1, unreleased).** Verified so far, on one Linux machine with OBS Studio 32.2.2 (Flatpak): a scripted game night and a click-through of the packaged Linux desktop app, covering connecting to and setting up real OBS, switching, recording, streaming to a local test server, instant replay, sponsors, highlights and crash recovery. **Not verified:** Windows and macOS, code signing, automatic updates, native (non-Flatpak) Linux OBS, real USB cameras, real YouTube or Facebook streaming, physical phones, Safari and iOS. No public installers exist yet.
+**Status: beta (1.0.0-beta.1, the first public beta).** Verified so far, on one Linux machine with OBS Studio 32.2.2 (Flatpak): a scripted game night and a click-through of the packaged Linux desktop app, covering connecting to and setting up real OBS, switching, recording, streaming to a local test server, instant replay, sponsors, highlights and crash recovery. **Not verified:** Windows and macOS, code signing, automatic updates, native (non-Flatpak) Linux OBS, real USB cameras, real YouTube or Facebook streaming, physical phones, Safari and iOS. No public installers exist yet.
 
 ## Features
 
@@ -37,7 +37,7 @@ Planned:
 
 ## Install and run
 
-Installers are not released yet. The desktop app uses OBS by default. To try it from source you need [Bun](https://bun.sh) (and `ffmpeg` for test recordings):
+Installers (Linux AppImage and .deb, Windows, macOS) are on the [Releases page](https://github.com/RoboWhisperer/fieldhouse/releases). They are **not code-signed**, so Windows SmartScreen and macOS Gatekeeper will warn when you open them, and only the Linux build has been run by the maintainer. The desktop app uses OBS by default. To try it from source you need [Bun](https://bun.sh) (and `ffmpeg` for test recordings):
 
 ```bash
 bun run demo     # http://127.0.0.1:8080 with sample data

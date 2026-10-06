@@ -2,7 +2,7 @@
 
 This page takes you from nothing to a first broadcast in about 15 minutes. Do the practice run in a quiet room, not on game night.
 
-> **Beta notice.** Public installers do not exist yet. A Linux desktop build has been run; Windows and macOS builds have not been verified. Real USB cameras and real YouTube or Facebook streaming have not been verified either.
+> **Beta notice.** Installers are on the project's Releases page but are not code-signed (Windows SmartScreen and macOS Gatekeeper will warn). A Linux desktop build has been run; Windows and macOS builds have not been run by hand. Real USB cameras and real YouTube or Facebook streaming have not been verified either.
 
 ## What you need
 
@@ -13,7 +13,7 @@ This page takes you from nothing to a first broadcast in about 15 minutes. Do th
 
 ## 1. Install
 
-**When installers are released:** download the installer for your computer from the project's releases page, run it, and open Fieldhouse from the Start menu or Applications folder.
+**Installers:** download the installer for your computer from the project's releases page, run it, and open Fieldhouse from the Start menu or Applications folder.
 
 **For now (developers and testers):** install [Bun](https://bun.sh), download the project, then in a terminal in the project folder run `bun run demo`. Open `http://127.0.0.1:8080` in your browser. The demo fills the app with a sample venue, sponsors and games, all clearly sample data. Use `bun start` instead for an empty app.
 

@@ -6,7 +6,7 @@ Fieldhouse has not had a public release yet. Once there is one, only the latest 
 
 | Version | Supported |
 |---------|-----------|
-| 1.0.0-beta.x (unreleased) | Yes, when released |
+| 1.0.0-beta.x | Yes |
 
 ## Reporting a problem privately
 
