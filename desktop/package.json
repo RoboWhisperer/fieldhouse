@@ -6,8 +6,13 @@
   "author": "Fieldhouse contributors",
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/RoboWhisperer/fieldhouse",
-  "repository": { "type": "git", "url": "https://github.com/RoboWhisperer/fieldhouse.git" },
-  "bugs": { "url": "https://github.com/RoboWhisperer/fieldhouse/issues" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RoboWhisperer/fieldhouse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RoboWhisperer/fieldhouse/issues"
+  },
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -15,6 +20,11 @@
     "dist": "electron-builder",
     "dist:dir": "electron-builder --dir"
   },
-  "dependencies": { "electron-updater": "^6.3.9" },
-  "devDependencies": { "electron": "^33.2.1", "electron-builder": "^25.1.8" }
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  }
 }
