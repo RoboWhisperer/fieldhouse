@@ -20,7 +20,7 @@
 
 **Can I add NDI cameras?** Fieldhouse does not include NDI. See [OBS setup](obs-setup.md).
 
-**Where do I get help?** The project's Discussions page (placeholder: github.com/fieldhouse-app/fieldhouse). Help is from volunteers, best-effort, not on game nights.
+**Where do I get help?** The project's Discussions page (github.com/RoboWhisperer/fieldhouse/discussions). Help is from volunteers, best-effort, not on game nights.
 
 **Does it send my data anywhere?** See [Privacy](privacy.md).
 

@@ -2,7 +2,6 @@
 
 Fieldhouse is free and open source, maintained by volunteers. Bug reports, test reports from real gyms, docs fixes and code are all welcome. Please read the [Code of Conduct](CODE_OF_CONDUCT.md) first.
 
-The repository address `github.com/fieldhouse-app/fieldhouse` used in these files is a placeholder.
 
 ## Set up
 

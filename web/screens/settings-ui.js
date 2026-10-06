@@ -1,7 +1,7 @@
 // Shared UI helpers + page CSS for the Settings screens.
 import { html, icon, toast } from "../app.js";
 
-export const REPO = "https://github.com/fieldhouse-app/fieldhouse"; // placeholder address, shown as such wherever it is linked
+export const REPO = "https://github.com/RoboWhisperer/fieldhouse";
 export const NAV = [["engine", "Engine (OBS)", "video"], ["destinations", "Destinations", "link"], ["themes", "Graphics themes", "film"], ["sport", "Sport profile", "ball"], ["shortcuts", "Keyboard shortcuts", "sliders"], ["remote", "Remote access", "phone"], ["storage", "Storage", "disk"], ["diagnostics", "Diagnostics", "help"], ["about", "About and open source", "book"]];
 
 /** Delegated listener: elements with data-<attr>="name" call map[name](el, event). Returns a cleanup. */

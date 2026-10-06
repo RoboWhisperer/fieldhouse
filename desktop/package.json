@@ -5,9 +5,9 @@
   "description": "Fieldhouse: free, open-source sports broadcast production",
   "author": "Fieldhouse contributors",
   "license": "GPL-3.0-or-later",
-  "homepage": "https://github.com/fieldhouse-app/fieldhouse",
-  "repository": { "type": "git", "url": "https://github.com/fieldhouse-app/fieldhouse.git" },
-  "bugs": { "url": "https://github.com/fieldhouse-app/fieldhouse/issues" },
+  "homepage": "https://github.com/RoboWhisperer/fieldhouse",
+  "repository": { "type": "git", "url": "https://github.com/RoboWhisperer/fieldhouse.git" },
+  "bugs": { "url": "https://github.com/RoboWhisperer/fieldhouse/issues" },
   "private": true,
   "main": "main.js",
   "scripts": {

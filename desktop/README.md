@@ -69,7 +69,7 @@ Without them builds are unsigned: Windows SmartScreen and macOS Gatekeeper will 
 ## Auto-update
 
 `electron-updater` with the GitHub provider; owner/repo come from `repository` in `desktop/package.json`
-(currently the placeholder `github.com/fieldhouse-app/fieldhouse`). Enabled only when packaged and
+(currently `github.com/RoboWhisperer/fieldhouse`). Enabled only when packaged and
 `FIELDHOUSE_NO_UPDATE` is unset. It checks 30 s after start and every 6 h, downloads only when no broadcast is live,
 never installs by itself, and shows "Update ready, restart when the game is over" in Help (plus a notification).
 Restart-to-update is refused while live. **Untested against a real release feed**; macOS auto-update additionally

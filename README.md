@@ -59,7 +59,7 @@ bun run demo     # http://127.0.0.1:8080 with sample data
 
 ## Free and open source
 
-Fieldhouse has no price, trial, account or license key, and never will. It is licensed under the [GNU General Public License, version 3 or later](LICENSE). Third-party components are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). It is maintained by volunteers; support is best-effort and not available on game nights. Repository address used in these files, `github.com/fieldhouse-app/fieldhouse`, is a placeholder.
+Fieldhouse has no price, trial, account or license key, and never will. It is licensed under the [GNU General Public License, version 3 or later](LICENSE). Third-party components are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md). It is maintained by volunteers; support is best-effort and not available on game nights.
 
 ## Contributing
 

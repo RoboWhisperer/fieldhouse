@@ -2,7 +2,7 @@ import { html, icon, api, S, fail, go } from "../app.js";
 
 export const SEEN_KEY = "fieldhouse.seenOnboarding";
 export const markSeen = () => { try { localStorage.setItem(SEEN_KEY, "1"); } catch {} };
-const SRC = "https://github.com/fieldhouse-app/fieldhouse"; // placeholder repository address
+const SRC = "https://github.com/RoboWhisperer/fieldhouse";
 const TITLES = ["Welcome to Fieldhouse", "Detect and test your first camera", "Run a practice broadcast"];
 const KIND = { usb: "Camera", ndi: "Network", srt: "Network", screen: "Screen", test: "Test pattern", audio: "Microphone" };
 

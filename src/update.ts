@@ -1,6 +1,6 @@
 // Update check. The ONLY outbound call Fieldhouse makes on its own, and only when the operator asks.
 // Sends a plain GET to the public GitHub releases API: no identifiers, no cookies, no body.
-export const DEFAULT_REPO = "fieldhouse-app/fieldhouse"; // placeholder until the project is published
+export const DEFAULT_REPO = "RoboWhisperer/fieldhouse";
 export type UpdateResult =
   | { status: "current"; current: string; latest: string; checkedAt: number }
   | { status: "available"; current: string; latest: string; url: string; notes: string; checkedAt: number }

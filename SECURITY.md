@@ -12,8 +12,7 @@ Fieldhouse has not had a public release yet. Once there is one, only the latest 
 
 Please do not open a public issue for a security problem.
 
-Send a report to: **[maintainer contact: to be set before first public release]**
-(When the repository is public, GitHub's private vulnerability reporting may be turned on instead; this file will say so.)
+Use GitHub's private vulnerability reporting: **[report a vulnerability](https://github.com/RoboWhisperer/fieldhouse/security/advisories/new)** (the Security tab of the repository). Only the maintainers can see it.
 
 Include what you found, how to reproduce it, and the version. Do not include real stream keys or student data.
 

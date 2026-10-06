@@ -35,5 +35,5 @@ test("launch command per install type", () => {
 test("flatpakUnreachable refuses folders a Flatpak OBS cannot write, allows home folders", async () => {
   const { flatpakUnreachable } = await import("./obs-manager");
   for (const d of ["/tmp/x", "/tmp", "/var/lib/rec", "/usr/share/x", "/run/user/1000/x"]) expect(flatpakUnreachable(d)).toContain("home directory");
-  for (const d of ["/home/noah/Videos/Fieldhouse", "/mnt/usb/games", "/media/noah/disk/rec", "/tmpfoo/x"]) expect(flatpakUnreachable(d)).toBeNull();
+  for (const d of ["/home/user/Videos/Fieldhouse", "/mnt/usb/games", "/media/user/disk/rec", "/tmpfoo/x"]) expect(flatpakUnreachable(d)).toBeNull();
 });

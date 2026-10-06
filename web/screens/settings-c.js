@@ -100,12 +100,12 @@ export const about = {
         <div class="ok2"><span>${icon("check")}No accounts</span><span>${icon("check")}No license keys</span><span>${icon("check")}No trial</span></div>
         <div class="row"><span class="muted">License</span><span class="chip mono" style="color:var(--text)">GPL-3.0-or-later</span><span class="hint">Working choice, not final.</span></div>
         <div class="row" style="flex-wrap:wrap;gap:8px">${lnk(REPO, "View source on GitHub", "btn pri")}${lnk(`${REPO}/blob/main/LICENSE`, "View license text", "btn", "book")}</div>
-        <div class="hint"><span class="mono">github.com/fieldhouse-app/fieldhouse</span> is a placeholder address until the project is published.</div></div></div>
+        <div class="hint"><span class="mono">github.com/RoboWhisperer/fieldhouse</span></div></div></div>
       ${panel("Ways to help", helpList(HELP))}
     </div>
     <div class="col-g" style="gap:16px">
       ${panel("Built on open source", html`<table class="tbl"><thead><tr><th>Component</th><th>License</th></tr></thead><tbody>${NOTICES.map(([n, l]) => html`<tr><td>${n}</td><td class="m">${l}</td></tr>`)}</tbody></table><div class="row" style="padding:12px 14px">${lnk(`${REPO}/blob/main/NOTICE`, "View all notices", "btn", "book")}</div>`)}
-      ${panel("Community", html`${helpList(COMM)}<div class="hint" style="padding:10px 14px">Placeholder addresses until the project is published.</div>`)}
+      ${panel("Community", html`${helpList(COMM)}`)}
     </div></div>`,
   bind(root) {
     const out = () => root.querySelector("[data-upd]");
