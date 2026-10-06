@@ -33,6 +33,7 @@ deb:
 win:
   target: [{ target: nsis, arch: [x64] }]
   icon: build/icon.png        # electron-builder derives the .ico
+  artifactName: "Fieldhouse-Setup-${version}.${ext}"   # no spaces: GitHub renames spaces to dots, which would break the update metadata
   # Signing: set WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD (or CSC_LINK/CSC_KEY_PASSWORD). Unsigned builds show SmartScreen warnings.
 nsis:
   oneClick: true
