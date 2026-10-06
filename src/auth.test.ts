@@ -14,7 +14,10 @@ const LAN = "192.168.1.50";
 const rigs: Remote[] = [];
 const engines: FakeEngine[] = [];
 const dirs: string[] = [];
-afterAll(() => { rigs.forEach((r) => r.close()); engines.forEach((e) => e.close()); dirs.forEach((d) => rmSync(d, { recursive: true, force: true })); });
+afterAll(async () => { // stop everything that holds files open first: Windows refuses to delete open files
+  rigs.forEach((r) => r.close()); await Promise.all(engines.map((e) => e.close()));
+  dirs.forEach((d) => { try { rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch {} }); // best-effort temp cleanup
+});
 
 /** A fresh app + remote with a controllable clock, an active demo game and the remote switched on (without opening a port). */
 async function rig(remoteSettings: Record<string, unknown> = {}) {

@@ -321,12 +321,12 @@ test("POST /demo: allowed on an empty database, refused once games exist unless 
 // ---------------------------------------------------------------- process-level crash handlers (real subprocess)
 test("uncaught exceptions and rejections are logged and the process keeps running", async () => {
   const dir = `${root}/crashproc`;
-  const script = `import { setLogDir, installCrashHandlers } from "${import.meta.dir}/diagnostics";
-    setLogDir("${dir}"); installCrashHandlers();
+  const script = `import { setLogDir, installCrashHandlers } from ${JSON.stringify(import.meta.dir + "/diagnostics")};
+    setLogDir(${JSON.stringify(dir)}); installCrashHandlers();
     setTimeout(() => { throw new Error("late boom password=hunter2"); }, 10);
     setTimeout(() => { Promise.reject(new Error("lost promise")); }, 30);
     setTimeout(() => { console.log("STILL ALIVE"); }, 150);`;
-  const p = Bun.spawn(["bun", "-e", script], { stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn([process.execPath, "-e", script], { stdout: "pipe", stderr: "pipe" });
   const out = await new Response(p.stdout).text();
   await p.exited;
   expect(out).toContain("STILL ALIVE");
