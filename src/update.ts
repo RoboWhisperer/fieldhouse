@@ -45,12 +45,18 @@ export function createUpdateChecker(opts: { current: string; fetch?: typeof fetc
     lastTry = t;
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return fail("error");
     try {
-      const r = await f(`https://api.github.com/repos/${repo}/releases/latest`, { headers: { accept: "application/vnd.github+json", "user-agent": "Fieldhouse-update-check" }, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: "error" });
+      // /releases/latest never returns pre-releases (it 404s while only betas exist), so list recent releases and choose ourselves.
+      const r = await f(`https://api.github.com/repos/${repo}/releases?per_page=15`, { headers: { accept: "application/vnd.github+json", "user-agent": "Fieldhouse-update-check" }, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: "error" });
       if (r.status === 404) return fail("no-release");
       if (!r.ok) return fail("error");
-      const j: any = await r.json();
-      const latest = String(j.tag_name ?? "");
-      if (!latest) return fail("error");
+      const list: any = await r.json();
+      if (!Array.isArray(list)) return fail("error");
+      const mine = parseVersion(opts.current);
+      // Drafts are never offered. Pre-releases are offered only to someone already on a pre-release.
+      const usable = list.filter((x: any) => x && !x.draft && typeof x.tag_name === "string" && x.tag_name && (mine.pre || (!x.prerelease && !parseVersion(x.tag_name).pre)));
+      if (!usable.length) return fail("no-release");
+      const j: any = usable.reduce((a: any, b: any) => (compareVersions(a.tag_name, b.tag_name) >= 0 ? a : b));
+      const latest = String(j.tag_name);
       const link = typeof j.html_url === "string" && j.html_url.startsWith("https://github.com/") ? j.html_url : `https://github.com/${repo}/releases`;
       cached = compareVersions(opts.current, latest) < 0
         ? { status: "available", current: opts.current, latest: latest.replace(/^v/i, ""), url: link, notes: String(j.body ?? "").slice(0, 1500), checkedAt: t }

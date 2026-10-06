@@ -271,11 +271,11 @@ test("semver compare handles prereleases and short versions", () => {
 });
 test("update check: available, current, cached 6h, forced, anonymous request", async () => {
   let t = 1_000_000;
-  const m = mock(() => Response.json(rel("v1.1.0")));
+  const m = mock(() => Response.json([rel("v1.1.0")]));
   const check = createUpdateChecker({ current: "1.0 beta", fetch: m.f, now: () => t, repo: "o/r" });
   const r = await check();
   expect(r).toMatchObject({ status: "available", latest: "1.1.0", url: "https://github.com/o/r/releases/tag/v1.1.0" });
-  expect(m.calls[0][0]).toBe("https://api.github.com/repos/o/r/releases/latest");
+  expect(m.calls[0][0]).toBe("https://api.github.com/repos/o/r/releases?per_page=15");
   const h = m.calls[0][1]!.headers as Record<string, string>;
   expect(Object.keys(h).sort()).toEqual(["accept", "user-agent"]); // no cookies, tokens, ids
   expect(m.calls[0][1]!.signal).toBeTruthy();
@@ -283,7 +283,7 @@ test("update check: available, current, cached 6h, forced, anonymous request", a
   t += 2 * 3600_000; await check(); expect(m.calls.length).toBe(2); // past 6 h
   t += 20_000; await check(true); expect(m.calls.length).toBe(3);
   t += 1000; await check(true); expect(m.calls.length).toBe(3); // forced checks are still rate limited
-  const same = createUpdateChecker({ current: "1.1.0", fetch: mock(() => Response.json(rel("v1.1.0"))).f, repo: "o/r" });
+  const same = createUpdateChecker({ current: "1.1.0", fetch: mock(() => Response.json([rel("v1.1.0")])).f, repo: "o/r" });
   expect((await same()).status).toBe("current");
 });
 test("update check fails quietly: offline, timeout, 404, 500, junk, bad repo", async () => {
@@ -294,12 +294,13 @@ test("update check fails quietly: offline, timeout, 404, 500, junk, bad repo", a
   expect(await run(() => new Response("", { status: 500 }))).toMatchObject({ reason: "error" });
   expect(await run(() => new Response("<html>", { status: 200 }))).toMatchObject({ status: "unavailable" });
   expect(await run(() => Response.json({}))).toMatchObject({ reason: "error" });
-  expect(await run(() => Response.json(rel("v9")), "../../evil")).toMatchObject({ reason: "error" });
-  const evil = await run(() => Response.json({ tag_name: "v9.0.0", html_url: "https://evil.example/x" }));
+  expect(await run(() => Response.json([rel("v9")]), "../../evil")).toMatchObject({ reason: "error" });
+  expect(await run(() => Response.json([]))).toMatchObject({ reason: "no-release" }); // a repo with no releases yet
+  const evil = await run(() => Response.json([{ tag_name: "v9.0.0", html_url: "https://evil.example/x" }]));
   expect((evil as any).url).toBe("https://github.com/o/r/releases");
 });
 test("GET /api/update uses the injected fetch and the app version", async () => {
-  const a = createApp({ store: openStore(":memory:"), engine, fetch: mock(() => Response.json(rel("v2.0.0"))).f });
+  const a = createApp({ store: openStore(":memory:"), engine, fetch: mock(() => Response.json([rel("v2.0.0")])).f });
   const r: any = await (await a.handle(new Request("http://localhost/api/update"))).json();
   expect(r.status).toBe("available");
   a.stop();
@@ -348,4 +349,21 @@ test("pre-release precedence is numeric per part and the current version is a va
   expect(compareVersions("1.0.0-beta.1", "1.0.0-beta.1")).toBe(0);
   expect(compareVersions("1.0.0-alpha", "1.0.0-beta")).toBe(-1);
   expect(compareVersions("1.0.0-beta.1", "1.0.1")).toBe(-1);
+});
+
+test("update check: drafts are never offered, pre-releases only to pre-release users, highest version wins", async () => {
+  const L = [
+    { ...rel("v1.0.0-beta.2"), prerelease: true }, { ...rel("v1.0.0-beta.10"), prerelease: true },
+    { ...rel("v0.9.0") }, { ...rel("v3.0.0"), draft: true }, { ...rel("v1.0.0-beta.1"), prerelease: true },
+  ];
+  const as = (current: string) => createUpdateChecker({ current, fetch: mock(() => Response.json(L)).f, repo: "o/r" })();
+  // a beta user sees the highest beta (numeric: beta.10 > beta.2), never the draft
+  expect(await as("1.0.0-beta.1")).toMatchObject({ status: "available", latest: "1.0.0-beta.10" });
+  expect(await as("1.0.0-beta.10")).toMatchObject({ status: "current" });
+  // a stable user is not offered betas, and the draft is invisible
+  expect(await as("0.9.0")).toMatchObject({ status: "current", latest: "0.9.0" });
+  // only betas exist: a stable user gets "no release", a beta user still hears about newer betas
+  const onlyBeta = (current: string) => createUpdateChecker({ current, fetch: mock(() => Response.json([{ ...rel("v1.0.0-beta.1"), prerelease: true }])).f, repo: "o/r" })();
+  expect(await onlyBeta("0.5.0")).toMatchObject({ reason: "no-release" });
+  expect(await onlyBeta("1.0.0-beta.1")).toMatchObject({ status: "current" });
 });
