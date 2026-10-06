@@ -16,5 +16,5 @@
     "dist:dir": "electron-builder --dir"
   },
   "dependencies": { "electron-updater": "^6.3.9" },
-  "devDependencies": { "electron": "^33.2.1", "electron-builder": "^25.1.8" }
+  "devDependencies": { "electron": "^41.10.6", "electron-builder": "^26.15.3" }
 }
