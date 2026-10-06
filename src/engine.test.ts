@@ -1,8 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
+import { tmpdir as __tmpdir } from "node:os";
+import { join as __join } from "node:path";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { FakeEngine, createEngine } from "./engine";
 
-const TMP = "/tmp/claude-1000/-home-noah-Projects-Fieldhouse/engine-test";
+const TMP = __join(__tmpdir(), "fieldhouse-tests", "engine-test");
 mkdirSync(TMP, { recursive: true });
 let e = new FakeEngine();
 afterEach(async () => { await e.close(); e = new FakeEngine(); });

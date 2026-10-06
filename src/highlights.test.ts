@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { tmpdir as __tmpdir } from "node:os";
+import { join as __join } from "node:path";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { clipsFromLog, exportHighlights } from "./highlights";
 import type { Logged } from "./game";
@@ -25,7 +27,7 @@ test("clips: undo respected, merged, labelled, clamped", () => {
   expect(early[0]).toMatchObject({ startMs: 0, endMs: 3000, label: "Score" });
 });
 
-const dir = "/tmp/claude-1000/-home-noah-Projects-Fieldhouse/hl-test";
+const dir = __join(__tmpdir(), "fieldhouse-tests", "hl-test");
 test.skipIf(!Bun.which("ffmpeg") || !Bun.which("ffprobe"))("export joins clips into one file of the right length", async () => {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });

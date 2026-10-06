@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
+import { tmpdir as __tmpdir } from "node:os";
+import { join as __join } from "node:path";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { openStore } from "./store";
 import { deleteRecording, listRecordings, markExported, saveRecording, storageUsage } from "./storage";
 
-const dir = "/tmp/claude-1000/-home-noah-Projects-Fieldhouse/storage-test";
+const dir = __join(__tmpdir(), "fieldhouse-tests", "storage-test");
 
 test("usage, list, export, delete", () => {
   rmSync(dir, { recursive: true, force: true });

@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 
 export type ObsKind = "flatpak" | "native" | "windows" | "macos";
 export interface ObsInstall { installed: boolean; kind?: ObsKind; version?: string; launch: string[]; cwd?: string }
@@ -18,10 +18,10 @@ export const windowsExeCandidates = (env: Env) =>
 /** Directory of obs-websocket's config.json for each OS / install type. */
 export function websocketConfigPath(kind: ObsKind, o: { home: string; env: Env }): string {
   const tail = ["obs-studio", "plugin_config", "obs-websocket", "config.json"];
-  if (kind === "flatpak") return join(o.home, ".var", "app", FLATPAK_ID, "config", ...tail);
+  if (kind === "flatpak") return posix.join(o.home, ".var", "app", FLATPAK_ID, "config", ...tail);
   if (kind === "windows") return o.env.APPDATA ? `${o.env.APPDATA}\\obs-studio\\plugin_config\\obs-websocket\\config.json` : `${o.home}\\AppData\\Roaming\\obs-studio\\plugin_config\\obs-websocket\\config.json`;
-  if (kind === "macos") return join(o.home, "Library", "Application Support", ...tail);
-  return join(o.env.XDG_CONFIG_HOME || join(o.home, ".config"), ...tail);
+  if (kind === "macos") return posix.join(o.home, "Library", "Application Support", ...tail);
+  return posix.join(o.env.XDG_CONFIG_HOME || posix.join(o.home, ".config"), ...tail);
 }
 
 /** Enable the server on `port` with a password, keeping every other key the user or OBS wrote. */

@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { tmpdir as __tmpdir } from "node:os";
+import { join as __join } from "node:path";
 import { readFileSync, rmSync } from "node:fs";
 import { buildBundle, log, previewBundle, recentLogs, redact } from "./diagnostics";
 import { defaultSettings } from "./data";
@@ -25,7 +27,7 @@ test("bundle has no keys, codes, rosters or key-bearing urls", () => {
   expect(text).not.toContain(settings.remote.code);
   expect(text).toContain("a.rtmp.youtube.com");
   expect(text).toContain("bun");
-  const dir = "/tmp/claude-1000/-home-noah-Projects-Fieldhouse/diag-test";
+  const dir = __join(__tmpdir(), "fieldhouse-tests", "diag-test");
   const b = buildBundle(ctx, dir);
   expect(b.path).toMatch(/diagnostics-\d+\.json$/);
   expect(readFileSync(b.path, "utf8")).not.toContain("SECRETKEY");

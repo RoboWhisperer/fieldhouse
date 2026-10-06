@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { join as __join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +22,7 @@ async function rig(remoteSettings: Record<string, unknown> = {}) {
   const t = { now: 1_000_000 };
   const app = createApp({ store, engine, now: () => t.now });
   seedDemo(store);
-  const remote = createRemote({ app, store, now: () => t.now, webDir: new URL("../web", import.meta.url).pathname }); rigs.push(remote);
+  const remote = createRemote({ app, store, now: () => t.now, webDir: __join(import.meta.dir, "..", "web") }); rigs.push(remote);
   const game = (await (await app.handle(new Request("http://x/api/games"))).json()).find((g: any) => g.status === "scheduled");
   await app.handle(new Request(`http://x/api/games/${game.id}/activate`, { method: "POST" }));
   saveSettings(store, { remote: { enabled: true, code: "WILD-4821", ...remoteSettings } });

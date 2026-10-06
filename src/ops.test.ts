@@ -1,4 +1,6 @@
 // Production-readiness pieces: playback, health history, logging, migrations/backups, retention, disk watchdog, update check.
+import { tmpdir as __tmpdir } from "node:os";
+import { join as __join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -13,15 +15,17 @@ import { parseRange } from "./media";
 import { defaultSettings } from "./data";
 import type { GameDoc, RecordingDoc } from "./types";
 
-const root = "/tmp/claude-1000/-home-noah-Projects-Fieldhouse/ops-test";
+const root = __join(__tmpdir(), "fieldhouse-tests", "ops-test");
 rmSync(root, { recursive: true, force: true });
 mkdirSync(`${root}/rec/highlights`, { recursive: true });
 const mp4 = `${root}/rec/g1.mp4`;
-const ff = Bun.spawnSync(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "2", "-pix_fmt", "yuv420p", mp4]);
+const HAS_FFMPEG = !!Bun.which("ffmpeg") && !!Bun.which("ffprobe");
+const ff = !HAS_FFMPEG ? { exitCode: 0 } : Bun.spawnSync(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=10", "-t", "2", "-pix_fmt", "yuv420p", mp4]);
+if (!HAS_FFMPEG) writeFileSync(mp4, Buffer.alloc(8192, 7)); // no ffmpeg here: the range tests only need bytes, not decodable video
 const engine = new FakeEngine();
 afterAll(() => engine.close());
 
-test("ffmpeg test file exists", () => { expect(ff.exitCode).toBe(0); });
+test.skipIf(!HAS_FFMPEG)("ffmpeg test file exists", () => { expect(ff.exitCode).toBe(0); });
 
 // ---------------------------------------------------------------- playback
 const store = openStore(":memory:");
