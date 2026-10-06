@@ -71,7 +71,7 @@ export function redact<T>(v: T): T {
   return v;
 }
 
-type Ctx = { settings: SettingsDoc; engine: EngineStatus; destinations: DestinationDoc[]; gameId?: string };
+type Ctx = { settings: SettingsDoc; engine: EngineStatus; destinations: DestinationDoc[]; gameId?: string; obsLog?: string[] };
 const EXCLUDES = ["stream keys", "destination addresses", "remote code", "rosters", "recordings"];
 
 export function previewBundle(ctx: Ctx) {
@@ -86,6 +86,7 @@ export function previewBundle(ctx: Ctx) {
     gameId: ctx.gameId,
     logs: recentLogs(500),
     logTail: logTail(200),
+    videoEngineProblems: (ctx.obsLog ?? []).map(scrub), // problem lines from OBS's own log, secrets removed; never the whole log
     lastCrash: lastCrash(),
     settings: ctx.settings,
     engine: ctx.engine,
@@ -99,5 +100,5 @@ export function buildBundle(ctx: Ctx, dir = paths().dataDir): { path: string; co
   mkdirSync(dir, { recursive: true });
   const path = `${dir}/diagnostics-${Date.now()}.json`;
   writeFileSync(path, body);
-  return { path, contains: ["recent logs", "log file tail", "last crash report", "settings", "engine status", "system info", "destination names and hosts"], excludes: EXCLUDES, bytes: Buffer.byteLength(body) };
+  return { path, contains: ["recent logs", "log file tail", "video engine problem lines", "last crash report", "settings", "engine status", "system info", "destination names and hosts"], excludes: EXCLUDES, bytes: Buffer.byteLength(body) };
 }

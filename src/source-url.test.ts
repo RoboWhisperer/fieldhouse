@@ -12,3 +12,12 @@ test("rejects everything else", () => {
   for (const bad of ["", "   ", "javascript:alert(1)", "file:///etc/passwd", "ftp://a/b", "srt://host", "rtmp://", "/etc/passwd", "concat:a|b", "rtmp://a b/c", "not a url", 5])
     expect(() => parseNetworkSource(bad)).toThrow();
 });
+
+test("maskAddress never shows credentials, queries or stream keys", async () => {
+  const { maskAddress } = await import("./source-url");
+  expect(maskAddress("rtmp://user:pw@10.0.0.5:1935/live/KEY123?token=abc")).toBe("rtmp://10.0.0.5:1935/live/...");
+  expect(maskAddress("srt://10.0.0.5:9000?passphrase=secret")).toBe("srt://10.0.0.5:9000/...");
+  expect(maskAddress("/home/u/Videos/game.mp4")).toBe("game.mp4");
+  expect(maskAddress("C:\\Videos\\game.mp4")).toBe("game.mp4");
+  expect(maskAddress("garbage")).toBe("(address hidden)");
+});

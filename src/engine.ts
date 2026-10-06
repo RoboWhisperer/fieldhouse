@@ -1,9 +1,11 @@
 // Media engines behind the Engine interface (src/types.ts). FakeEngine is the believable simulator used for
 // dev, demos, tests and CI soak; ObsEngine (src/obs.ts) drives a real OBS Studio.
 import { mkdirSync, statSync, statfsSync, writeFileSync, readFileSync } from "node:fs";
-import type { DeviceInfo, Engine, EngineStatus, SourceInfo } from "./types";
+import type { AudioInput, AudioList, DeviceInfo, Engine, EngineStatus, MixerChannel, SourceInfo, SourceOptions, SourceOptionsPatch, VideoApplied, VideoSettings } from "./types";
+import { DEFAULT_VIDEO, REC_FORMAT, dims, encoderOptions, liveBlocked, resolveEncoder } from "./video-settings";
+import type { ManagedStatus } from "./obs-supervisor";
 import { ObsEngine } from "./obs";
-import { networkDetail, networkDeviceId, parseNetworkSource } from "./source-url";
+import { maskAddress, networkDetail, networkDeviceId, parseNetworkSource } from "./source-url";
 // Embedded at compile time so the standalone sidecar binary needs no asset files on disk.
 import feedCenter from "./assets/feeds/feed-center.svg" with { type: "text" };
 import feedBaseline from "./assets/feeds/feed-baseline.svg" with { type: "text" };
@@ -11,10 +13,11 @@ import feedBench from "./assets/feeds/feed-bench.svg" with { type: "text" };
 import feedScoreboard from "./assets/feeds/feed-scoreboard.svg" with { type: "text" };
 const FEED_SVG: Record<string, string> = { center: feedCenter, baseline: feedBaseline, bench: feedBench, scoreboard: feedScoreboard };
 
-export interface EngineOpts { obsUrl?: string; obsPassword?: string; overlayUrl?: string | (() => string) }
+export interface EngineOpts { obsUrl?: string; obsPassword?: string; overlayUrl?: string | (() => string); video?: () => VideoSettings; restartForVideo?: () => Promise<void> }
 export function createEngine(kind: "fake" | "obs", opts: EngineOpts = {}): Engine {
-  return kind === "obs" ? new ObsEngine(opts.obsUrl ?? "ws://127.0.0.1:4455", opts.obsPassword, { overlayUrl: opts.overlayUrl }) : new FakeEngine();
+  return kind === "obs" ? new ObsEngine(opts.obsUrl ?? "ws://127.0.0.1:4455", opts.obsPassword, { overlayUrl: opts.overlayUrl, video: opts.video, restartForVideo: opts.restartForVideo }) : new FakeEngine();
 }
+const unsupported = (what: string) => new Error(`This engine cannot ${what}.`);
 
 /** Delegates to the current engine and can replace it at runtime (Settings > Engine), re-emitting change. */
 export class SwitchableEngine implements Engine {
@@ -23,6 +26,8 @@ export class SwitchableEngine implements Engine {
   private listeners = new Set<() => void>();
   constructor(kind: "fake" | "obs", private opts: EngineOpts = {}) { this.cur = createEngine(kind, opts); this.off = this.cur.onChange(() => this.emit()); }
   get current() { return this.cur; }
+  /** server.ts plugs the video-engine supervisor in (src/obs-supervisor.ts); its state is merged into status().obs.managed. */
+  managed?: () => ManagedStatus | undefined;
   private emit() { for (const cb of [...this.listeners]) cb(); }
   async swap(kind: "fake" | "obs", opts: EngineOpts = {}) {
     const old = this.cur;
@@ -33,7 +38,14 @@ export class SwitchableEngine implements Engine {
     this.emit();
     await old.close();
   }
-  status() { return this.cur.status(); }
+  status() {
+    const st = this.cur.status(), m = this.managed?.();
+    if (st.engine === "obs" && st.obs && m && m.state !== "off") {
+      st.obs.managed = m;
+      if (!st.connected && !["running", "adopted"].includes(m.state)) st.obs.error = m.message; // the plain-language reason beats "Reconnecting..."
+    }
+    return st;
+  }
   onChange(cb: () => void) { this.listeners.add(cb); return () => { this.listeners.delete(cb); }; }
   detectDevices() { return this.cur.detectDevices(); }
   setSlot(slot: number, deviceId: string | null, label?: string) { return this.cur.setSlot(slot, deviceId, label); }
@@ -51,6 +63,14 @@ export class SwitchableEngine implements Engine {
   snapshot(id: string) { return this.cur.snapshot(id); }
   async addNetworkSource(url: string, label: string) { if (!this.cur.addNetworkSource) throw new Error("This engine cannot add network sources."); return this.cur.addNetworkSource(url, label); }
   async provision() { if (!this.cur.provision) throw new Error("Only the OBS engine has a setup to repair."); return this.cur.provision(); }
+  videoInfo() { return this.cur.videoInfo ? this.cur.videoInfo() : Promise.reject(unsupported("change video settings")); }
+  applyVideo(v: VideoSettings) { return this.cur.applyVideo ? this.cur.applyVideo(v) : Promise.reject(unsupported("change video settings")); }
+  audioInputs() { return this.cur.audioInputs ? this.cur.audioInputs() : Promise.reject(unsupported("manage audio inputs")); }
+  addAudio(o: { role: "mic" | "desktop"; deviceId?: string; label: string }) { return this.cur.addAudio ? this.cur.addAudio(o) : Promise.reject(unsupported("manage audio inputs")); }
+  updateAudio(id: string, p: { label?: string; deviceId?: string; gainDb?: number; muted?: boolean }) { return this.cur.updateAudio ? this.cur.updateAudio(id, p) : Promise.reject(unsupported("manage audio inputs")); }
+  removeAudio(id: string) { return this.cur.removeAudio ? this.cur.removeAudio(id) : Promise.reject(unsupported("manage audio inputs")); }
+  sourceOptions(slot: number) { return this.cur.sourceOptions ? this.cur.sourceOptions(slot) : Promise.reject(unsupported("change source settings")); }
+  setSourceOptions(slot: number, p: SourceOptionsPatch) { return this.cur.setSourceOptions ? this.cur.setSourceOptions(slot, p) : Promise.reject(unsupported("change source settings")); }
   get simulate() { return (this.cur as any).simulate?.bind(this.cur); } // dev route hook, FakeEngine only
   async close() { this.off?.(); this.listeners.clear(); await this.cur.close(); }
 }
@@ -68,6 +88,7 @@ const DEVICES: DeviceInfo[] = [
   { id: "ndi-coach", label: "NDI: Coach iPhone", kind: "ndi", detail: "1080p30", inUse: false },
   { id: "srt-press", label: "SRT: Press-box cam", kind: "srt", detail: "1080p30", inUse: false },
   { id: "audio-scarlett", label: "Scarlett 2i2 (audio)", kind: "audio", detail: "48 kHz", inUse: false },
+  { id: "audio-desktop", label: "Desktop sound (monitor of built-in audio)", kind: "audio", detail: "Desktop audio", inUse: false },
   { id: "screen-scoreboard", label: "Screen capture: scoreboard PC", kind: "screen", detail: "1080p30", inUse: false },
 ];
 
@@ -86,6 +107,9 @@ export class FakeEngine implements Engine {
   private recDir?: string;
   private diskLow = false;
   private extra: DeviceInfo[] = [];
+  private videoCfg: VideoSettings = { ...DEFAULT_VIDEO };
+  private audioExtra = new Map<string, { deviceId: string; role: "mic" | "desktop" }>();
+  private camOpts = new Map<number, { resolution?: string; framerate?: string; reconnectSeconds: number; bufferingMb: number }>();
 
   constructor() {
     const src = (slot: number, label: string, kind: SourceInfo["kind"], detail: string, deviceId: string): SourceInfo => {
@@ -272,6 +296,69 @@ export class FakeEngine implements Engine {
     else throw new Error(`unknown simulation: ${what}`);
     this.s.diskFreeBytes = this.diskFree();
     this.emit();
+  }
+
+  // ---- settings (same contract as ObsEngine; values are kept in memory so the demo and CI can exercise the whole screen)
+  private appliedVideo(v: VideoSettings): VideoApplied {
+    const d = dims(v);
+    return { resolution: v.resolution, fps: v.fps, videoKbps: v.videoKbps, audioKbps: v.audioKbps, encoder: resolveEncoder(v.encoder, v, []).id, recordFormat: REC_FORMAT[v.recordFormat], replaySeconds: v.replaySeconds, outputWidth: d.outputWidth, outputHeight: d.outputHeight };
+  }
+  async videoInfo() { return { applied: this.appliedVideo(this.videoCfg), encoders: encoderOptions([]), encoderInUse: "x264" }; }
+  async applyVideo(v: VideoSettings) {
+    if (this.s.stream.live || this.s.record.active) { const b = liveBlocked(this.videoCfg, v); if (b) throw new Error(b); }
+    this.videoCfg = { ...v }; this.emit();
+    return this.appliedVideo(this.videoCfg);
+  }
+
+  private audioOf(m: MixerChannel): AudioInput {
+    const extra = this.audioExtra.get(m.id), managed = m.id !== "program";
+    const dev = DEVICES.find((d) => d.id === (extra?.deviceId ?? (m.id === "crowd" ? "audio-desktop" : "audio-scarlett")));
+    return { id: m.id, label: m.label, role: extra?.role ?? (m.id === "crowd" ? "desktop" : m.id === "program" ? "other" : "mic"), deviceId: managed ? dev?.id ?? "" : "", deviceLabel: managed ? dev?.label ?? "" : "", managed, removable: !!extra, level: m.level, gainDb: m.gainDb, muted: m.muted };
+  }
+  async audioInputs(): Promise<AudioList> { return { inputs: this.s.mixer.map((m) => this.audioOf(m)), devices: DEVICES.filter((d) => d.kind === "audio"), canDesktop: true }; }
+  async addAudio(o: { role: "mic" | "desktop"; deviceId?: string; label: string }) {
+    if (o.role !== "mic" && o.role !== "desktop") throw new Error("Choose a microphone or desktop / room sound.");
+    if (o.deviceId && !DEVICES.some((d) => d.id === o.deviceId && d.kind === "audio")) throw new Error("That device is not an audio device.");
+    let n = 2; while (this.s.mixer.some((m) => m.id === `audio-${n}`)) n++;
+    const id = `audio-${n}`;
+    this.audioExtra.set(id, { deviceId: o.deviceId ?? (o.role === "mic" ? "audio-scarlett" : "audio-desktop"), role: o.role });
+    const m: MixerChannel = { id, label: o.label.trim().slice(0, 40) || (o.role === "mic" ? "Microphone" : "Desktop sound"), level: 0.3, gainDb: 0, muted: false };
+    this.s.mixer.splice(this.s.mixer.length - 1, 0, m); this.emit();
+    return this.audioOf(m);
+  }
+  async updateAudio(id: string, p: { label?: string; deviceId?: string; gainDb?: number; muted?: boolean }) {
+    const m = this.mix(id);
+    if (p.label !== undefined) m.label = String(p.label).trim().slice(0, 40) || m.label;
+    if (p.deviceId !== undefined) { if (!DEVICES.some((d) => d.id === p.deviceId && d.kind === "audio")) throw new Error("That device is not an audio device."); const e = this.audioExtra.get(id); if (e) e.deviceId = p.deviceId; }
+    if (p.gainDb !== undefined) m.gainDb = p.gainDb;
+    if (p.muted !== undefined) m.muted = !!p.muted;
+    this.emit();
+    return this.audioOf(m);
+  }
+  async removeAudio(id: string) {
+    if (!this.audioExtra.has(id)) throw new Error("Only extra inputs added by Fieldhouse can be removed.");
+    this.audioExtra.delete(id); this.s.mixer = this.s.mixer.filter((m) => m.id !== id); this.emit();
+  }
+
+  async sourceOptions(slot: number): Promise<SourceOptions> {
+    const src = this.s.sources.find((x) => x.slot === slot);
+    if (!src) throw new Error("That slot is empty.");
+    const o = this.camOpts.get(slot) ?? { reconnectSeconds: 5, bufferingMb: 2 }, dev = this.deviceBySlot.get(slot) ?? "";
+    if (dev.startsWith("ffmpeg_source:")) {
+      const n = parseNetworkSource(dev.slice(14));
+      return { slot, type: n.local ? "file" : "network", label: src.label, address: maskAddress(n.url), resolutions: [], framerates: [], reconnectSeconds: n.local ? undefined : o.reconnectSeconds, bufferingMb: n.local ? undefined : o.bufferingMb, canReconnect: true };
+    }
+    if (src.kind !== "usb") return { slot, type: "other", label: src.label, resolutions: [], framerates: [], canReconnect: false };
+    return { slot, type: "camera", label: src.label, resolution: o.resolution ?? '"1920x1080"', framerate: o.framerate ?? "30", resolutions: ['"1920x1080"', '"1280x720"', '"640x480"'].map((v) => ({ value: v, label: JSON.parse(v) })), framerates: ["30", "60"].map((v) => ({ value: v, label: `${v} fps` })), canReconnect: false };
+  }
+  async setSourceOptions(slot: number, p: SourceOptionsPatch) {
+    const cur = await this.sourceOptions(slot), o = this.camOpts.get(slot) ?? { reconnectSeconds: 5, bufferingMb: 2 };
+    if (p.resolution !== undefined) { if (!cur.resolutions.some((r) => r.value === p.resolution)) throw new Error("That resolution is not one the camera offers."); o.resolution = p.resolution; }
+    if (p.framerate !== undefined) { if (!cur.framerates.some((r) => r.value === p.framerate)) throw new Error("That frame rate is not one the camera offers."); o.framerate = p.framerate; }
+    if (p.reconnectSeconds !== undefined) { if (!Number.isInteger(p.reconnectSeconds) || p.reconnectSeconds < 1 || p.reconnectSeconds > 60) throw new Error("Retry after must be a whole number of seconds from 1 to 60."); o.reconnectSeconds = p.reconnectSeconds; }
+    if (p.bufferingMb !== undefined) { if (!Number.isInteger(p.bufferingMb) || p.bufferingMb < 1 || p.bufferingMb > 16) throw new Error("The buffer must be a whole number of megabytes from 1 to 16."); o.bufferingMb = p.bufferingMb; }
+    this.camOpts.set(slot, o); this.emit();
+    return this.sourceOptions(slot);
   }
 
   async close() {

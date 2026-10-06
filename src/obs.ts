@@ -7,12 +7,15 @@ import { existsSync, mkdirSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { paths } from "./config";
-import { detectObs, flatpakUnreachable } from "./obs-manager";
+import { detectObs, flatpakUnreachable, obsLogDir } from "./obs-manager";
+import { checkDestination, type DestCheck } from "./destination-check";
+import { latestLog, parseEncoders, readSlice } from "./obs-log";
 import { log } from "./diagnostics";
-import { cameraInput, dropInput, isAudioDevice, networkDevice, probeDevices } from "./obs-devices";
-import { MIC, OVERLAY, PROBE_SCENE, REPLAY_MEDIA, REPLAY_SCENE, SLOTS, camInput, canvasSize, fitItem, idOfScene, provision, sceneOf, type ProvisionReport } from "./obs-provision";
-import { parseNetworkSource } from "./source-url";
-import type { DeviceInfo, Engine, EngineStatus, MixerChannel, SourceInfo } from "./types";
+import { cameraInput, dropInput, isAudioDevice, networkDevice, parseDeviceId, probeDevices, type Req } from "./obs-devices";
+import { MIC, OVERLAY, PROBE_SCENE, REPLAY_MEDIA, REPLAY_SCENE, SLOTS, camInput, canvasSize, fitItem, idOfScene, isManagedAudio, provision, readApplied, sceneOf, type ProvisionReport } from "./obs-provision";
+import { maskAddress, parseNetworkSource } from "./source-url";
+import { DEFAULT_VIDEO, dims, differences, encoderOptions, liveBlocked, resolveEncoder } from "./video-settings";
+import type { AudioInput, AudioList, DeviceInfo, Engine, EngineStatus, EncoderChoice, EncoderOption, MixerChannel, SourceInfo, SourceOptions, SourceOptionsPatch, VideoApplied, VideoSettings } from "./types";
 
 const sha256b64 = (s: string) => createHash("sha256").update(s).digest("base64");
 // obs-websocket v5 auth: base64(sha256(base64(sha256(password + salt)) + challenge))
@@ -27,9 +30,27 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export const meterLevel = (mul: number) => (mul > 0 ? clamp((20 * Math.log10(mul) + 60) / 60, 0, 1) : 0);
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-interface Sidecar { slots: Record<string, { label: string; deviceId: string; kind: DeviceInfo["kind"]; detail: string }>; network: { url: string; label: string }[] }
-export interface ObsOptions { overlayUrl?: string | (() => string); replayDir?: string; flatpak?: boolean /* override detection (tests) */ } // replayDir: scratch folder for instant-replay clips
+interface Sidecar { slots: Record<string, { label: string; deviceId: string; kind: DeviceInfo["kind"]; detail: string }>; network: { url: string; label: string }[]; audio: Record<string, { label: string; role: "mic" | "desktop" }> }
+export interface ObsOptions {
+  overlayUrl?: string | (() => string);
+  replayDir?: string; // scratch folder for instant-replay clips
+  flatpak?: boolean; // override detection (tests)
+  video?: () => VideoSettings; // the volunteer's quality choices (Fieldhouse settings); re-applied on every (re)connect
+  precheck?: (url: string) => Promise<DestCheck>; // destination check before StartStream; tests replace it
+  restartForVideo?: () => Promise<void>; // closes the OBS Fieldhouse started and starts it again with the saved profile (obs-supervisor.ts)
+  logDir?: string; // where OBS writes its logs (the encoder list is read from there); tests replace it
+}
+const MIC_KINDS = ["pulse_input_capture", "wasapi_input_capture", "coreaudio_input_capture"], DESKTOP_KINDS = ["pulse_output_capture", "wasapi_output_capture"];
+// Property names that carry a camera's resolution / frame rate, per OBS input kind (verified by reading OBS's source; only the
+// property discovery is exercised against OBS here, because the dev machine has no UVC camera).
+const CAM_PROPS: Record<string, { res: string; fps?: string; custom?: Record<string, unknown> }> = {
+  v4l2_input: { res: "resolution", fps: "framerate" },
+  dshow_input: { res: "resolution", fps: "frame_interval", custom: { res_type: 1 } }, // 1 = "custom resolution", needed for the value to count
+  av_capture_input: { res: "preset" },
+};
 type Waiter = { type: string; pred: (d: any) => boolean; done: (d: any) => void };
+
+const NOT_CONNECTED = "The video engine is not connected yet. Fieldhouse is starting it; check Settings > Video engine if this stays.";
 
 export class ObsEngine implements Engine {
   private ws?: WebSocket;
@@ -44,7 +65,9 @@ export class ObsEngine implements Engine {
   private retry?: ReturnType<typeof setTimeout>;
   private meterTimer?: ReturnType<typeof setTimeout>;
   private tick = 0;
+  private connGen = 0; // counts successful (re)connections, so "it came back" can be told from "it never went away"
   private polling = false;
+  private provisioning = false; // while true the 1 s poll must not restart the replay buffer that provisioning just stopped on purpose
   private ready: Promise<unknown> = Promise.resolve();
   private lastBytes?: { bytes: number; at: number };
   private inputs = new Map<string, { kind: string; caps: number }>();
@@ -53,7 +76,8 @@ export class ObsEngine implements Engine {
   private mix = new Map<string, { muted: boolean; gainDb: number }>();
   private meters = new Map<string, number>();
   private media = new Map<string, string>();
-  private side: Sidecar = { slots: {}, network: [] };
+  private side: Sidecar = { slots: {}, network: [], audio: {} };
+  private hw: EncoderChoice[] = []; private encoderIds: string[] = [];
   private labels = new Map<string, string>(); // device id -> label from the last scan
   private programScene: string | null = null;
   private previewScene: string | null = null;
@@ -67,7 +91,7 @@ export class ObsEngine implements Engine {
     graphicsInProgram: true, obs: { provisioned: false, replayBuffer: false, created: [], notes: [] },
   };
 
-  constructor(private url: string, private password?: string, private opts: ObsOptions = {}) { this.s.obs!.error = `Connecting to OBS at ${url}...`; this.connect(); }
+  constructor(private url: string, private password?: string, private opts: ObsOptions = {}) { this.s.obs!.error = "Connecting to the video engine..."; this.connect(); }
 
   status(): EngineStatus { return structuredClone(this.s); }
   onChange(cb: () => void) { this.listeners.add(cb); return () => { this.listeners.delete(cb); }; }
@@ -93,9 +117,15 @@ export class ObsEngine implements Engine {
     this.meters.clear();
     const o = this.s.obs!;
     o.provisioned = false;
-    o.error = code === 4009 ? "OBS rejected the password. Check it in Settings > Engine." : this.everConnected ? "OBS closed or the connection dropped. Reconnecting..." : `Can't reach OBS at ${this.url}. Is OBS open?`;
+    o.error = code === 4009 ? "The video engine's password is wrong. Check it in Settings > Video engine." : this.everConnected ? "The video engine stopped or the connection dropped. Reconnecting..." : "Waiting for the video engine to start...";
     if (this.s.connected) {
       this.s.connected = false;
+      if (this.s.stream.live || this.s.record.active) { // never pretend a broadcast is still running: say it ended, never restart it by ourselves
+        o.lost = { at: Date.now(), stream: this.s.stream.live, record: this.s.record.active };
+        this.s.stream = { live: false, kbps: 0, droppedFrames: this.s.stream.droppedFrames, reconnecting: false };
+        this.s.record = { ...this.s.record, active: false };
+        log("ERROR", "The video engine stopped during a broadcast");
+      }
       for (const x of this.s.sources) x.status = "missing";
       if (this.replayTask) this.s.replay.active = false;
       log("WARN", `OBS disconnected (${code ?? "?"})`);
@@ -114,11 +144,15 @@ export class ObsEngine implements Engine {
       ws.send(JSON.stringify({ op: 1, d }));
     } else if (m.op === 2) {
       this.backoff = 250;
-      this.everConnected = true;
+      this.everConnected = true; this.connGen++;
       this.s.connected = true;
       this.s.obs!.error = undefined;
       log("INFO", "Connected to OBS");
-      this.ready = this.setup(ws).catch((e) => { this.s.obs!.error = `OBS setup failed: ${e.message}`; log("ERROR", `OBS setup: ${e.message}`); this.emit(); });
+      this.ready = this.setup(ws).catch((e) => {
+        this.s.obs!.error = `Video engine setup failed: ${e.message}`; log("ERROR", `OBS setup: ${e.message}`); this.emit();
+        const t = setTimeout(() => { if (!this.closed && ws === this.ws && this.s.connected && !this.s.obs!.provisioned) this.ready = this.setup(ws).catch(() => {}); }, 3000); // never stay half set up
+        t.unref?.();
+      });
     } else if (m.op === 5) this.onEvent(m.d.eventType, m.d.eventData ?? {});
     else if (m.op === 7) {
       const p = this.pending.get(m.d.requestId);
@@ -130,7 +164,7 @@ export class ObsEngine implements Engine {
   }
 
   request(type: string, data?: object, timeoutMs = REQUEST_MS): Promise<any> {
-    if (!this.s.connected || this.ws?.readyState !== WebSocket.OPEN) return Promise.reject(new Error("OBS is not connected. Open OBS, then check Settings > Engine."));
+    if (!this.s.connected || this.ws?.readyState !== WebSocket.OPEN) return Promise.reject(new Error(NOT_CONNECTED));
     const requestId = `fh-${++this.n}`;
     return new Promise((ok, fail) => {
       const t = setTimeout(() => { this.pending.delete(requestId); fail(new Error(`OBS request ${type} timed out after ${timeoutMs / 1000} s. OBS may be frozen or busy.`)); }, timeoutMs);
@@ -142,9 +176,9 @@ export class ObsEngine implements Engine {
   private req = (type: string, data?: object, ms?: number) => this.request(type, data, ms);
   /** Public actions wait for provisioning to settle, then run. */
   private async need() {
-    if (!this.s.connected) throw new Error("OBS is not connected. Open OBS, then check Settings > Engine.");
+    if (!this.s.connected) throw new Error(NOT_CONNECTED);
     await this.ready;
-    if (!this.s.connected) throw new Error("OBS is not connected. Open OBS, then check Settings > Engine.");
+    if (!this.s.connected) throw new Error(NOT_CONNECTED);
   }
 
   /** Resolves with the event data, or null on timeout/disconnect. Create it BEFORE sending the request that causes the event. */
@@ -173,13 +207,23 @@ export class ObsEngine implements Engine {
   }
   private overlayUrl() { const u = this.opts.overlayUrl; return (typeof u === "function" ? u() : u) ?? "http://127.0.0.1:8080/overlay"; }
 
+  /** obs-websocket answers the handshake while OBS is still loading its scenes; requests then fail with 207 "not ready". Wait it out. */
+  private async untilReady() {
+    for (let i = 0; i < 240; i++) {
+      try { await this.request("GetSceneList"); return; }
+      catch (e: any) { if (e.code !== 207 || !this.s.connected) throw e; await sleep(250); }
+    }
+  }
+
   private async setup(ws: WebSocket) {
     clearInterval(this.poller);
+    await this.untilReady();
     const v = await this.request("GetVersion").catch(() => ({}));
     this.s.obs!.version = v.obsVersion;
     this.kinds = new Set(((await this.request("GetInputKindList", { unversioned: true })).inputKinds ?? []) as string[]);
     this.versioned = new Map((((await this.request("GetInputKindList", { unversioned: false })).inputKinds ?? []) as string[]).map((k) => [k.replace(/_v\d+$/, ""), k]));
     await this.loadSidecar();
+    this.detectHardware();
     await this.provision();
     if (ws !== this.ws) return;
     this.poller = setInterval(() => this.poll(), 1000);
@@ -187,14 +231,22 @@ export class ObsEngine implements Engine {
   }
 
   /** (Re)create the Fieldhouse scenes/inputs in OBS and resync. Safe to call any time; idempotent. */
-  async provision(): Promise<void> {
-    if (!this.s.connected) throw new Error("OBS is not connected. Open OBS, then check Settings > Engine.");
+  private provQ: Promise<unknown> = Promise.resolve();
+  async provision(): Promise<void> { // one at a time: a reconnect's setup and an operator's "apply" must never interleave their OBS requests
+    const run = this.provQ.catch(() => {}).then(() => this.provisionNow());
+    this.provQ = run;
+    return run;
+  }
+  private async provisionNow(): Promise<void> {
+    if (!this.s.connected) throw new Error(NOT_CONNECTED);
     const o = this.s.obs!;
+    this.provisioning = true;
     try {
-      const rep: ProvisionReport = await provision((t, d, ms) => this.request(t, d, ms ?? 15000), { overlayUrl: this.overlayUrl(), inputKinds: this.kinds, replayDir: this.replayDir() });
+      const rep: ProvisionReport = await provision((t, d, ms) => this.request(t, d, ms ?? 15000), { overlayUrl: this.overlayUrl(), inputKinds: this.kinds, replayDir: this.replayDir(), video: { settings: this.video(), encoders: this.hw } });
       Object.assign(o, { profile: rep.profile, replayBuffer: rep.replayBuffer, created: rep.scenes, notes: rep.notes, error: undefined });
       if (rep.notes.length) log("INFO", `OBS provisioning: ${rep.notes.join(" ")}`);
-    } catch (e: any) { o.provisioned = false; o.error = `OBS setup failed: ${e.message}`; log("ERROR", o.error); this.emit(); throw e; }
+    } catch (e: any) { o.provisioned = false; o.error = `Video engine setup failed: ${e.message}`; log("ERROR", o.error); this.emit(); throw e; }
+    finally { this.provisioning = false; }
     await this.refresh();
     await this.autoRoute();
     o.provisioned = true;
@@ -204,7 +256,7 @@ export class ObsEngine implements Engine {
   private async loadSidecar() {
     const r = await this.request("GetPersistentData", DATA).catch(() => null);
     const v = r?.slotValue;
-    this.side = { slots: v?.slots ?? {}, network: Array.isArray(v?.network) ? v.network : [] };
+    this.side = { slots: v?.slots ?? {}, network: Array.isArray(v?.network) ? v.network : [], audio: v?.audio && typeof v.audio === "object" ? v.audio : {} };
   }
   private saveSidecar() { return this.request("SetPersistentData", { ...DATA, slotValue: this.side }).catch(() => {}); }
 
@@ -236,11 +288,13 @@ export class ObsEngine implements Engine {
       const status: SourceInfo["status"] = !s.connected ? "missing" : ms === "OBS_MEDIA_STATE_OPENING" || ms === "OBS_MEDIA_STATE_BUFFERING" || ms === "OBS_MEDIA_STATE_ERROR" ? "reconnecting" : ms === "OBS_MEDIA_STATE_STOPPED" || ms === "OBS_MEDIA_STATE_NONE" ? "missing" : "ok";
       return [{ id, slot, deviceId: sc?.deviceId, label: sc?.label ?? `Camera ${slot}`, kind: sc?.kind ?? "usb", detail: sc?.detail ?? "", status, audio: this.meters.get(camInput(id)) ?? 0 }];
     });
-    const labelOf = (name: string) => (name === MIC ? "Microphone" : /^FH cam\d video$/.test(name) ? this.side.slots[name.slice(3, 7)]?.label ?? name : name);
+    const labelOf = (name: string) => (this.side.audio[name]?.label ? this.side.audio[name].label : name === MIC ? "Microphone" : /^FH cam\d video$/.test(name) ? this.side.slots[name.slice(3, 7)]?.label ?? name : name);
+    const roleOf = (name: string): MixerChannel["role"] => (name === MIC || /^FH Mic \d+$/.test(name) ? "mic" : /^FH Desktop/.test(name) ? "desktop" : /^FH cam\d video$/.test(name) ? "camera" : "other");
     const rank = (n: string) => (n === MIC ? 0 : n.startsWith("FH ") ? 1 : 2);
-    s.mixer = [...this.mix].filter(([n]) => n !== OVERLAY && n !== REPLAY_MEDIA && !(n.startsWith("FH cam") && !s.sources.some((x) => camInput(x.id) === n)))
+    s.mixer = [...this.mix].filter(([n]) => n !== OVERLAY && n !== REPLAY_MEDIA && !n.startsWith("FH probe") && // probes exist for a moment while devices are scanned
+       !(n.startsWith("FH cam") && !s.sources.some((x) => camInput(x.id) === n)))
       .sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]))
-      .map(([id, m]): MixerChannel => ({ id, label: labelOf(id), level: m.muted ? 0 : this.meters.get(id) ?? 0, gainDb: m.gainDb, muted: m.muted }));
+      .map(([id, m]): MixerChannel => ({ id, label: labelOf(id), level: m.muted ? 0 : this.meters.get(id) ?? 0, gainDb: m.gainDb, muted: m.muted, role: roleOf(id) }));
   }
 
   // ---------------------------------------------------------------- events + polling
@@ -307,7 +361,7 @@ export class ObsEngine implements Engine {
       s.record = { ...s.record, active: true, bytes, startedAt: s.record.startedAt ?? now - (rec.outputDuration ?? 0) };
     } else if (s.record.active) s.record.active = false;
     s.obs!.replayBuffer = !!rb?.outputActive;
-    if (rb && !rb.outputActive && s.obs!.provisioned && !stream.outputActive && !rec.outputActive) this.request("StartReplayBuffer").catch(() => {}); // self-heal: someone stopped it, or a restart raced
+    if (rb && !rb.outputActive && s.obs!.provisioned && !this.provisioning && !stream.outputActive && !rec.outputActive) this.request("StartReplayBuffer").catch(() => {}); // self-heal: someone stopped it, or a restart raced
   }
 
   private async poll() {
@@ -448,13 +502,18 @@ export class ObsEngine implements Engine {
     if (!dest.key?.trim()) throw new Error(`destination "${dest.name}" has no stream key`);
     await this.need();
     if (this.s.stream.live) throw new Error("already streaming");
+    // OBS answers a failed connect with its own modal dialog on the desktop, so StartStream is only called for an address that
+    // already accepted a TCP connection from here (destination-check.ts).
+    const chk = await (this.opts.precheck ?? checkDestination)(dest.url);
+    if (!chk.ok) throw new Error(`${dest.name}: ${chk.message}`);
+    delete this.s.obs!.lost;
     await this.request("SetStreamServiceSettings", { streamServiceType: "rtmp_custom", streamServiceSettings: { server: dest.url, key: dest.key } });
     const started = this.wait("StreamStateChanged", (d) => d.outputState === "OBS_WEBSOCKET_OUTPUT_STARTED" || d.outputState === "OBS_WEBSOCKET_OUTPUT_STOPPED", 20000);
     try { await this.request("StartStream", {}, 10000); } catch (e) { started.cancel(); throw e; }
     const ev = await started.p;
     if (!ev || ev.outputState === "OBS_WEBSOCKET_OUTPUT_STOPPED") {
       if (!ev) await this.request("StopStream").catch(() => {});
-      throw new Error(`OBS could not connect to ${dest.name}. Check the server address, the stream key and the internet connection.`);
+      throw new Error(`The video engine could not connect to ${dest.name}. Check the server address, the stream key and the internet connection.`);
     }
     Object.assign(this.s.stream, { live: true, destination: dest.name, startedAt: Date.now() });
     this.emit();
@@ -473,17 +532,18 @@ export class ObsEngine implements Engine {
     await this.need();
     if (this.s.record.active) throw new Error("already recording");
     this.reachable(dir);
+    delete this.s.obs!.lost;
     try { mkdirSync(dir, { recursive: true }); } catch (e: any) { throw new Error(`Cannot create the recording folder ${dir}: ${e.message}`); }
     const fmt = String((await this.request("GetProfileParameter", { parameterCategory: "SimpleOutput", parameterName: "RecFormat2" }).catch(() => ({}))).parameterValue ?? "");
-    if (fmt === "mp4" || fmt === "mov") await this.request("SetProfileParameter", { parameterCategory: "SimpleOutput", parameterName: "RecFormat2", parameterValue: "hybrid_mp4" }); // plain mp4 is lost if OBS or the PC dies
+    if (fmt === "mp4" || fmt === "mov") await this.request("SetProfileParameter", { parameterCategory: "SimpleOutput", parameterName: "RecFormat2", parameterValue: "hybrid_mp4" }); // plain mp4 is lost if the engine or the PC dies
     await this.request("SetRecordDirectory", { recordDirectory: dir });
     await this.request("SetProfileParameter", { parameterCategory: "Output", parameterName: "FilenameFormatting", parameterValue: name.replace(/[^\w.-]/g, "_") });
     const started = this.wait("RecordStateChanged", (d) => d.outputState === "OBS_WEBSOCKET_OUTPUT_STARTED" || d.outputState === "OBS_WEBSOCKET_OUTPUT_STOPPED", 10000);
     try { await this.request("StartRecord", {}, 10000); } catch (e) { started.cancel(); throw e; }
     const ev = await started.p;
-    if (!ev || ev.outputState !== "OBS_WEBSOCKET_OUTPUT_STARTED") throw new Error(`OBS did not start recording within 10 seconds. Check that ${dir} exists and has free space.`);
+    if (!ev || ev.outputState !== "OBS_WEBSOCKET_OUTPUT_STARTED") throw new Error(`The video engine did not start recording within 10 seconds. Check that ${dir} exists and has free space.`);
     const file: string | undefined = ev.outputPath || (await this.request("GetRecordStatus").catch(() => ({}))).outputPath;
-    if (!file) throw new Error("OBS started recording but did not say where the file is. Check the recording folder in OBS.");
+    if (!file) throw new Error("Recording started but the video engine did not say where the file is. Check the recording folder in Settings > Storage.");
     this.s.record = { active: true, file, startedAt: Date.now(), bytes: 0 };
     this.emit();
     return file;
@@ -496,7 +556,7 @@ export class ObsEngine implements Engine {
     let r: any;
     try { r = await this.request("StopRecord", {}, 15000); } catch (e) { stopped.cancel(); throw e; }
     const ev = await stopped.p; // STOPPED comes after OBS finalized the file
-    if (!ev) throw new Error("OBS is taking a long time to finish the recording. Wait before closing OBS or unplugging the drive.");
+    if (!ev) throw new Error("The video engine is taking a long time to finish the recording. Wait before closing Fieldhouse or unplugging the drive.");
     const file = ev.outputPath || r.outputPath || this.s.record.file;
     let bytes = this.s.record.bytes;
     if (file) try { bytes = statSync(file).size; } catch {}
@@ -514,8 +574,8 @@ export class ObsEngine implements Engine {
     if (!(o.secondsBack > 0) || !(o.speed > 0)) throw new Error("replay needs secondsBack > 0 and speed > 0");
     await this.need();
     if (this.replayTask) await this.replayTask.abort();
-    if (!this.s.obs!.replayBuffer) throw new Error("Instant replay is off because OBS's replay buffer is not running. Open Settings > Engine and press Repair OBS setup.");
-    const back = clamp(o.secondsBack, 1, 60), speed = clamp(o.speed, 0.1, 4);
+    if (!this.s.obs!.replayBuffer) throw new Error("Instant replay is off because the replay buffer is not running. Open Settings > Video engine and press Repair.");
+    const back = clamp(o.secondsBack, 1, Math.max(10, this.video().replaySeconds - 2)), speed = clamp(o.speed, 0.1, 4);
     const back_to = idOfScene(this.programScene) === "replay" ? this.s.preview ? sceneOf(this.s.preview) : null : this.programScene;
     const prevPreview = this.previewScene; // studio mode swaps preview and program on every program change
     let aborted = false, endWait: { cancel: () => void } | undefined;
@@ -537,13 +597,13 @@ export class ObsEngine implements Engine {
         const saved = this.wait("ReplayBufferSaved", () => true, 10000);
         try { await this.request("SaveReplayBuffer", {}, 10000); } catch (e) { saved.cancel(); throw e; }
         const ev = await saved.p;
-        if (!ev?.savedReplayPath) throw new Error("OBS did not save the replay in time. Is the game video running?");
+        if (!ev?.savedReplayPath) throw new Error("The replay was not saved in time. Is the game video running?");
         this.rememberReplay(ev.savedReplayPath);
         await this.request("SetInputSettings", { inputName: REPLAY_MEDIA, inputSettings: { local_file: "" }, overlay: true }); // identical settings would not make OBS reopen a rewritten file
         await this.request("SetInputSettings", { inputName: REPLAY_MEDIA, inputSettings: { is_local_file: true, local_file: ev.savedReplayPath, speed_percent: Math.round(speed * 100), looping: false, close_when_inactive: false, restart_on_activate: false, clear_on_media_end: false }, overlay: true });
         let dur = 0;
         for (let i = 0; i < 40 && !(dur > 0); i++) { dur = (await this.request("GetMediaInputStatus", { inputName: REPLAY_MEDIA })).mediaDuration ?? 0; if (!(dur > 0)) await sleep(100); } // OBS answers a huge negative number while the file is still opening
-        if (!(dur > 0)) throw new Error("OBS could not open the saved replay file.");
+        if (!(dur > 0)) throw new Error("The saved replay could not be opened.");
         const from = Math.max(0, dur - back * 1000);
         await this.request("TriggerMediaInputAction", { inputName: REPLAY_MEDIA, mediaAction: "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_PAUSE" });
         await this.request("SetMediaInputCursor", { inputName: REPLAY_MEDIA, mediaCursor: Math.round(from) });
@@ -571,6 +631,200 @@ export class ObsEngine implements Engine {
   private rememberReplay(path: string) {
     this.savedReplays.push(path);
     while (this.savedReplays.length > 3) { const old = this.savedReplays.shift()!; if (basename(old).startsWith("Replay")) try { unlinkSync(old); } catch {} } // clips are scratch files; keep only the latest few
+  }
+
+  // ---------------------------------------------------------------- settings: video, audio inputs, per-camera options
+  private video(): VideoSettings { return this.opts.video?.() ?? DEFAULT_VIDEO; }
+  private logDir() { return this.opts.logDir ?? obsLogDir(detectObs().kind ?? "native", { home: homedir(), env: process.env }); }
+  /** The encoders OBS itself lists in its start-up log. If the log cannot be read we offer nothing hardware (see video-settings.ts). */
+  private detectHardware() {
+    try { const f = latestLog(this.logDir()); this.encoderIds = f ? parseEncoders(readSlice(f, 0, 200_000)) : []; } catch { this.encoderIds = []; }
+    this.hw = encoderOptions(this.encoderIds).map((o) => o.id).filter((id) => id !== "auto" && id !== "x264");
+  }
+  private encoderList(): EncoderOption[] { return encoderOptions(this.encoderIds); }
+
+  async videoInfo() {
+    await this.need();
+    const v = this.video();
+    return { applied: await readApplied(this.req), encoders: this.encoderList(), encoderInUse: resolveEncoder(v.encoder, v, this.hw).id };
+  }
+
+  /** Apply the saved quality settings. While a broadcast runs nothing is written to OBS (it would drop the stream or be ignored). */
+  async applyVideo(v: VideoSettings): Promise<VideoApplied> {
+    await this.need();
+    const before = await readApplied(this.req);
+    if (this.s.stream.live || this.s.record.active) {
+      const blocked = liveBlocked({ ...v, resolution: before.outputHeight >= 1080 ? "1080p" : "720p", fps: before.fps === 60 ? 60 : 30, encoder: this.video().encoder }, v);
+      if (blocked) throw new Error(blocked);
+      return before; // the rest is saved by the caller and applied when the broadcast ends
+    }
+    const want = dims(v), enc = resolveEncoder(v.encoder, v, this.hw);
+    const heavy = before.outputWidth !== want.outputWidth || before.outputHeight !== want.outputHeight || before.fps !== v.fps || before.encoder !== enc.id;
+    if (heavy && this.opts.restartForVideo) { // size, frame rate and encoder are never changed in a live OBS: that is what crashed it
+      for (let i = 0; i < 50; i++) { // a recording that was just stopped is still being finalized: closing OBS now could lose it
+        const [st, rc] = await Promise.all([this.request("GetStreamStatus"), this.request("GetRecordStatus")]);
+        if (!st.outputActive && !rc.outputActive) break;
+        if (i === 49) throw new Error("A recording is still being finished. Try again in a few seconds.");
+        await sleep(200);
+      }
+      const gen = this.connGen;
+      await this.opts.restartForVideo();
+      const t = Date.now(), back = () => this.connGen > gen && this.s.connected && this.s.obs!.provisioned;
+      while (!back() && Date.now() - t < 90_000) await sleep(200);
+      if (!back()) throw new Error("The video engine did not come back after applying the settings. Fieldhouse keeps trying; the settings are saved.");
+      await this.ready;
+    } else await this.provision(); // only bitrate, format, replay length: written to the profile, replay buffer restarted
+    const after = await readApplied(this.req);
+    const off = differences(v, after, resolveEncoder(v.encoder, v, this.hw).id);
+    if (off.length) throw new Error(`The video engine did not accept the ${off.join(", ")}. The other settings were applied; the engine still reports its previous value.`);
+    return after;
+  }
+
+  private mixerOf(name: string): AudioInput | undefined {
+    const c = this.s.mixer.find((m) => m.id === name);
+    if (!c) return undefined;
+    const managed = isManagedAudio(name);
+    return { id: c.id, label: c.label, role: c.role ?? "other", deviceId: "", deviceLabel: "", managed, removable: managed && name !== MIC, level: c.level, gainDb: c.gainDb, muted: c.muted };
+  }
+
+  async audioInputs(): Promise<AudioList> {
+    await this.need();
+    const devices = (await this.detectDevices()).filter((d) => d.kind === "audio");
+    const inputs: AudioInput[] = [];
+    for (const c of this.s.mixer) {
+      const a = this.mixerOf(c.id)!;
+      if (a.managed || a.role === "other") {
+        const dev = String((await this.request("GetInputSettings", { inputName: c.id }).catch(() => ({}))).inputSettings?.device_id ?? "");
+        const kind = this.inputs.get(c.id)?.kind ?? "";
+        a.deviceId = dev ? `${kind}:${dev}` : "";
+        a.deviceLabel = devices.find((d) => d.id === a.deviceId)?.label ?? (dev === "default" ? "Default device" : dev);
+      }
+      inputs.push(a);
+    }
+    return { inputs, devices, canDesktop: DESKTOP_KINDS.some((k) => this.kinds.has(k)) };
+  }
+
+  async addAudio(o: { role: "mic" | "desktop"; deviceId?: string; label: string }): Promise<AudioInput> {
+    await this.need();
+    if (o.role !== "mic" && o.role !== "desktop") throw new Error("Choose a microphone or desktop / room sound.");
+    const kinds = o.role === "mic" ? MIC_KINDS : DESKTOP_KINDS;
+    let kind = kinds.find((k) => this.kinds.has(k)), value = "default";
+    if (o.deviceId) {
+      const d = parseDeviceId(o.deviceId);
+      if (!isAudioDevice(o.deviceId) && !DESKTOP_KINDS.includes(d.kind)) throw new Error("That device is not an audio device.");
+      if (!kinds.includes(d.kind)) throw new Error(o.role === "mic" ? "That device is not a microphone." : "That device cannot capture desktop sound.");
+      kind = d.kind; value = d.value;
+    }
+    if (!kind || !this.kinds.has(kind)) throw new Error(o.role === "mic" ? "This computer's video engine cannot capture a microphone." : "Desktop / room sound capture is not available on this computer.");
+    const label = o.label.trim().slice(0, 40) || (o.role === "mic" ? "Microphone" : "Desktop sound");
+    const base = o.role === "mic" ? "FH Mic" : "FH Desktop";
+    let name = base, n = 2;
+    while (this.inputs.has(name)) name = `${base} ${n++}`;
+    if (n > 12) throw new Error("That is enough audio inputs. Remove one before adding another.");
+    const scenes = [...SLOTS.map((x) => sceneOf(`cam${x}`)), REPLAY_SCENE];
+    await this.request("CreateInput", { sceneName: scenes[0], inputName: name, inputKind: kind, inputSettings: { device_id: value }, sceneItemEnabled: true });
+    for (const sc of scenes.slice(1)) await this.request("CreateSceneItem", { sceneName: sc, sourceName: name }).catch(() => {});
+    this.side.audio[name] = { label, role: o.role };
+    await this.saveSidecar();
+    await this.refresh();
+    return this.mixerOf(name)!;
+  }
+
+  async updateAudio(id: string, p: { label?: string; deviceId?: string; gainDb?: number; muted?: boolean }): Promise<AudioInput> {
+    await this.need();
+    if (!this.mix.has(id)) throw new Error("That audio input does not exist.");
+    const managed = isManagedAudio(id);
+    if (p.label !== undefined) {
+      if (!managed) throw new Error("Only inputs added by Fieldhouse can be renamed.");
+      this.side.audio[id] = { role: this.side.audio[id]?.role ?? (id.startsWith("FH Desktop") ? "desktop" : "mic"), label: String(p.label).trim().slice(0, 40) || id };
+      await this.saveSidecar();
+    }
+    if (p.deviceId !== undefined) {
+      if (!managed) throw new Error("Only inputs added by Fieldhouse can be pointed at another device.");
+      const d = parseDeviceId(p.deviceId), cur = this.inputs.get(id)?.kind;
+      if (d.kind !== cur) throw new Error("That device is a different kind of input. Remove this input and add a new one.");
+      await this.request("SetInputSettings", { inputName: id, inputSettings: { device_id: d.value }, overlay: true });
+    }
+    if (p.gainDb !== undefined) await this.setGain(id, p.gainDb);
+    if (p.muted !== undefined) await this.setMute(id, !!p.muted);
+    await this.refresh();
+    return this.mixerOf(id)!;
+  }
+
+  async removeAudio(id: string): Promise<void> {
+    await this.need();
+    if (!isManagedAudio(id) || id === MIC) throw new Error("Only extra inputs added by Fieldhouse can be removed.");
+    if (!this.mix.has(id)) throw new Error("That audio input does not exist.");
+    for (const sc of [...SLOTS.map((x) => sceneOf(`cam${x}`)), REPLAY_SCENE]) {
+      const sid = await this.request("GetSceneItemId", { sceneName: sc, sourceName: id }).then((r) => r.sceneItemId, () => null);
+      if (sid != null) await this.request("RemoveSceneItem", { sceneName: sc, sceneItemId: sid }).catch(() => {}); // OBS 32 keeps the input alive until its scene items are gone
+    }
+    await this.request("RemoveInput", { inputName: id }).catch(() => {});
+    for (let i = 0; i < 30; i++) { // wait until OBS really forgot it, so the next setup does not meet a half-removed input
+      const list = ((await this.request("GetInputList").catch(() => ({ inputs: [] }))).inputs ?? []) as { inputName: string }[];
+      if (!list.some((x) => x.inputName === id)) break;
+      await sleep(100);
+    }
+    delete this.side.audio[id]; this.mix.delete(id); this.meters.delete(id);
+    await this.saveSidecar();
+    await this.refresh();
+  }
+
+  private slotInput(slot: number) {
+    if (!Number.isInteger(slot) || slot < 1 || slot > 4) throw new Error(`slot must be 1-4, got ${slot}`);
+    const name = camInput(`cam${slot}`), cur = this.inputs.get(name);
+    if (!cur || cur.kind === "color_source") throw new Error("That slot is empty.");
+    return { name, kind: cur.kind };
+  }
+  private async listOf(inputName: string, propertyName: string) {
+    const r = await this.request("GetInputPropertiesListPropertyItems", { inputName, propertyName }).catch(() => null);
+    return ((r?.propertyItems ?? []) as { itemName: string; itemValue: unknown; itemEnabled?: boolean }[]).filter((i) => i.itemEnabled !== false && i.itemValue !== "" && i.itemValue != null).map((i) => ({ value: JSON.stringify(i.itemValue), label: String(i.itemName).replace(/_/g, " ") }));
+  }
+
+  async sourceOptions(slot: number): Promise<SourceOptions> {
+    await this.need();
+    const { name, kind } = this.slotInput(slot);
+    const cfg = (await this.request("GetInputSettings", { inputName: name })).inputSettings ?? {};
+    const label = this.side.slots[`cam${slot}`]?.label ?? `Camera ${slot}`;
+    if (kind === "ffmpeg_source") {
+      const file = cfg.is_local_file === true;
+      return { slot, type: file ? "file" : "network", label, address: maskAddress(String(file ? cfg.local_file : cfg.input) ?? ""), resolutions: [], framerates: [], reconnectSeconds: file ? undefined : Number(cfg.reconnect_delay_sec), bufferingMb: file ? undefined : Number(cfg.buffering_mb), canReconnect: true };
+    }
+    const props = CAM_PROPS[kind];
+    if (!props) return { slot, type: "other", label, resolutions: [], framerates: [], canReconnect: false };
+    const resolutions = await this.listOf(name, props.res), framerates = props.fps ? await this.listOf(name, props.fps) : [];
+    const cur = (k?: string) => (k && cfg[k] !== undefined ? JSON.stringify(cfg[k]) : undefined);
+    return { slot, type: "camera", label, resolution: cur(props.res), framerate: cur(props.fps), resolutions, framerates, canReconnect: false };
+  }
+
+  async setSourceOptions(slot: number, p: SourceOptionsPatch): Promise<SourceOptions> {
+    await this.need();
+    const { name, kind } = this.slotInput(slot);
+    const cur = (await this.request("GetInputSettings", { inputName: name })).inputSettings ?? {};
+    const set: Record<string, unknown> = {};
+    if (kind === "ffmpeg_source") {
+      if (p.reconnectSeconds !== undefined) { if (cur.is_local_file) throw new Error("A video file has no connection to retry."); if (!Number.isInteger(p.reconnectSeconds) || p.reconnectSeconds < 1 || p.reconnectSeconds > 60) throw new Error("Retry after must be a whole number of seconds from 1 to 60."); set.reconnect_delay_sec = p.reconnectSeconds; }
+      if (p.bufferingMb !== undefined) { if (cur.is_local_file) throw new Error("A video file needs no buffer."); if (!Number.isInteger(p.bufferingMb) || p.bufferingMb < 1 || p.bufferingMb > 16) throw new Error("The buffer must be a whole number of megabytes from 1 to 16."); set.buffering_mb = p.bufferingMb; }
+    } else {
+      const props = CAM_PROPS[kind];
+      if (!props) throw new Error("This kind of source has no settings to change.");
+      for (const [val, key, list] of [[p.resolution, props.res, "resolution"], [p.framerate, props.fps, "framerate"]] as const) {
+        if (val === undefined) continue;
+        if (!key) throw new Error(`This camera does not offer a ${list} choice.`);
+        const ok = (await this.listOf(name, key)).find((i) => i.value === val);
+        if (!ok) throw new Error(`That ${list} is not one the camera offers.`);
+        set[key] = JSON.parse(val);
+      }
+      if (Object.keys(set).length && props.custom) Object.assign(set, props.custom);
+    }
+    if (Object.keys(set).length) {
+      await this.request("SetInputSettings", { inputName: name, inputSettings: set, overlay: true });
+      const back = (await this.request("GetInputSettings", { inputName: name })).inputSettings ?? {};
+      const bad = Object.keys(set).filter((k) => JSON.stringify(back[k]) !== JSON.stringify(set[k]));
+      if (bad.length) throw new Error("The source did not accept that setting.");
+    }
+    if (p.restart && kind === "ffmpeg_source") await this.request("TriggerMediaInputAction", { inputName: name, mediaAction: "OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART" });
+    return this.sourceOptions(slot);
   }
 
   // ---------------------------------------------------------------- stills

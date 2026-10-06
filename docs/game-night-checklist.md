@@ -9,7 +9,7 @@ Game: ______________________  Date: ____________  Operator: ____________________
 - [ ] Laptop plugged into power (not on battery)
 - [ ] Laptop set to never sleep
 - [ ] Cameras on tripods, powered, cables taped down
-- [ ] OBS Studio open; Fieldhouse open
+- [ ] Fieldhouse open (it starts the video engine by itself)
 - [ ] **Home**: press **Start game night**
 - [ ] **Setup**: teams, colors, rosters correct (spell-check the names)
 - [ ] **Setup**: each camera shows a picture in its slot

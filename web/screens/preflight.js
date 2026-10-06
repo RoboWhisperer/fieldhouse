@@ -7,7 +7,7 @@ const ST = { ok: ["ok", "check"], warn: ["warn", "alert"], err: ["err", "x"] };
 // Where each fix goes. `to` = route, `again` = just re-run, otherwise `tip` is shown inline in plain language.
 function fixFor(c) {
   const id = c.id;
-  if (id.startsWith("video.")) return { to: "/sources" };
+  if (id.startsWith("video.")) return { to: c.fix === "Start video engine" ? "/settings/engine" : "/sources" };
   if (id === "storage.space") return { to: "/settings/storage" };
   if (id === "game.set" || id.startsWith("destination.")) return { to: "/game/new" };
   if (id.startsWith("game.")) return { to: "/game/roster" };

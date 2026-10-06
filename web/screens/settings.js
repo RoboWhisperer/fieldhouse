@@ -5,8 +5,9 @@ import * as A from "./settings-a.js";
 import * as B from "./settings-b.js";
 import * as C from "./settings-c.js";
 import * as O from "./settings-obs.js";
+import { video } from "./settings-video.js";
 
-const SECTIONS = { engine: O.engine, destinations: A.destinations, themes: A.themes, sport: A.sport, shortcuts: B.shortcuts, remote: B.remote, storage: B.storage, diagnostics: C.diagnostics, about: C.about };
+const SECTIONS = { engine: O.engine, video, destinations: A.destinations, themes: A.themes, sport: A.sport, shortcuts: B.shortcuts, remote: B.remote, storage: B.storage, diagnostics: C.diagnostics, about: C.about };
 const sec = (ctx) => SECTIONS[ctx.params[0] || "destinations"];
 
 export default {

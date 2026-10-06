@@ -40,7 +40,7 @@ The Check screen also has "Test stream privately" where available.
 
 ## If the stream will not connect
 
-If OBS cannot reach the server, OBS itself shows its own "Failed to connect to server" box on the desktop. That is OBS behavior and Fieldhouse cannot hide it. Fieldhouse also shows its own plain message. Close the OBS box, then check the address, the key and the internet connection, and try again.
+Before going live, Fieldhouse checks the address itself: the format, that the name exists, and that the server accepts a connection (for srt:// it can only check the format). If that fails, Fieldhouse says so in plain words and does not start the stream, so the video engine never opens its own "Failed to connect" box. The same check is behind the Test button and the Check screen. It cannot check the stream key; a wrong key is only found when you go live.
 
 ## If the stream drops
 

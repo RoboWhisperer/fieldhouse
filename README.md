@@ -33,7 +33,7 @@ Planned:
 
 ## Requirements
 
-[OBS Studio](https://obsproject.com) (version 28 or later; tested with 32.2.2) does the video mixing and streaming. It is free and must be installed separately. Practice mode (`bun run demo`) works without it.
+[OBS Studio](https://obsproject.com) (version 28 or later; tested with 32.2.2) is the video engine behind Fieldhouse. It is free; Fieldhouse can install it, starts it quietly in the background, restarts it if it stops and closes it when you quit. You never open it, and quality, recording, audio and camera settings all live in Fieldhouse. Practice mode (`bun run demo`) works without it. Not verified: Windows, macOS, a real one-click install, desktops without a system tray (see [docs/obs-setup.md](docs/obs-setup.md)).
 
 ## Install and run
 

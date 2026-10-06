@@ -26,9 +26,9 @@ test("config merge keeps unknown keys, enables server, is idempotent", () => {
 });
 
 test("launch command per install type", () => {
-  expect(launchCommand({ installed: true, kind: "flatpak", launch: [] }, ["/home/u/Videos", "bad path"])).toEqual(["flatpak", "run", "--filesystem=/home/u/Videos", "com.obsproject.Studio", "--disable-shutdown-check"]);
-  expect(launchCommand({ installed: true, kind: "windows", launch: ["C:\\obs64.exe"] })).toEqual(["C:\\obs64.exe", "--disable-shutdown-check"]);
-  expect(launchCommand({ installed: true, kind: "macos", launch: ["open"] })[0]).toBe("open");
+  expect(launchCommand({ installed: true, kind: "flatpak", launch: [] }, ["/home/u/Videos", "bad path"])).toEqual(["flatpak", "run", "--filesystem=/home/u/Videos", "com.obsproject.Studio", "--minimize-to-tray", "--disable-shutdown-check", "--disable-missing-files-check"]);
+  expect(launchCommand({ installed: true, kind: "windows", launch: ["C:\\obs64.exe"] })).toEqual(["C:\\obs64.exe", "--minimize-to-tray", "--disable-shutdown-check", "--disable-missing-files-check", "--disable-updater"]);
+  expect(launchCommand({ installed: true, kind: "macos", launch: ["open"] }).slice(0, 6)).toEqual(["open", "-g", "-j", "-a", "OBS", "--args"]);
   expect(parseFlatpakVersion("OBS Studio\n\n          ID: com.obsproject.Studio\n     Version: 32.2.2\n")).toBe("32.2.2");
 });
 

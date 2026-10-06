@@ -1,33 +1,58 @@
-// Settings > Engine (OBS): find OBS, launch or connect it, see what Fieldhouse set up inside it, repair that setup.
+// Settings > Video engine: Fieldhouse starts, watches and restarts the video engine (OBS Studio) by itself.
+// This page only shows its state and offers: try again, install it, repair its setup, or (advanced) use an OBS you run yourself.
 import { html, icon, api, toast, fail } from "../app.js";
 import { delegate, panel } from "./settings-ui.js";
 
-const KIND = { flatpak: "Flatpak", native: "Installed", windows: "Windows", macos: "macOS" };
+const KIND = { flatpak: "Flatpak", native: "installed", windows: "Windows", macos: "macOS" };
+const GOOD = ["running", "adopted"];
+
+function status(i) {
+  if (i.engine === "fake") return { cls: "warn", ic: "alert", text: "Demo engine (no real video)", why: "This copy is running with the built-in demo engine." };
+  if (i.connected) return { cls: "ok", ic: "check", text: i.managed?.state === "adopted" ? "Connected (your OBS)" : "Running", why: i.managed?.state === "adopted" ? "Fieldhouse is using the OBS Studio that was already open. It will not close it." : "The video engine is running quietly in the background." };
+  const st = i.managed?.state;
+  if (st === "starting" || st === "restarting") return { cls: "warn", ic: "refresh", text: st === "restarting" ? "Restarting" : "Starting", why: i.managed.message };
+  return { cls: "warn", ic: "alert", text: "Not running", why: i.managed?.message || i.error || "The video engine is not running yet." };
+}
+
+function installPanel(i) {
+  const n = i.install;
+  if (i.installed && !(n && n.status === "running")) return "";
+  if (n?.status === "running") return panel("Installing the video engine", html`<div class="pb col-g" style="gap:10px">
+    <div class="row" style="gap:10px"><b>${n.label}${n.steps > 1 ? ` (${n.step} of ${n.steps})` : ""}</b>${n.dryRun ? html`<span class="chip warn">Practice run: nothing is installed</span>` : ""}</div>
+    <div class="bar" role="progressbar" aria-valuenow="${n.percent ?? 0}" aria-valuemin="0" aria-valuemax="100"><b style="width:${n.percent ?? 8}%"></b></div>
+    <span class="muted">${n.message} This can take a few minutes.</span>
+    <div><button class="btn" data-act="cancelinstall">Cancel</button></div></div>`);
+  return panel("The video engine is not installed", html`<div class="pb col-g" style="gap:10px">
+    <div>Fieldhouse needs a free video program (OBS Studio) to mix cameras, add graphics and record. Fieldhouse can install it for you.</div>
+    ${n && (n.status === "failed" || n.status === "cancelled") ? html`<div class="banner warn">${icon("alert")}<span>${n.message}</span></div>` : ""}
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn pri lg" data-act="install">${icon("down2", "sm")}Install video engine</button>
+      <a class="btn" href="${n?.downloadUrl || "https://obsproject.com/download"}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">${icon("link", "sm")}Open the download page</a></div>
+    <span class="hint">It is free and open source. If your computer has an installer tool, Fieldhouse uses it; if not, the download page has an installer. Fieldhouse continues by itself when it is installed.</span></div>`);
+}
 
 function view(d) {
-  const i = d.info, ok = i.connected;
-  const status = ok ? html`<span class="chip ok">${icon("check", "sm")}Connected</span>` : i.engine === "fake" ? html`<span class="chip warn">Demo engine (no real video)</span>` : html`<span class="chip warn">${icon("alert", "sm")}Not connected</span>`;
+  const i = d.info, s = status(i);
   return html`
-    ${panel("OBS Studio", html`<div class="pb col-g" style="gap:12px">
-      <div class="kv" style="display:flex;gap:10px;align-items:center">${status}<span class="muted">${i.installed ? `OBS ${i.version || ""} (${KIND[i.kind] || i.kind})${i.running ? ", running" : ", not running"}` : "OBS Studio was not found on this computer."}</span></div>
-      ${i.error && !ok && i.engine === "obs" ? html`<div class="banner warn">${icon("alert")}<span>${i.error}</span></div>` : ""}
-      ${!i.installed ? html`<div class="banner warn">${icon("alert")}<span>Install OBS Studio from obsproject.com (free), then press Scan again.</span></div>` : ""}
+    ${panel("Video engine", html`<div class="pb col-g" style="gap:12px">
+      <div class="row" style="gap:10px;align-items:center;flex-wrap:wrap"><span class="chip ${s.cls}">${icon(s.ic, "sm")}${s.text}</span><span class="muted">${s.why}</span></div>
+      ${i.error && !i.connected && i.engine === "obs" && i.managed?.state !== "restarting" && i.managed?.state !== "starting" && i.error !== s.why ? html`<div class="banner warn">${icon("alert")}<span>${i.error}</span></div>` : ""}
       <div class="row" style="gap:8px;flex-wrap:wrap">
-        <button class="btn pri" data-act="launch" ${i.installed && !d.busy ? "" : "disabled"}>${d.busy === "launch" ? "Starting OBS..." : i.running ? "Connect to OBS" : "Launch OBS"}</button>
-        <button class="btn" data-act="scan" ${d.busy ? "disabled" : ""}>${icon("refresh", "sm")}Scan again</button>
+        ${i.engine === "obs" && !i.connected && i.installed ? html`<button class="btn pri" data-act="launch" ${d.busy ? "disabled" : ""}>${d.busy === "launch" ? "Starting..." : "Try again"}</button>` : ""}
+        ${i.engine === "fake" && i.installed ? html`<button class="btn pri" data-act="launch" ${d.busy ? "disabled" : ""}>${d.busy === "launch" ? "Starting..." : "Start the video engine"}</button>` : ""}
+        <button class="btn" data-act="repair" ${i.connected && !d.busy ? "" : "disabled"}>${d.busy === "repair" ? "Repairing..." : "Repair setup"}</button>
         ${i.demoAllowed && i.engine === "obs" ? html`<button class="btn ghost" data-act="fake">Use demo engine</button>` : ""}
       </div>
-      <span class="hint">Launch OBS sets up the connection for you and opens OBS. You never need to touch OBS settings.</span></div>`)}
-    ${panel("Connect to an OBS that is already open", html`<div class="pb col-g" style="gap:10px">
+      <span class="hint">Fieldhouse runs OBS Studio quietly in the background; you never need to open it. If Fieldhouse started it, Fieldhouse also closes it when you quit.${i.installed ? ` Found: OBS Studio ${i.version || ""} (${KIND[i.kind] || i.kind}).` : ""}</span></div>`)}
+    ${installPanel(i)}
+    ${i.created.length ? panel("What Fieldhouse set up", html`<div class="pb col-g" style="gap:10px">
+      <div>${i.created.map((s) => html`<span class="chip" style="margin:0 6px 6px 0">${s}</span>`)}</div>
+      <span class="muted">Instant replay: ${i.replayBuffer ? `ready (last ${i.replaySeconds} seconds)` : "off"}. Fieldhouse uses its own profile ("${i.profile || "Fieldhouse"}") and scenes starting with FH, so nothing of yours is changed.</span>
+      ${(i.notes || []).length ? html`<span class="hint">${i.notes.join(" ")}</span>` : ""}</div>`) : ""}
+    ${panel("Use an OBS you run yourself (advanced)", html`<div class="pb col-g" style="gap:10px">
+      <span class="muted">Most people never need this. If you already run OBS Studio with its WebSocket server turned on, enter its address and password and Fieldhouse will use it without closing or hiding it.</span>
       <div class="field"><label for="obs-url">Address</label><div class="input"><input id="obs-url" value="${d.url}" placeholder="ws://127.0.0.1:4455" style="background:none;border:0;color:inherit;font:inherit;outline:0;width:100%"></div></div>
-      <div class="field"><label for="obs-pw">Password</label><div class="input"><input id="obs-pw" type="password" autocomplete="off" placeholder="${i.passwordSet ? "Saved (type to replace)" : "OBS websocket password"}" style="background:none;border:0;color:inherit;font:inherit;outline:0;width:100%"></div><span class="hint">Write-only: Fieldhouse never shows it again.</span></div>
-      <div><button class="btn" data-act="connect" ${d.busy ? "disabled" : ""}>Connect</button></div></div>`)}
-    ${panel("What Fieldhouse created in OBS", html`<div class="pb col-g" style="gap:10px">
-      ${i.created.length ? html`<div>${i.created.map((s) => html`<span class="chip" style="margin:0 6px 6px 0">${s}</span>`)}</div>
-        <span class="muted">Profile "${i.profile || "Fieldhouse"}". Instant replay: ${i.replayBuffer ? "ready (last 60 seconds)" : "off"}. Your own scenes are never changed.</span>`
-        : html`<span class="muted">Nothing yet. Connect to OBS first.</span>`}
-      ${(i.notes || []).length ? html`<span class="hint">${i.notes.join(" ")}</span>` : ""}
-      <div><button class="btn" data-act="repair" ${ok && !d.busy ? "" : "disabled"}>${d.busy === "repair" ? "Repairing..." : "Repair OBS setup"}</button></div></div>`)}`;
+      <div class="field"><label for="obs-pw">Password</label><div class="input"><input id="obs-pw" type="password" autocomplete="off" placeholder="${i.passwordSet ? "Saved (type to replace)" : "OBS WebSocket password"}" style="background:none;border:0;color:inherit;font:inherit;outline:0;width:100%"></div><span class="hint">Write-only: Fieldhouse never shows it again.</span></div>
+      <div><button class="btn" data-act="connect" ${d.busy ? "disabled" : ""}>Connect</button></div></div>`)}`;
 }
 
 export const engine = {
@@ -44,11 +69,12 @@ export const engine = {
     const off = delegate(root, "click", "act", {
       launch: () => run("launch", () => api.post("/engine/obs/connect", { mode: "launch" })),
       connect: () => { const url = root.querySelector("#obs-url").value, password = root.querySelector("#obs-pw").value; /* read before run() repaints and clears the password field */ return run("connect", () => api.post("/engine/obs/connect", { mode: "connect", url, password }).then((r) => { const f = root.querySelector("#obs-pw"); if (f) f.value = ""; return r; })); },
-      repair: () => run("repair", async () => { const r = await api.post("/engine/obs/provision"); toast("OBS setup repaired."); return r; }),
-      scan: () => run("scan", () => api.get("/engine/obs")),
+      repair: () => run("repair", async () => { const r = await api.post("/engine/obs/provision"); toast("Video engine setup repaired."); return r; }),
       fake: () => run("fake", () => api.post("/engine/use-fake")),
+      install: () => run("install", async () => { await api.post("/engine/obs/install"); return api.get("/engine/obs"); }),
+      cancelinstall: () => run("cancel", async () => { await api.post("/engine/obs/install/cancel"); return api.get("/engine/obs"); }),
     });
-    const t = setInterval(async () => { if (d.busy || root.querySelector("input:focus")) return; try { d.info = await api.get("/engine/obs"); repaint(); } catch {} }, 3000);
+    const t = setInterval(async () => { if (d.busy || root.querySelector("input:focus")) return; try { d.info = await api.get("/engine/obs"); repaint(); } catch {} }, 1500);
     return () => { off(); clearInterval(t); };
   },
 };

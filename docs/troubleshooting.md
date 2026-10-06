@@ -85,17 +85,19 @@ While a source is down, a "Technical difficulties" slate shows and the picture r
 
 | Cause | Fix |
 |-------|-----|
-| OBS shows a "Failed to connect to server" box | This is OBS's own message and cannot be hidden. Fieldhouse also shows its own message. Close the OBS box, then check below |
+| Fieldhouse says the destination did not answer | Fieldhouse tries the address itself before going live, so OBS never gets a chance to show its own error box. Check the address, the Wi-Fi, and that the service is up; press Test on the destination |
 | Wrong server address or key | Copy them again from the site |
 | No internet | Check the connection; recording still works |
 | Key expired (Facebook) | Get a new key |
 
-## OBS will not connect
+## The video engine will not start
 
 | Cause | Fix |
 |-------|-----|
-| OBS not open | Open it |
-| WebSocket server off | Tools, WebSocket Server Settings: enable |
-| Wrong password or port | Re-enter them in Fieldhouse Settings |
-| Old OBS | Update to version 28 or later |
-| OBS closed and reopened | Fieldhouse reconnects and sets OBS up again by itself; wait a few seconds |
+| "Not installed" | Press Install video engine in Settings, Video engine, or use the download page |
+| "Restarting the video engine..." | Wait a few seconds; Fieldhouse restarts it by itself after a crash. A broadcast that was running has ended; start it again |
+| "Would not start after several tries" | Press Try again in Settings, Video engine. If it repeats, restart Fieldhouse, then send the diagnostics bundle (Settings, Diagnostics) |
+| "OBS Studio is already open with its remote control turned off" | Close that OBS; Fieldhouse starts its own. (Fieldhouse never closes an OBS it did not start) |
+| "OBS Studio is already open and Fieldhouse does not have its password" | Enter the password under "Use an OBS you run yourself", or close that OBS |
+| Old OBS | Version 28 or later is needed |
+| An OBS window or dialog appears | Not expected. Close it; Fieldhouse keeps working. Please report it with the diagnostics bundle. A desktop with no system tray can show the OBS window (see [the video engine](obs-setup.md)) |

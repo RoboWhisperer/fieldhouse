@@ -4,6 +4,12 @@ const slotDev = {}; // slot -> deviceId chosen in this app (SourceInfo does not 
 const segs = (lv) => raw(Array.from({ length: 20 }, (_, k) => `<i class="${k < lv ? (k > 17 ? "r" : k > 13 ? "y" : "g") : ""}"></i>`).join(""));
 const lvOf = (a) => Math.round(Math.min(1, a || 0) * 20);
 const DOT = { ok: "ok", reconnecting: "warn", missing: "err" };
+// Per-source options the engine reports (picture size and frame rate of a camera; address, retry and buffer of a network stream).
+const optsPanel = (n, o) => !o ? html`<div class="ctl"><span class="hint">Loading the options...</span></div>` : html`<div class="ctl" style="border-top:1px solid var(--line);padding-top:8px">
+  ${o.type === "camera" ? (o.resolutions.length || o.framerates.length ? html`${o.resolutions.length ? html`<label class="hint">Picture size<select class="cell" data-sopt="resolution" data-n="${n}" aria-label="Picture size for slot ${n}">${o.resolutions.map((r) => html`<option value="${r.value}" ${r.value === o.resolution ? "selected" : ""}>${r.label}</option>`)}</select></label>` : ""}${o.framerates.length ? html`<label class="hint">Frame rate<select class="cell" data-sopt="framerate" data-n="${n}" aria-label="Frame rate for slot ${n}">${o.framerates.map((r) => html`<option value="${r.value}" ${r.value === o.framerate ? "selected" : ""}>${r.label}</option>`)}</select></label>` : ""}` : html`<span class="hint">This camera did not list picture sizes or frame rates, so Fieldhouse leaves its own choice alone.</span>`)
+  : o.type === "network" ? html`<span class="hint">Address: ${o.address}</span><label class="hint">Retry after (seconds)<input class="cell" type="number" min="1" max="60" value="${o.reconnectSeconds}" data-sopt="reconnectSeconds" data-n="${n}" aria-label="Retry after seconds for slot ${n}"></label><label class="hint">Buffer (MB)<input class="cell" type="number" min="1" max="16" value="${o.bufferingMb}" data-sopt="bufferingMb" data-n="${n}" aria-label="Buffer in megabytes for slot ${n}"></label><button class="btn sm" data-reconnect="${n}">Reconnect now</button>`
+  : o.type === "file" ? html`<span class="hint">File: ${o.address}</span><button class="btn sm" data-reconnect="${n}">Play from the start</button>`
+  : html`<span class="hint">This source has no settings to change.</span>`}</div>`;
 const KIND = { usb: "Camera", ndi: "Network", srt: "Network", screen: "Screen", test: "Video file", audio: "Audio" };
 
 export default {
@@ -56,7 +62,7 @@ export default {
             <div class="meta"><div class="nmx row" style="gap:8px;font-weight:650"><span data-dot="${n}" class="dot ${DOT[s.status]}"></span><span>${s.detail}</span><div class="meter" data-m="${s.id}" style="width:64px;margin-left:auto">${segs(lvOf(s.audio))}</div></div></div>
             <div class="ctl"><input class="cell" data-label="${n}" value="${s.label}" maxlength="40" aria-label="Name for slot ${n}">
               <select class="cell" data-pick="${n}" aria-label="Device for slot ${n}">${vid.map((v) => html`<option value="${v.id}" ${v.id === cur?.deviceId ? "selected" : ""}>${v.label}</option>`)}${!cur?.deviceId && html`<option selected>(current device)</option>`}</select>
-              </div><button class="btn sm ghost" data-clear="${n}" style="position:absolute;top:30px;right:6px;background:rgba(5,8,14,.78);color:#fff" aria-label="Remove slot ${n}">${icon("x", "sm")}</button></div>`
+              </div>${d.openSet === n ? optsPanel(n, d.opts?.[n]) : ""}<button class="btn sm ghost" data-gear="${n}" style="position:absolute;top:30px;right:40px;background:rgba(5,8,14,.78);color:#fff" aria-label="Settings for slot ${n}" aria-expanded="${d.openSet === n}">${icon("sliders", "sm")}</button><button class="btn sm ghost" data-clear="${n}" style="position:absolute;top:30px;right:6px;background:rgba(5,8,14,.78);color:#fff" aria-label="Remove slot ${n}">${icon("x", "sm")}</button></div>`
           : html`<div class="tile slot empty-slot"><button class="drop ${d.picked ? "armed" : ""}" data-fill="${n}">${icon("down2", "xl")}<span>${d.picked ? `Place ${nameOf(d.picked)} here` : "Empty slot"}</span><span class="hint">Optional. Pick a device to add a view.</span></button><span class="k">${n}</span><div class="ctl" style="padding-top:10px"><select class="cell" data-pick="${n}" aria-label="Device for slot ${n}"><option value="">Choose a device</option>${vid.map((v) => html`<option value="${v.id}">${v.label}</option>`)}</select></div></div>`; })}</div>
         <div class="panel aud">${icon("mic", "lg")}<div style="min-width:0"><div style="font-weight:650">${aud[0]?.label || "No audio device"}</div><div class="faint" style="font-size:12px">${aud[0] ? "Level from the live mixer" : "Plug in a microphone or mixer"}</div></div><span class="sp"></span><div class="meter" data-mix style="width:120px">${segs(lvOf(mix))}</div><span class="chip ${aud[0] ? "ok" : "warn"}" id="sig">${icon(aud[0] ? "check" : "alert", "sm")}${aud[0] ? "Signal OK" : "No signal"}</span></div>
         <div class="row" style="justify-content:flex-end"><span class="muted">${srcs.length} of 4 slots in use</span><button class="btn pri lg" data-go="/preflight" ${srcs.length ? "" : "disabled"}>Run checks${icon("right")}</button></div></section>
@@ -83,6 +89,8 @@ export default {
         else if (D.dev) { d.picked = d.picked === D.dev ? null : D.dev; ctx.redraw(); }
         else if (D.fill) { if (d.picked) assign(+D.fill, d.picked, d.devices.find((x) => x.id === d.picked).label); else toast("Click a device on the left first, or use the list under the slot."); }
         else if (D.clear) assign(+D.clear, null);
+        else if (D.gear) { const n = +D.gear; d.openSet = d.openSet === n ? null : n; d.opts ??= {}; ctx.redraw(); if (d.openSet === n) { try { d.opts[n] = await api.get(`/slots/${n}/settings`); } catch (err) { d.openSet = null; fail(err); } ctx.redraw(); } }
+        else if (D.reconnect) { d.opts[+D.reconnect] = await api.post(`/slots/${D.reconnect}/settings`, { restart: true }); toast("Reconnecting."); ctx.redraw(); }
         else if (D.act === "net") { d.net = true; ctx.redraw(); }
         else if (D.act === "netcancel") { d.net = false; ctx.redraw(); }
         else if (D.act === "scan") { d.devices = await api.get("/devices"); ctx.redraw(); }
@@ -96,6 +104,7 @@ export default {
     };
     root.onchange = (e) => {
       const el = e.target;
+      if (el.dataset.sopt) { const n = +el.dataset.n, k = el.dataset.sopt; api.post(`/slots/${n}/settings`, { [k]: ["reconnectSeconds", "bufferingMb"].includes(k) ? Number(el.value) : el.value }).then((o) => { d.opts[n] = o; toast("Saved."); ctx.redraw(); }, (err) => { fail(err); api.get(`/slots/${n}/settings`).then((o) => { d.opts[n] = o; ctx.redraw(); }, () => {}); }); return; }
       if (el.dataset.pick && el.value) assign(+el.dataset.pick, el.value, root.querySelector(`[data-label="${el.dataset.pick}"]`)?.value || d.devices.find((x) => x.id === el.value).label);
       else if (el.dataset.label) { const c = d.cur.find((x) => x.slot === +el.dataset.label); if (c?.deviceId) assign(c.slot, c.deviceId, el.value.trim() || d.devices.find((x) => x.id === c.deviceId)?.label); else toast("This device was set before this page opened. Pick it again from the list to rename it."); }
       else if (el.id === "vsel") { d.vid = el.value; ctx.redraw(); }

@@ -27,3 +27,13 @@ export function parseNetworkSource(input: unknown, label?: unknown): NetworkSour
 
 export const networkDeviceId = (url: string) => `ffmpeg_source:${url}`;
 export const networkDetail = (n: NetworkSource) => (n.local ? "Video file" : n.scheme.startsWith("http") ? "Web stream" : `${n.scheme.toUpperCase()} stream`);
+
+/** What may be shown on screen for a source address: no credentials, no query, no stream key (everything after the first path segment). */
+export function maskAddress(input: string): string {
+  if (/^(\/|[a-zA-Z]:[\\/]|\\\\)/.test(input)) return input.split(/[\\/]/).pop() ?? input; // a file: just its name
+  try {
+    const u = new URL(input);
+    const first = u.pathname.split("/").filter(Boolean)[0];
+    return `${u.protocol}//${u.host}${first ? "/" + first : ""}${u.pathname.split("/").filter(Boolean).length > 1 || u.search ? "/..." : ""}`;
+  } catch { return "(address hidden)"; }
+}

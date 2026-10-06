@@ -90,7 +90,8 @@ function stopSidecar() {
   const p = child;
   if (!p) return Promise.resolve();
   return new Promise((resolve) => {
-    const t = setTimeout(() => { log("sidecar did not exit in 5 s, killing"); p.kill("SIGKILL"); }, 5000);
+    // 20 s: the sidecar finishes the recording and closes the video engine it started before it exits
+    const t = setTimeout(() => { log("sidecar did not exit in 20 s, killing"); p.kill("SIGKILL"); }, 20000);
     p.once("exit", () => { clearTimeout(t); resolve(); });
     p.kill("SIGTERM"); // on Windows this is a hard terminate (no signals); SQLite WAL stays consistent
   });

@@ -1,15 +1,9 @@
 // Go-live checks, grouped as in 10-ui-design-spec.md 5.6. Every non-ok check says what is wrong and names its fix.
-import { lookup } from "node:dns/promises";
+import { checkDestination } from "./destination-check";
 import type { Check, DestinationDoc, EngineStatus, GameDoc, SettingsDoc } from "./types";
 
 const GB = 1024 ** 3;
 const NEED_GB = 45; // 15 GB/hour x a 3-hour game
-
-async function reachable(host: string): Promise<boolean> {
-  let timer: Timer | undefined;
-  const timeout = new Promise<false>((r) => { timer = setTimeout(() => r(false), 2000); });
-  try { return await Promise.race([lookup(host).then(() => true, () => false), timeout]); } finally { clearTimeout(timer); }
-}
 
 export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; destinations: DestinationDoc[]; settings: SettingsDoc }): Promise<Check[]> {
   const { engine, game } = ctx;
@@ -18,7 +12,7 @@ export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; des
 
   // Video
   const bad = engine.sources.filter((s) => s.status !== "ok");
-  if (!engine.connected) add({ id: "video.sources", group: "Video", name: "Cameras and sources", status: "err", result: engine.engine === "obs" ? "OBS is not connected, so no video can be checked." : "The video engine is not running.", fix: "Connect OBS" });
+  if (!engine.connected) add({ id: "video.sources", group: "Video", name: "Cameras and sources", status: "err", result: engine.engine === "obs" ? (engine.obs?.managed?.message || "The video engine is not connected, so no video can be checked.") : "The video engine is not running.", fix: "Start video engine" });
   else if (!engine.sources.length) add({ id: "video.sources", group: "Video", name: "Cameras and sources", status: "err", result: "No video sources are set up.", fix: "Add a source" });
   else if (bad.some((s) => s.status === "missing")) add({ id: "video.sources", group: "Video", name: "Cameras and sources", status: "err", result: `${bad.filter((s) => s.status === "missing").map((s) => s.label).join(", ")} is not connected.`, fix: "Reconnect" });
   else if (bad.length) add({ id: "video.sources", group: "Video", name: "Cameras and sources", status: "warn", result: `${bad.map((s) => s.label).join(", ")} is reconnecting.`, fix: "Reconnect" });
@@ -37,10 +31,8 @@ export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; des
   // Network
   const live = ctx.destinations.filter((d) => d.enabled && d.kind !== "record" && (!game?.destinationIds.length || game.destinationIds.includes(d.id)));
   await Promise.all(live.map(async (d) => {
-    let host = "";
-    try { host = new URL(d.url ?? "").hostname; } catch {}
-    const ok = host && (await reachable(host));
-    add({ id: `network.dns.${d.id}`, group: "Network", name: `Reach ${d.name}`, status: ok ? "ok" : "err", result: ok ? `${d.name} can be reached.` : `Can't reach ${d.name}. Check the internet connection.`, fix: "Re-test" });
+    const chk = await checkDestination(d.url ?? "", { timeoutMs: 2000 }); // same check as going live: address, DNS and a real connection
+    add({ id: `network.dns.${d.id}`, group: "Network", name: `Reach ${d.name}`, status: chk.ok ? "ok" : "err", result: chk.ok ? `${d.name} can be reached.` : `Can't reach ${d.name}. ${chk.message}`, fix: "Re-test" });
   }));
   add(engine.stream.live
     ? { id: "network.upload", group: "Network", name: "Upload speed", status: engine.stream.droppedFrames > 0 || engine.stream.reconnecting ? "warn" : "ok", result: `Streaming at ${Math.round(engine.stream.kbps)} kbps, ${engine.stream.droppedFrames} dropped frames.`, fix: "Lower quality" }

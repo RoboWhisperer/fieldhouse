@@ -8,7 +8,7 @@ This page takes you from nothing to a first broadcast in about 15 minutes. Do th
 
 - A laptop (the one you will use on game night).
 - At least one camera, or none: Fieldhouse has a practice mode with a test picture.
-- [OBS Studio](https://obsproject.com), free, installed on the same laptop. Fieldhouse uses it to mix the video and send it out. You can skip OBS for practice.
+- The video engine (OBS Studio, free). Fieldhouse can install it for you, starts it by itself and runs it quietly in the background; you never open it. You can skip it for practice.
 - An internet connection if you want to stream. Recording works without one.
 
 ## 1. Install
@@ -25,16 +25,11 @@ On first run Fieldhouse walks you through three short steps:
 2. **Detect and test your first camera.** If no camera is found, you get the three most common fixes, or you can choose "skip, use test pattern".
 3. **A 60-second practice broadcast** to a private test destination.
 
-## 3. Connect OBS
+## 3. The video engine starts by itself
 
-Choose one of two ways, in **Settings, Engine**:
+There is nothing to connect. When Fieldhouse starts, it starts the video engine, sets it up and restarts it if it ever stops. If the engine is not installed, setup offers **Install video engine** and carries on by itself when it is done. Quality, recording format, replay length and audio inputs are in **Settings, Video and audio**; the engine's state and a Try again button are in **Settings, Video engine**. See [the video engine](obs-setup.md) for details. The installed desktop app uses the real engine by default. Running from source with `bun run demo` uses a practice engine with a test picture and no OBS.
 
-- **Launch OBS:** Fieldhouse sets up OBS's connection and starts OBS for you. This is the easiest.
-- **Connect to OBS you opened yourself:** in OBS, choose Tools, then WebSocket Server Settings, tick "Enable WebSocket server", then type the password once in Fieldhouse.
-
-Fieldhouse then sets up what it needs in OBS by itself (see [OBS setup](obs-setup.md)). The installed desktop app uses OBS by default. Running from source with `bun run demo` uses a practice engine with a test picture and no OBS.
-
-> **Checked with OBS 32.2.2 (Flatpak) on Linux.** Native OBS on Linux, Windows and macOS have not been verified. If it does not connect, see [Troubleshooting](troubleshooting.md).
+> **Checked with OBS 32.2.2 (Flatpak) on Linux.** Native OBS on Linux, Windows and macOS have not been verified, and the one-click installer has not been run for real. If the engine does not start, see [Troubleshooting](troubleshooting.md).
 
 ## 4. Connect a camera
 

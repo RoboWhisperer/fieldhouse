@@ -373,7 +373,7 @@ const PRODUCER_OK: [string, string, unknown][] = [
 ];
 const NEVER: [string, string, unknown?][] = [
   ["GET", "/api/settings"], ["PUT", "/api/settings", { telemetry: true }], ["GET", "/api/destinations"], ["POST", "/api/destinations", {}], ["DELETE", "/api/destinations/dest_demo_yt"],
-  ["POST", "/api/engine/obs/provision", {}], ["POST", "/api/engine", {}], ["GET", "/api/venues"], ["PUT", "/api/venues", {}], ["GET", "/api/devices"], ["POST", "/api/slots", {}],
+  ["POST", "/api/engine/obs/provision", {}], ["PUT", "/api/engine/video", {}], ["POST", "/api/engine/audio", {}], ["POST", "/api/engine/obs/install", {}], ["POST", "/api/slots/1/settings", {}], ["POST", "/api/engine", {}], ["GET", "/api/venues"], ["PUT", "/api/venues", {}], ["GET", "/api/devices"], ["POST", "/api/slots", {}],
   ["POST", "/api/games", {}], ["PUT", "/api/games/x", {}], ["POST", "/api/games/x/finish", {}], ["POST", "/api/games/x/activate", {}], ["POST", "/api/sponsors", {}], ["DELETE", "/api/sponsors/x"],
   ["POST", "/api/roster/parse", {}], ["GET", "/api/recordings"], ["DELETE", "/api/recordings/x"], ["GET", "/api/storage"], ["GET", "/api/diagnostics"], ["POST", "/api/diagnostics/bundle", {}],
   ["POST", "/api/demo", {}], ["POST", "/api/dev/simulate", {}], ["GET", "/api/log"], ["GET", "/rec/x.mp4"], ["GET", "/overlay"], ["GET", "/"],

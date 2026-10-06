@@ -14,7 +14,27 @@ export interface SourceInfo {
   status: "ok" | "reconnecting" | "missing";
   audio: number; // 0..1 level
 }
-export interface MixerChannel { id: string; label: string; level: number; gainDb: number; muted: boolean }
+export interface MixerChannel { id: string; label: string; level: number; gainDb: number; muted: boolean; role?: "mic" | "desktop" | "camera" | "other" }
+
+// Quality and recording choices the volunteer can make in Settings > Video and audio. Fieldhouse is the source of truth: they are
+// saved in SettingsDoc.video and re-applied to the engine on every (re)start. See src/video-settings.ts.
+export type EncoderChoice = "auto" | "x264" | "qsv" | "nvenc" | "amd" | "apple_h264";
+export interface VideoSettings { resolution: "720p" | "1080p"; fps: 30 | 60; videoKbps: number; audioKbps: number; encoder: EncoderChoice; recordFormat: "mp4" | "mkv"; replaySeconds: 30 | 60 | 120 }
+export interface EncoderOption { id: EncoderChoice; label: string }
+/** What the engine itself reports it is using right now (read back after applying). */
+export interface VideoApplied { resolution: string; fps: number; videoKbps: number; audioKbps: number; encoder: string; recordFormat: string; replaySeconds: number; outputWidth: number; outputHeight: number }
+export interface VideoInfo { settings: VideoSettings; applied: VideoApplied | null; encoders: EncoderOption[]; encoderInUse: string; live: boolean; pending: string[]; differences: string[] }
+export interface AudioInput { id: string; label: string; role: "mic" | "desktop" | "camera" | "other"; deviceId: string; deviceLabel: string; managed: boolean; removable: boolean; level: number; gainDb: number; muted: boolean }
+export interface AudioList { inputs: AudioInput[]; devices: DeviceInfo[]; canDesktop: boolean }
+/** Per-camera options. `resolutions`/`fps` come from what the device reports; empty = the engine cannot tell. */
+export interface SourceOptions {
+  slot: number; type: "camera" | "network" | "file" | "other"; label: string;
+  address?: string; // masked: credentials and stream keys are never included
+  resolution?: string; framerate?: string; // current choice = one of the `value`s below (JSON text of the engine's own value)
+  resolutions: { value: string; label: string }[]; framerates: { value: string; label: string }[];
+  reconnectSeconds?: number; bufferingMb?: number; canReconnect: boolean;
+}
+export interface SourceOptionsPatch { resolution?: string; framerate?: string; reconnectSeconds?: number; bufferingMb?: number; restart?: boolean }
 export interface EngineStatus {
   engine: "fake" | "obs";
   connected: boolean;
@@ -28,7 +48,9 @@ export interface EngineStatus {
   cpu: number; // 0..100
   diskFreeBytes: number;
   graphicsInProgram: boolean; // true: the overlay is composed inside the engine (OBS), so the UI must not draw its own score bug
-  obs?: { version?: string; profile?: string; provisioned: boolean; replayBuffer: boolean; error?: string; created: string[]; notes: string[] }; // OBS engine only
+  obs?: { version?: string; profile?: string; provisioned: boolean; replayBuffer: boolean; error?: string; created: string[]; notes: string[];
+    managed?: { state: string; message: string; owned: boolean; restarts: number; since: number }; // the video engine's lifecycle (src/obs-supervisor.ts)
+    lost?: { at: number; stream: boolean; record: boolean } }; // set when the engine vanished while a broadcast was running
 }
 export interface Engine {
   status(): EngineStatus; // cheap sync snapshot
@@ -49,6 +71,15 @@ export interface Engine {
   snapshot(sourceId: string): Promise<{ type: string; body: Uint8Array } | null>; // still image for monitors/tiles; "program"/"preview" = what is on air / next, with graphics
   addNetworkSource?(url: string, label: string): Promise<DeviceInfo>; // srt/rtmp/rtsp/http(s) stream or local video file; use the returned id with setSlot
   provision?(): Promise<void>; // (re)create what the engine needs inside the media app (OBS scenes etc.)
+  // Everything below is optional so a simple engine still works; SwitchableEngine forwards it, the routes say "not supported" when absent.
+  videoInfo?(): Promise<{ applied: VideoApplied | null; encoders: EncoderOption[]; encoderInUse: string }>;
+  applyVideo?(v: VideoSettings): Promise<VideoApplied>; // throws while a broadcast is running if it would drop it
+  audioInputs?(): Promise<AudioList>;
+  addAudio?(o: { role: "mic" | "desktop"; deviceId?: string; label: string }): Promise<AudioInput>;
+  updateAudio?(id: string, p: { label?: string; deviceId?: string; gainDb?: number; muted?: boolean }): Promise<AudioInput>;
+  removeAudio?(id: string): Promise<void>;
+  sourceOptions?(slot: number): Promise<SourceOptions>;
+  setSourceOptions?(slot: number, p: SourceOptionsPatch): Promise<SourceOptions>;
   close(): Promise<void>;
 }
 
@@ -114,6 +145,7 @@ export interface SettingsDoc {
   activeGameId?: string;
   autoFireSponsors: boolean;
   engine: { kind: "fake" | "obs"; obsUrl: string; obsPassword?: string; obsPasswordSet?: boolean }; // obsPassword is write-only: the API only ever returns obsPasswordSet
+  video: VideoSettings;
 }
 
 // ---------------------------------------------------------------- preflight, reports, graphics

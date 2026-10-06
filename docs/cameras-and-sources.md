@@ -2,6 +2,8 @@
 
 Fieldhouse supports up to four video sources, called slots 1 to 4. One camera is a perfectly good start.
 
+> **Per-source settings:** the gear on a slot (Sources screen) shows picture size and frame rate for a USB camera when the engine reports them, and address (without keys), retry and buffer for a network stream. Checked with network and file sources on real OBS and with a mock for the camera lists; a real USB camera was not available.
+>
 > **Not yet verified with real USB cameras or capture cards.** Network and file sources (srt, rtmp, rtsp, http, file) have been checked with real OBS on Linux. The guidance below is general, not a tested compatibility list. Phone camera apps are untested.
 
 ## Kinds of sources

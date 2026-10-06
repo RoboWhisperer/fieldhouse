@@ -2,7 +2,7 @@
 
 **Is it really free?** Yes. No price, trial, account or license key, now or later. It is maintained by volunteers.
 
-**Do I need OBS?** For a real broadcast, yes: OBS is free. For practice, no: `bun run demo` has a practice engine with a test picture.
+**Do I need OBS?** For a real broadcast Fieldhouse uses OBS Studio (free) as its video engine, but you never open it: Fieldhouse installs it if you want, starts it, restarts it and closes it. For practice, no: `bun run demo` has a practice engine with a test picture.
 
 **Do I need a fast internet connection?** Only to stream. Recording needs none. See the speed table in [Cameras and sources](cameras-and-sources.md).
 

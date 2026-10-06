@@ -1,6 +1,5 @@
 // Application layer: every route and flow, as a plain fetch handler (no port) so tests drive it directly.
 // server.ts only adds the HTTP/WebSocket plumbing and static files.
-import { lookup } from "node:dns/promises";
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { fold, lastUndoable, parseEv, view, type Logged } from "./game";
@@ -17,18 +16,22 @@ import { resolveMedia, serveFile } from "./media";
 import { isActive, lastSeries, sampleEngine } from "./health";
 import { createDiskWatch, retentionPlan, runRetention } from "./retention";
 import { createUpdateChecker } from "./update";
-import { registerEngineRoutes } from "./engine-routes";
+import { registerEngineRoutes, type EngineHooks } from "./engine-routes";
+import { registerEngineSettings } from "./engine-settings";
+import { checkDestination } from "./destination-check";
+import type { ObsLogWatcher } from "./obs-log";
 
 export const VERSION = "1.0.0-beta.1";
 const json = (x: unknown, status = 200) => Response.json(x, { status });
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 const bad = (msg: string, status = 400): never => { throw new HttpError(status, msg); };
 
-export function createApp(deps: { store: Store; engine: Engine; now?: () => number; fetch?: typeof fetch; demo?: boolean }) {
+export function createApp(deps: { store: Store; engine: Engine; now?: () => number; fetch?: typeof fetch; demo?: boolean; checkDestination?: typeof checkDestination }) {
   const { store, engine } = deps;
   const now = deps.now ?? Date.now;
   const listeners = new Set<() => void>();
-  const hooks = { remote: (): unknown => null }; // server.ts plugs the phone-remote summary in (src/auth.ts)
+  // server.ts plugs in the phone-remote summary (src/auth.ts), the video-engine supervisor/installer and the OBS log watcher
+  const hooks: { remote: () => unknown; logs?: ObsLogWatcher } & EngineHooks = { remote: () => null };
   const changed = () => { for (const f of listeners) f(); };
   let graphics: Graphics = { scorebug: true, lower: null, slate: null, sponsor: null };
   let log: Logged[] = [];
@@ -48,7 +51,16 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     if (!r.endedAt) { let bytes = r.bytes; try { bytes = statSync(r.file).size; } catch {} store.put("recording", { ...r, endedAt: now(), bytes }); }
   }
   { const g = activeGame(); if (g?.status === "live") recovered = { at: now() }; }
-  engine.onChange(changed);
+  let lastLost = 0;
+  engine.onChange(() => {
+    const lost = engine.status().obs?.lost;
+    if (lost && lost.at !== lastLost) { // the video engine vanished mid-broadcast: say so, close the recording record, and do NOT restart anything by ourselves
+      lastLost = lost.at;
+      for (const r of store.list<RecordingDoc>("recording")) if (!r.endedAt) { let bytes = r.bytes; try { bytes = statSync(r.file).size; } catch {} store.put("recording", { ...r, endedAt: now(), bytes }); }
+      notify("warn", `The video engine stopped during the broadcast, so ${lost.stream ? "the live stream" : ""}${lost.stream && lost.record ? " and " : ""}${lost.record ? "the recording" : ""} ended. Fieldhouse is restarting the engine; press Start broadcast again when the Check screen is green. The recording up to this point was saved.`);
+    }
+    changed();
+  });
   data.ensureLocalRecording(store);
 
   // ------------------------------------------------------------ background upkeep: notices, health history, disk watchdog, retention
@@ -114,6 +126,11 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     const g = activeGame() ?? bad("No game is active.", 409);
     const s = settings();
     const dests = (g!.destinationIds.length ? g!.destinationIds : data.listDestinations(store).filter((d) => d.enabled).map((d) => d.id)).map((id) => data.getDestinationWithKey(store, id)).filter((d) => d?.enabled);
+    const live0 = dests.find((d) => d && d.kind !== "record");
+    if (live0) { // refuse before anything starts (no recording, no OBS dialog) when the destination cannot be reached
+      if (!live0.url || !live0.key) bad(`${live0.name} needs a server address and stream key.`);
+      if (engine.status().engine === "obs") { const chk = await (deps.checkDestination ?? checkDestination)(live0.url!); if (!chk.ok) bad(`${live0.name}: ${chk.message}`); }
+    }
     const file = await engine.startRecord(s.storageDir, g!.id);
     store.put("recording", { id: `${g!.id}-${now()}`, gameId: g!.id, file, startedAt: now(), bytes: 0, exported: false } satisfies RecordingDoc);
     const live = dests.find((d) => d && d.kind !== "record");
@@ -129,6 +146,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     const rec = store.list<RecordingDoc>("recording").filter((r) => !r.endedAt).at(-1);
     await engine.stopRecord().catch(() => {});
     if (rec) { let bytes = 0; try { bytes = statSync(rec.file).size; } catch {} store.put("recording", { ...rec, endedAt: now(), bytes }); }
+    void engine.applyVideo?.(settings().video).catch(() => {}); // quality choices saved during the broadcast take effect now
   }
   function fire(body: { sponsorId?: string; outcome?: AiringDoc["outcome"] }) {
     const st = state();
@@ -173,7 +191,8 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("GET", "/venues", () => data.listVenues(store));
   on("PUT", "/venues", ({ body }) => data.saveVenue(store, body));
   on("GET", "/devices", async () => engine.detectDevices());
-  registerEngineRoutes(on, { engine, store, bad, changed });
+  registerEngineRoutes(on, { engine, store, bad, changed, hooks });
+  registerEngineSettings(on, { engine, store, bad, changed });
   on("POST", "/slots", async ({ body }) => { await engine.setSlot(Number(body.slot), body.deviceId ?? null, body.label); changed(); return engine.status().sources; });
   on("POST", "/venues/:id/apply", async ({ params }) => {
     const v = data.listVenues(store).find((x: any) => x.id === params[0]) ?? bad("Venue not found.", 404);
@@ -189,8 +208,8 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     if (d!.kind === "record") return { ok: true, message: "Recording to this computer needs no connection." };
     if (!d!.url) return { ok: false, message: "Add a server address first." };
     if (!d!.key) return { ok: false, message: "Add a stream key first." };
-    try { await Promise.race([lookup(new URL(d!.url.replace(/^rtmps?:/, "https:").replace(/^srt:/, "https:")).hostname), new Promise((_, r) => setTimeout(() => r(new Error("timeout")), 2000))]); return { ok: true, message: "Server found. The stream key is checked when you go live." }; }
-    catch { return { ok: false, message: "Could not reach that server. Check the address and the Wi-Fi." }; }
+    const chk = await (deps.checkDestination ?? checkDestination)(d!.url); // the same check that guards going live
+    return { ok: chk.ok, message: chk.message };
   });
 
   on("POST", "/preflight", async () => runChecks({ engine: engine.status(), game: activeGame(), destinations: store.list<any>("destination"), settings: settings() }));
@@ -247,7 +266,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("GET", "/settings", () => settings());
   on("PUT", "/settings", ({ body }) => { const s = data.saveSettings(store, body); changed(); return data.settingsView(s); });
 
-  const dctx = () => ({ settings: settings(), engine: engine.status(), destinations: store.list<any>("destination"), gameId: activeId() });
+  const dctx = () => ({ settings: settings(), engine: engine.status(), destinations: store.list<any>("destination"), gameId: activeId(), obsLog: hooks.logs?.highlights() });
   on("GET", "/diagnostics", ({ q }) => ({ logs: diag.recentLogs(Number(q.get("n") ?? 50), (q.get("level") as any) || undefined), bundle: diag.previewBundle(dctx()), series: lastSeries(store, gameTitle) }));
   on("POST", "/diagnostics/bundle", () => diag.buildBundle(dctx()));
 
@@ -295,6 +314,6 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     return file ? serveFile(req, file, u.searchParams.get("download") === "1") : new Response("not found", { status: 404 });
   }
 
-  return { handle, rec, tick, retention, notify, stop: () => timers.forEach(clearInterval), hooks, state, onChange: (f: () => void) => (listeners.add(f), () => listeners.delete(f)), changed, engine, store, snapshot: (id: string) => engine.snapshot(id) };
+  return { handle, rec, tick, retention, notify, endBroadcast: broadcastStop, stop: () => timers.forEach(clearInterval), hooks, state, onChange: (f: () => void) => (listeners.add(f), () => listeners.delete(f)), changed, engine, store, snapshot: (id: string) => engine.snapshot(id) };
 }
 export type App = ReturnType<typeof createApp>;

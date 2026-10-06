@@ -97,3 +97,61 @@ test("the OBS overlay depends on no fonts (OBS's embedded browser has no monospa
   expect(html).not.toMatch(/font[^;{}]*monospace/i);
   expect(html).toMatch(/seven-segment/i); // the clock is drawn as SVG
 });
+
+test("video settings routes: validate, save, apply, read back; locked while live; never leak secrets", async () => {
+  const e2 = new FakeEngine(), a2 = createApp({ store: openStore(":memory:"), engine: e2 });
+  const r = async (m: string, p: string, b?: unknown) => { const x = await a2.handle(new Request("http://localhost:8080/api" + p, { method: m, body: b ? JSON.stringify(b) : undefined, headers: b ? { "content-type": "application/json" } : {} })); return { status: x.status, body: await x.json() as any }; };
+  expect((await r("GET", "/engine/video")).body).toMatchObject({ settings: { resolution: "720p" }, live: false, differences: [] });
+  const ok = await r("PUT", "/engine/video", { resolution: "1080p", fps: 60, videoKbps: 6000 });
+  expect(ok.status).toBe(200);
+  expect(ok.body).toMatchObject({ settings: { resolution: "1080p", fps: 60, videoKbps: 6000 }, applied: { outputHeight: 1080, fps: 60 }, differences: [] });
+  expect((await r("PUT", "/engine/video", { videoKbps: 10 })).body.error).toContain("between 1000 and 20000");
+  expect((await r("PUT", "/engine/video", { encoder: "nvenc" })).status).toBe(400); // not offered by this engine
+  await e2.startRecord(dir, "locked");
+  const blocked = await r("PUT", "/engine/video", { resolution: "720p" });
+  expect(blocked.status).toBe(409); expect(blocked.body.error).toContain("cannot be changed during a broadcast");
+  expect((await r("PUT", "/engine/video", { videoKbps: 2500 })).status).toBe(200); // allowed while live, applied later
+  await e2.stopRecord();
+  const audio = await r("POST", "/engine/audio", { role: "mic", label: "Crowd", deviceId: "audio-scarlett" });
+  expect(audio.body).toMatchObject({ id: "audio-2", label: "Crowd" });
+  expect((await r("PUT", "/engine/audio/audio-2", { gainDb: 99 })).status).toBe(400);
+  expect((await r("PUT", "/engine/audio/audio-2", { label: "Room", muted: true })).body).toMatchObject({ label: "Room", muted: true });
+  expect((await r("GET", "/engine/audio")).body.inputs.map((i: any) => i.id)).toContain("audio-2");
+  expect((await r("DELETE", "/engine/audio/audio-2")).status).toBe(200);
+  expect((await r("GET", "/slots/1/settings")).body).toMatchObject({ type: "camera" });
+  expect((await r("POST", "/slots/1/settings", { reconnectSeconds: "x" })).status).toBe(400);
+  expect(JSON.stringify((await r("GET", "/state")).body)).not.toMatch(/obsPassword"/);
+  e2.close();
+});
+
+test("a lost video engine mid-broadcast becomes a clear notice and closes the recording record", async () => {
+  const st = openStore(":memory:"), e3 = new FakeEngine(); seedDemo(st);
+  const a3 = createApp({ store: st, engine: e3 });
+  const base = e3.status.bind(e3); let lost: any;
+  (e3 as any).status = () => { const s = base(); if (lost) s.obs = { provisioned: false, replayBuffer: false, created: [], notes: [], lost }; return s; };
+  st.put("recording", { id: "r1", gameId: "g", file: "/nope", startedAt: 1, bytes: 0, exported: false });
+  lost = { at: 123, stream: true, record: true };
+  (e3 as any).simulate("disk-restore"); // any engine change event
+  await Bun.sleep(30);
+  const state = a3.state();
+  expect(state.notices.at(-1)!.message).toContain("video engine stopped during the broadcast");
+  expect(state.notices.at(-1)!.message).toContain("press Start broadcast again");
+  expect(st.list<any>("recording").find((r) => r.id === "r1").endedAt).toBeTruthy();
+  e3.close(); a3.stop();
+});
+
+test("go-live with the real engine refuses an unreachable destination BEFORE recording starts; the Test button uses the same check", async () => {
+  const st = openStore(":memory:"), e4 = new FakeEngine(); seedDemo(st);
+  const base = e4.status.bind(e4); (e4 as any).status = () => ({ ...base(), engine: "obs" });
+  const a4 = createApp({ store: st, engine: e4, checkDestination: async (u) => ({ ok: !u.includes("down"), message: u.includes("down") ? "Nothing answered." : "ok" }) });
+  const r = async (m: string, p: string, b?: unknown) => { const x = await a4.handle(new Request("http://localhost:8080/api" + p, { method: m, body: b ? JSON.stringify(b) : undefined, headers: b ? { "content-type": "application/json" } : {} })); return { status: x.status, body: await x.json() as any }; };
+  const g = (await r("GET", "/games")).body.find((x: any) => x.status === "scheduled");
+  const d = (await r("POST", "/destinations", { kind: "rtmp", name: "Down", url: "rtmp://down.example/live", key: "k", enabled: true })).body;
+  await r("PUT", "/games/" + g.id, { ...g, destinationIds: [d.id] });
+  await r("POST", `/games/${g.id}/activate`);
+  const res = await r("POST", "/broadcast/start");
+  expect(res.status).toBe(400); expect(res.body.error).toContain("Down: Nothing answered.");
+  expect(e4.status().record.active).toBe(false);
+  expect((await r("POST", `/destinations/${d.id}/test`)).body).toMatchObject({ ok: false, message: "Nothing answered." });
+  e4.close(); a4.stop();
+});

@@ -2,6 +2,7 @@
 import { paths } from "./config";
 import type { DestinationDoc, DestinationView, GameDoc, Player, SettingsDoc, VenueDoc } from "./types";
 import type { Store } from "./store";
+import { DEFAULT_VIDEO, validateVideo } from "./video-settings";
 
 export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
 const isObj = (x: unknown): x is Record<string, any> => !!x && typeof x === "object" && !Array.isArray(x);
@@ -26,6 +27,7 @@ export function defaultSettings(): SettingsDoc {
     storageDir: paths().recordings, retention: "never", lowSpaceGb: 40,
     remote: { requireCode: true, code: newCode(), lockedToLan: true, enabled: false, port: 8081, producerCanBroadcast: false },
     telemetry: false, autoFireSponsors: false,
+    video: { ...DEFAULT_VIDEO },
     engine: { kind: paths().packaged && process.env.DEMO !== "1" && process.env.ENGINE !== "fake" ? "obs" : "fake", obsUrl: "ws://127.0.0.1:4455" },
   };
 }
@@ -33,7 +35,7 @@ export function defaultSettings(): SettingsDoc {
 export function getSettings(store: Store): SettingsDoc {
   const saved = store.get<SettingsDoc & { id: string }>("settings", "main");
   const d = defaultSettings();
-  const merged = { ...d, ...saved, profile: { ...d.profile, ...saved?.profile }, remote: { ...d.remote, ...saved?.remote }, engine: { ...d.engine, ...saved?.engine }, shortcuts: { ...d.shortcuts, ...saved?.shortcuts } };
+  const merged = { ...d, ...saved, profile: { ...d.profile, ...saved?.profile }, remote: { ...d.remote, ...saved?.remote }, engine: { ...d.engine, ...saved?.engine }, video: { ...d.video, ...saved?.video }, shortcuts: { ...d.shortcuts, ...saved?.shortcuts } };
   if (!saved) store.put("settings", { id: "main", ...merged });
   const { id: _id, ...out } = merged as any;
   return out;
@@ -92,6 +94,7 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
         }
         break;
       }
+      case "video": next.video = validateVideo(v, cur.video); break; // quality, encoder, format, replay length (src/video-settings.ts)
       case "remote": {
         if (!isObj(v)) throw new Error("remote must be an object");
         next.remote = { ...cur.remote };

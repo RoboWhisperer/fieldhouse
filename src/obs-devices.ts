@@ -16,6 +16,9 @@ const PROBES: Probe[] = [
   { kind: "pulse_input_capture", prop: "device_id", dev: "audio", detail: "Microphone", fallback: "Default microphone" },
   { kind: "wasapi_input_capture", prop: "device_id", dev: "audio", detail: "Microphone", fallback: "Default microphone" },
   { kind: "coreaudio_input_capture", prop: "device_id", dev: "audio", detail: "Microphone", fallback: "Default microphone" },
+  // Desktop / room sound (what the computer plays). macOS has no equivalent input kind in OBS 32's websocket-creatable set.
+  { kind: "pulse_output_capture", prop: "device_id", dev: "audio", detail: "Desktop audio", fallback: "Default desktop sound" },
+  { kind: "wasapi_output_capture", prop: "device_id", dev: "audio", detail: "Desktop audio", fallback: "Default desktop sound" },
 ];
 // Portal-based capture: the user picks the device in a system dialog inside OBS, so there is nothing to enumerate.
 const PORTAL: { kind: string; label: string; dev: DeviceInfo["kind"]; detail: string }[] = [

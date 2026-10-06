@@ -3,13 +3,15 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ObsEngine, meterLevel, obsAuth } from "./obs";
+import { ObsEngine, meterLevel, obsAuth, type ObsOptions } from "./obs";
+import { DEFAULT_VIDEO } from "./video-settings";
+import { createServer } from "node:net";
 
 // Mock obs-websocket v5 server with just enough state to provision, route scenes, record, stream and meter.
 function mock(password?: string) {
   const salt = "lZ4G2xqYb0ZGk1r+salt", challenge = "Kj9mPq3hXc+challenge";
   const log: string[] = [], sockets = new Set<any>();
-  const st = { scenes: ["Scene"], inputs: new Map<string, { kind: string; caps: number; settings: any }>([["Desktop Audio", { kind: "pulse_output_capture", caps: 2, settings: {} }]]), items: new Map<string, string[]>(), program: "Scene", preview: "Scene", rec: false, mute: new Map<string, boolean>(), rb: true, params: new Map<string, string>(), profile: "Untitled" };
+  const st = { scenes: ["Scene"], inputs: new Map<string, { kind: string; caps: number; settings: any }>([["Desktop Audio", { kind: "pulse_output_capture", caps: 2, settings: {} }]]), items: new Map<string, string[]>(), program: "Scene", preview: "Scene", rec: false, mute: new Map<string, boolean>(), rb: true, params: new Map<string, string>(), profile: "Untitled", video: { baseWidth: 1920, baseHeight: 1080 } as any, props: new Map<string, any[]>() };
   const emit = (eventType: string, eventData: object) => { for (const ws of sockets) ws.send(JSON.stringify({ op: 5, d: { eventType, eventIntent: 1, eventData } })); };
   const handle = (t: string, d: any): any => {
     switch (t) {
@@ -25,7 +27,13 @@ function mock(password?: string) {
       case "StartReplayBuffer": st.rb = true; return {};
       case "GetStudioModeEnabled": return { studioModeEnabled: true };
       case "GetSceneTransitionList": return { transitions: [{ transitionName: "Cut" }, { transitionName: "Fade" }] };
-      case "GetVideoSettings": return { baseWidth: 1920, baseHeight: 1080 };
+      case "GetVideoSettings": return st.video;
+      case "SetVideoSettings": st.video = { ...d }; return {};
+      case "GetInputPropertiesListPropertyItems": return { propertyItems: st.props.get(d.inputName + "/" + d.propertyName) ?? [] };
+      case "GetSceneItemId": { const i = (st.items.get(d.sceneName) ?? []).indexOf(d.sourceName); return i < 0 ? {} : { sceneItemId: i + 1 }; }
+      case "RemoveSceneItem": { const l = st.items.get(d.sceneName) ?? []; l.splice(d.sceneItemId - 1, 1); return {}; }
+      case "RemoveInput": st.inputs.delete(d.inputName); return {};
+      case "TriggerMediaInputAction": st.params.set("media." + d.inputName, d.mediaAction); return {};
       case "GetSceneList": return { currentProgramSceneName: st.program, currentPreviewSceneName: st.preview, scenes: st.scenes.map((sceneName) => ({ sceneName })) };
       case "CreateScene": st.scenes.push(d.sceneName); st.items.set(d.sceneName, []); return {};
       case "GetInputList": return { inputs: [...st.inputs].map(([inputName, v]) => ({ inputName, inputKind: v.kind, inputKindCaps: v.caps })) };
@@ -81,9 +89,9 @@ function mock(password?: string) {
 const until = async (f: () => boolean, ms = 4000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error("timeout waiting for condition"); await Bun.sleep(20); } };
 let cleanup: (() => unknown)[] = [];
 afterEach(async () => { for (const c of cleanup) await c(); cleanup = []; });
-function up(password?: string, enginePw = password) {
+function up(password?: string, enginePw = password, extra: Partial<ObsOptions> = {}, video?: () => any) {
   const m = mock(password);
-  const e = new ObsEngine(m.url, enginePw, { overlayUrl: "http://127.0.0.1:1/overlay", replayDir: mkdtempSync(join(tmpdir(), "fh-rb-")), flatpak: false });
+  const e = new ObsEngine(m.url, enginePw, { overlayUrl: "http://127.0.0.1:1/overlay", replayDir: mkdtempSync(join(tmpdir(), "fh-rb-")), flatpak: false, precheck: async () => ({ ok: true, message: "" }), logDir: join(tmpdir(), "fh-no-logs"), video, ...extra });
   cleanup.push(() => e.close(), () => m.server.stop(true));
   return { m, e };
 }
@@ -206,4 +214,160 @@ test("a request with no reply times out; requests while down fail fast with a pl
   cleanup.push(() => down.close());
   await expect(down.cut()).rejects.toThrow("not connected");
   await expect(down.replay({ secondsBack: 5, speed: 1 })).rejects.toThrow("not connected");
+});
+
+
+// ---------------------------------------------------------------- hands-off settings, audio, per-camera options, protection from OBS dialogs
+const closedPort = () => new Promise<number>((ok) => { const s = createServer(); s.listen(0, "127.0.0.1", () => { const p = (s.address() as any).port; s.close(() => ok(p)); }); });
+
+test("provisioning applies the saved quality settings to OBS and reads them back", async () => {
+  let v = { ...DEFAULT_VIDEO, resolution: "1080p" as const, fps: 60 as const, videoKbps: 6000, audioKbps: 192, recordFormat: "mkv" as const, replaySeconds: 120 as const };
+  const { m, e } = up(undefined, undefined, {}, () => v);
+  await ready(e);
+  expect(m.st.video).toMatchObject({ baseWidth: 1920, baseHeight: 1080, outputWidth: 1920, outputHeight: 1080, fpsNumerator: 60, fpsDenominator: 1 });
+  expect(Object.fromEntries(["VBitrate", "ABitrate", "RecFormat2", "RecRBTime", "StreamEncoder"].map((k) => [k, m.st.params.get("SimpleOutput." + k)]))).toEqual({ VBitrate: "6000", ABitrate: "192", RecFormat2: "mkv", RecRBTime: "120", StreamEncoder: "x264" });
+  expect(["Reconnect", "RetryDelay", "MaxRetries"].map((k) => m.st.params.get("Output." + k))).toEqual(["true", "2", "2000"]);
+  const info = await e.videoInfo();
+  expect(info.applied).toMatchObject({ resolution: "1080p", fps: 60, videoKbps: 6000, replaySeconds: 120, outputWidth: 1920 });
+  // change a setting: applied through provisioning, verified by reading back
+  v = { ...v, resolution: "720p", fps: 30, videoKbps: 2500 };
+  const after = await e.applyVideo(v);
+  expect(after).toMatchObject({ resolution: "720p", fps: 30, videoKbps: 2500, outputHeight: 720 });
+  expect(m.st.rb).toBe(true); // the replay buffer is back after the restart
+});
+
+test("while a broadcast runs nothing is written to OBS and resolution/fps/encoder changes are refused", async () => {
+  let v = { ...DEFAULT_VIDEO };
+  const { m, e } = up(undefined, undefined, {}, () => v);
+  await ready(e);
+  await e.startRecord(mkdtempSync(join(tmpdir(), "fh-rec-")), "g");
+  const writes = () => m.log.filter((x) => x === "SetProfileParameter" || x === "SetVideoSettings").length;
+  const n = writes();
+  await expect(e.applyVideo({ ...v, resolution: "1080p" })).rejects.toThrow("cannot be changed during a broadcast");
+  await expect(e.applyVideo({ ...v, encoder: "x264", fps: 60 })).rejects.toThrow("frame rate");
+  const same = await e.applyVideo({ ...v, videoKbps: 6000, replaySeconds: 30 }); // allowed: saved by the caller, applied after the broadcast
+  expect(same).toMatchObject({ resolution: "720p", videoKbps: 4500 });
+  expect(writes()).toBe(n);
+  await e.stopRecord();
+});
+
+test("audio inputs: add a mic and desktop sound, rename, mute, retarget, remove; the user's own inputs are untouched", async () => {
+  const { m, e } = up();
+  await ready(e);
+  const add = await e.addAudio({ role: "mic", label: "Commentary mic" });
+  // FH Mic exists already (the default mic), so the new one gets the next free name
+  expect(add.id).toBe("FH Mic 2");
+  expect(add).toMatchObject({ role: "mic", label: "Commentary mic", managed: true, removable: true });
+  expect(m.st.inputs.get("FH Mic 2")!.kind).toBe("pulse_input_capture");
+  for (const sc of ["FH cam1", "FH cam2", "FH cam3", "FH cam4", "FH Replay"]) expect(m.st.items.get(sc)).toContain("FH Mic 2");
+  await expect(e.addAudio({ role: "desktop", label: "Crowd" })).rejects.toThrow("not available"); // the mock has no output-capture kind
+  await e.updateAudio("FH Mic 2", { label: "Press box", muted: true, gainDb: -6 });
+  const list = await e.audioInputs();
+  expect(list.inputs.find((i) => i.id === "FH Mic 2")).toMatchObject({ label: "Press box", muted: true });
+  expect(m.st.mute.get("FH Mic 2")).toBe(true);
+  expect(e.status().mixer.find((x) => x.id === "FH Mic 2")).toMatchObject({ label: "Press box", role: "mic" });
+  await expect(e.updateAudio("Desktop Audio", { label: "x" })).rejects.toThrow("Only inputs added by Fieldhouse");
+  await expect(e.removeAudio("Desktop Audio")).rejects.toThrow("Only extra inputs");
+  await expect(e.removeAudio("FH Mic")).rejects.toThrow("Only extra inputs"); // the main mic stays
+  await e.removeAudio("FH Mic 2");
+  expect(m.st.inputs.has("FH Mic 2")).toBe(false);
+  expect(m.st.items.get("FH cam2")).not.toContain("FH Mic 2");
+  expect(m.st.inputs.has("Desktop Audio")).toBe(true);
+  await e.provision(); // re-provisioning must not bring the removed input back
+  expect(m.st.inputs.has("FH Mic 2")).toBe(false);
+});
+
+test("added audio inputs are put back into every FH scene on re-provision", async () => {
+  const { m, e } = up();
+  await ready(e);
+  await e.addAudio({ role: "mic", label: "Second" });
+  m.st.items.set("FH cam3", m.st.items.get("FH cam3")!.filter((x) => x !== "FH Mic 2"));
+  await e.provision();
+  expect(m.st.items.get("FH cam3")).toContain("FH Mic 2");
+});
+
+test("per-camera options: network source shows a masked address, retry/buffer apply and read back, reconnect restarts", async () => {
+  const { m, e } = up();
+  await ready(e);
+  await e.setSlot(1, "ffmpeg_source:rtmp://user:pass@10.0.0.5/live/SECRETKEY", "Bench");
+  const o = await e.sourceOptions(1);
+  expect(o).toMatchObject({ type: "network", canReconnect: true, reconnectSeconds: 5, bufferingMb: 2 });
+  expect(o.address).toBe("rtmp://10.0.0.5/live/...");
+  expect(JSON.stringify(o)).not.toMatch(/SECRETKEY|user:pass/);
+  const o2 = await e.setSourceOptions(1, { reconnectSeconds: 10, bufferingMb: 8, restart: true });
+  expect(o2).toMatchObject({ reconnectSeconds: 10, bufferingMb: 8 });
+  expect(m.st.inputs.get("FH cam1 video")!.settings).toMatchObject({ reconnect_delay_sec: 10, buffering_mb: 8 });
+  expect(m.st.params.get("media.FH cam1 video")).toBe("OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART");
+  await expect(e.setSourceOptions(1, { reconnectSeconds: 0 })).rejects.toThrow("1 to 60");
+  await expect(e.setSourceOptions(1, { bufferingMb: 99 })).rejects.toThrow("1 to 16");
+  await expect(e.sourceOptions(4)).rejects.toThrow("empty");
+  const file = join(mkdtempSync(join(tmpdir(), "fh-v-")), "clip.mp4"); writeFileSync(file, "x");
+  await e.setSlot(2, "ffmpeg_source:" + file, "Clip");
+  expect(await e.sourceOptions(2)).toMatchObject({ type: "file", address: "clip.mp4", canReconnect: true });
+  await expect(e.setSourceOptions(2, { reconnectSeconds: 5 })).rejects.toThrow("no connection");
+});
+
+test("per-camera options: a USB camera's resolutions and frame rates come from what OBS reports; unknown choices are refused", async () => {
+  const { m, e } = up();
+  await ready(e);
+  m.st.inputs.set("FH cam3 video", { kind: "v4l2_input", caps: 1, settings: { device_id: "/dev/video0", resolution: 1920 * 65536 + 1080, framerate: 1000 } });
+  m.st.items.get("FH cam3")!.unshift("FH cam3 video");
+  const key = "FH cam3 video/";
+  m.st.props.set(key + "resolution", [{ itemName: "1920x1080", itemValue: 1920 * 65536 + 1080 }, { itemName: "1280x720", itemValue: 1280 * 65536 + 720 }]);
+  m.st.props.set(key + "framerate", [{ itemName: "30 FPS", itemValue: 1000 }, { itemName: "60 FPS", itemValue: 500 }]);
+  await e.provision(); await Bun.sleep(350);
+  const o = await e.sourceOptions(3);
+  expect(o).toMatchObject({ type: "camera", resolution: String(1920 * 65536 + 1080), framerate: "1000" });
+  expect(o.resolutions.map((r) => r.label)).toEqual(["1920x1080", "1280x720"]);
+  const o2 = await e.setSourceOptions(3, { resolution: String(1280 * 65536 + 720), framerate: "500" });
+  expect(o2).toMatchObject({ resolution: String(1280 * 65536 + 720), framerate: "500" });
+  await expect(e.setSourceOptions(3, { resolution: "123" })).rejects.toThrow("not one the camera offers");
+  m.st.props.delete(key + "resolution"); m.st.props.delete(key + "framerate"); // a camera that reports nothing
+  expect(await e.sourceOptions(3)).toMatchObject({ resolutions: [], framerates: [] });
+});
+
+test("OBS vanishing mid-broadcast: the status says it ended, never pretends it is still live", async () => {
+  const { m, e } = up();
+  await ready(e);
+  await e.startRecord(mkdtempSync(join(tmpdir(), "fh-rec-")), "g");
+  await e.startStream({ name: "YT", url: "rtmp://x", key: "k" });
+  expect(e.status().record.active).toBe(true);
+  m.server.stop(true);
+  await until(() => !e.status().connected);
+  const s = e.status();
+  expect(s.obs!.lost).toMatchObject({ record: true });
+  expect(s.record.active).toBe(false); expect(s.stream.live).toBe(false);
+});
+
+test("the destination is checked from Fieldhouse first: a closed port never reaches StartStream (no OBS dialog)", async () => {
+  const m = mock();
+  const e = new ObsEngine(m.url, undefined, { overlayUrl: "http://127.0.0.1:1/overlay", replayDir: mkdtempSync(join(tmpdir(), "fh-rb-")), flatpak: false, logDir: join(tmpdir(), "fh-no-logs") }); // default precheck = the real one
+  cleanup.push(() => e.close(), () => m.server.stop(true));
+  await ready(e);
+  const port = await closedPort();
+  await expect(e.startStream({ name: "Stream", url: `rtmp://127.0.0.1:${port}/live`, key: "k" })).rejects.toThrow(`did not answer on port ${port}`);
+  await expect(e.startStream({ name: "Stream", url: "http://example.com/live", key: "k" })).rejects.toThrow("rtmp://");
+  expect(m.log).not.toContain("StartStream");
+  expect(m.log).not.toContain("SetStreamServiceSettings");
+  expect(e.status().stream.live).toBe(false);
+});
+
+test("size, frame rate and encoder changes restart the engine instead of touching a live OBS; success is only reported after read-back", async () => {
+  let v = { ...DEFAULT_VIDEO };
+  const m = mock();
+  let restarts = 0;
+  const e = new ObsEngine(m.url, undefined, { overlayUrl: "http://127.0.0.1:1/overlay", replayDir: mkdtempSync(join(tmpdir(), "fh-rb-")), flatpak: false, precheck: async () => ({ ok: true, message: "" }), logDir: join(tmpdir(), "fh-no-logs"), video: () => v,
+    restartForVideo: async () => { restarts++; m.st.video = { baseWidth: 1920, baseHeight: 1080, outputWidth: 1920, outputHeight: 1080, fpsNumerator: 30, fpsDenominator: 1 }; for (const ws of m.sockets) ws.close(); } });
+  cleanup.push(() => e.close(), () => m.server.stop(true));
+  await ready(e);
+  const resets = () => m.log.filter((x) => x === "SetVideoSettings" || x === "SetCurrentProfile").length;
+  const n = resets();
+  v = { ...v, resolution: "1080p" };
+  const after = await e.applyVideo(v);
+  expect(restarts).toBe(1);
+  expect(after).toMatchObject({ resolution: "1080p", outputHeight: 1080 });
+  expect(resets()).toBe(n); // no SetVideoSettings, no profile hop in the running OBS
+  v = { ...v, videoKbps: 6000 }; // bitrate only: no restart
+  expect((await e.applyVideo(v)).videoKbps).toBe(6000);
+  expect(restarts).toBe(1);
 });

@@ -8,6 +8,19 @@ const KIND = { usb: "Camera", ndi: "Network", srt: "Network", screen: "Screen", 
 
 let step = 1;
 
+// Step 2 while the video engine is not up yet: Fieldhouse starts it by itself, installs it if it is missing, and carries on when it is ready.
+function engineStep(d) {
+  const e = d.eng, n = e?.install;
+  if (e && !e.installed) return html`<div class="panel"><div class="pb col-g">
+    <div>Fieldhouse needs a free video program to mix cameras, add graphics and record. It can install it for you; this takes a few minutes and Fieldhouse carries on by itself afterwards.</div>
+    ${n?.status === "running" ? html`<div class="bar" role="progressbar" aria-valuenow="${n.percent ?? 0}" aria-valuemin="0" aria-valuemax="100"><b style="width:${n.percent ?? 8}%"></b></div><span class="muted">${n.label}${n.dryRun ? " (practice run, nothing is installed)" : ""}...</span><div><button class="btn" data-act="cancelinstall">Cancel</button></div>`
+      : html`${n && (n.status === "failed" || n.status === "cancelled") ? html`<div class="banner warn">${icon("alert")}<span>${n.message}</span></div>` : ""}<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn pri lg" data-act="install">${icon("down2", "sm")}Install video engine</button><a class="btn" href="${n?.downloadUrl || "https://obsproject.com/download"}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Open the download page</a></div>`}</div></div>`;
+  const st = e?.managed?.state;
+  return html`<div class="panel"><div class="pb col-g"><div class="row" style="gap:10px"><span class="chip warn">${icon("refresh", "sm")}${st === "needs-close" || st === "needs-password" || st === "failed" ? "Needs attention" : "Starting"}</span><span>${e?.managed?.message || e?.error || "Starting the video engine..."}</span></div>
+    <span class="muted">Fieldhouse starts the video engine by itself and keeps it running in the background. This takes a few seconds.</span>
+    ${st === "failed" || st === "needs-close" || st === "needs-password" ? html`<div><button class="btn pri" data-act="obs" ${d.obsBusy ? "disabled" : ""}>Try again</button></div>` : ""}</div></div>`;
+}
+
 export default {
   shell: "night", step: 1,
   css: `.ob-wrap{width:960px;max-width:100%;margin:0 auto;display:grid;gap:28px;padding-top:48px}
@@ -22,7 +35,7 @@ button.ob-dev{cursor:pointer}button.ob-dev:hover{background:var(--raised)}
   async load() {
     const needObs = () => S.state?.engine?.engine === "obs" && !S.state.engine.connected;
     const devices = needObs() ? [] : await api.get("/devices");
-    return { devices, tried: false, needObs: needObs(), obsBusy: false };
+    return { devices, tried: false, needObs: needObs(), obsBusy: false, eng: needObs() ? await api.get("/engine/obs").catch(() => null) : null };
   },
   render(ctx, d) {
     const cam = (d.sources || S.state?.engine?.sources || []).find((s) => s.slot === 1);
@@ -35,8 +48,7 @@ button.ob-dev{cursor:pointer}button.ob-dev:hover{background:var(--raised)}
           <li>${icon("play", "lg")}<div><b>Try a practice broadcast.</b> <span class="muted">Nothing goes public until you choose a destination and go live.</span></div></li>
           <li>${icon("ball", "lg")}<div><b>Run the real game.</b> <span class="muted">Enter teams, load rosters, check sources, then start.</span></div></li>
         </ul></div></div>`
-      : step === 2 && d.needObs ? html`<div class="panel"><div class="pb col-g"><div>Fieldhouse uses OBS Studio (free) to handle video. Press the button and Fieldhouse opens and sets up OBS for you.</div>
-        <div><button class="btn pri lg" data-act="obs" ${d.obsBusy ? "disabled" : ""}>${d.obsBusy ? "Starting OBS..." : "Connect OBS"}</button></div><span class="hint">Having trouble? Settings > Engine has more options.</span></div></div>`
+      : step === 2 && d.needObs ? engineStep(d)
       : step === 2 ? html`<div class="ob-two">
         <div class="monitor ${cam ? "pvw" : ""}" style="${cam ? "border-color:var(--ready)" : ""}">
           ${cam ? html`<img id="ob-snap" alt="Camera 1 preview" src="/snap/cam1?t=${Date.now()}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : html`<div class="feed"></div><div class="ov" style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--text-2);font-weight:600">${video.length ? "Choose a device to test it" : "No camera found yet"}</div>`}
@@ -80,6 +92,9 @@ button.ob-dev{cursor:pointer}button.ob-dev:hover{background:var(--raised)}
       const first = d.devices.find((x) => x.kind !== "audio");
       if (first && !(d.sources || S.state?.engine?.sources || []).some((s) => s.slot === 1)) use(first.id);
     }
+    const wait = d.needObs && setInterval(async () => { // carry on by itself once the video engine is up
+      try { d.eng = await api.get("/engine/obs"); if (d.eng.connected && d.eng.provisioned) { d.needObs = false; d.devices = await api.get("/devices"); d.tried = false; } ctx.redraw(); } catch {}
+    }, 1500);
     const snap = root.querySelector("#ob-snap");
     const timer = snap && setInterval(() => { snap.src = `/snap/cam1?t=${Date.now()}`; }, 700);
     root.onclick = async (e) => {
@@ -87,6 +102,8 @@ button.ob-dev{cursor:pointer}button.ob-dev:hover{background:var(--raised)}
       const a = e.target.closest("[data-act]")?.dataset.act; if (!a) return;
       try {
         if (a === "obs") { d.obsBusy = true; ctx.redraw(); try { await api.post("/engine/obs/connect", { mode: "launch" }); d.devices = await api.get("/devices"); d.needObs = false; d.tried = false; } catch (err) { fail(err); } d.obsBusy = false; ctx.redraw(); }
+        else if (a === "install") { await api.post("/engine/obs/install"); d.eng = await api.get("/engine/obs"); ctx.redraw(); }
+        else if (a === "cancelinstall") { await api.post("/engine/obs/install/cancel"); d.eng = await api.get("/engine/obs"); ctx.redraw(); }
         else if (a === "next") { step++; ctx.redraw(); }
         else if (a === "back") { step--; ctx.redraw(); }
         else if (a === "scan") { d.devices = await api.get("/devices"); ctx.redraw(); }
@@ -96,6 +113,6 @@ button.ob-dev{cursor:pointer}button.ob-dev:hover{background:var(--raised)}
         else if (a === "first") { markSeen(); step = 1; go("/game/new?fresh=1"); }
       } catch (err) { fail(err); }
     };
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); clearInterval(wait); };
   },
 };

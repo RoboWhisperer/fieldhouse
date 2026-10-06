@@ -12,13 +12,23 @@
 //  - Recording and streaming attach to the encoder the replay buffer already runs and must wait for its next keyframe. OBS's
 //    default x264 keyframe interval (250 frames, ~8 s) made recordings lose their first seconds and a stream send nothing for
 //    8 s, so we pin keyint=60 (2 s, also what YouTube asks for) through SimpleOutput's custom x264 settings.
-//  - SetVideoSettings and profile switches are refused while streaming/recording, so those steps are skipped when live.
+//  - SetVideoSettings and profile switches are refused while streaming/recording, so those steps are skipped when live. They are
+//    ALSO refused while the replay buffer runs (it holds the video encoder), so the buffer is stopped first and restarted after.
+//  - The hop exists ONLY because a profile created over the websocket has no outputs yet. Fieldhouse now pre-writes the profile file
+//    (obs-profile.ts) and starts OBS with --profile, so OBS builds the replay buffer itself and the hop is a fallback for an OBS it did not
+//    start. Resolution/fps/encoder changes use a clean OBS restart; SetVideoSettings and the hop in a live OBS crashed or hung it (measured).
+//  - Reconnect/RetryDelay/MaxRetries live in the profile's [Output] section; OBS pops its modal only after the retries run out.
 import type { Req } from "./obs-devices";
+import type { EncoderChoice, VideoApplied, VideoSettings } from "./types";
+import { DEFAULT_VIDEO, dims, outputParams, resolveEncoder } from "./video-settings";
 
 export const PROFILE = "Fieldhouse";
 export const PROBE_SCENE = "FH Probe"; // empty scene that is never on air: device probes live here, and it is where a previewed scene is parked
 export const OVERLAY = "FH Overlay", REPLAY_SCENE = "FH Replay", REPLAY_MEDIA = "FH Replay media", MIC = "FH Mic";
 export const SLOTS = [1, 2, 3, 4];
+/** Audio inputs Fieldhouse owns: the main mic plus any the operator added ("FH Mic 2", "FH Desktop"). They live in every FH scene. */
+export const isManagedAudio = (name: string) => /^FH (Mic|Desktop)( \d+)?$/.test(name);
+export interface VideoPlan { settings: VideoSettings; encoders: EncoderChoice[] } // encoders = hardware encoders OBS has
 export const sceneOf = (id: string) => `FH ${id}`;
 export const camInput = (id: string) => `FH ${id} video`;
 /** Scene name -> Fieldhouse source id; null for scenes that are not ours. */
@@ -36,35 +46,52 @@ async function setParams(req: Req, want: [string, string, string][]) {
 }
 const rbAvailable = (req: Req) => req("GetReplayBufferStatus").then((r) => ({ ok: true, active: !!r.outputActive }), () => ({ ok: false, active: false }));
 
-/** Dedicated profile with the replay buffer on and a crash-safe recording format. Returns whether the replay buffer runs. */
-async function ensureOutputs(req: Req, notes: string[], replayDir?: string): Promise<boolean> {
-  const [st, rec] = await Promise.all([req("GetStreamStatus"), req("GetRecordStatus")]);
-  if (st.outputActive || rec.outputActive) { notes.push("A broadcast is running, so OBS output settings were left alone."); return (await rbAvailable(req)).active; }
+/** Dedicated profile with the replay buffer on and the volunteer's quality settings applied. Returns whether the replay buffer runs. */
+async function ensureOutputs(req: Req, notes: string[], replayDir: string | undefined, video: VideoPlan): Promise<boolean> {
+  const busy = async () => { const [a, b] = await Promise.all([req("GetStreamStatus"), req("GetRecordStatus")]); return !!(a.outputActive || b.outputActive); };
+  for (let i = 0; i < 40 && (await busy()); i++) await new Promise((r) => setTimeout(r, 200)); // an output that was just stopped is still finalizing for a moment
+  if (await busy()) { notes.push("A broadcast is running, so the video settings were left alone."); return (await rbAvailable(req)).active; }
   const list = await req("GetProfileList");
-  let fresh = false;
   if (list.currentProfileName !== PROFILE) {
     if ((list.profiles as string[]).includes(PROFILE)) await req("SetCurrentProfile", { profileName: PROFILE });
-    else { await req("CreateProfile", { profileName: PROFILE }); fresh = true; notes.push(`Created the OBS profile "${PROFILE}".`); }
+    else { await req("CreateProfile", { profileName: PROFILE }); notes.push(`Created the OBS profile "${PROFILE}".`); }
   }
-  if (fresh) {
-    await req("SetVideoSettings", { baseWidth: 1920, baseHeight: 1080, outputWidth: 1280, outputHeight: 720, fpsNumerator: 30, fpsDenominator: 1 }).catch(() => notes.push("Could not set the video size."));
-    await setParams(req, [["SimpleOutput", "VBitrate", "4500"], ["SimpleOutput", "ABitrate", "160"], ["SimpleOutput", "StreamEncoder", "x264"]]);
+  const v = video.settings, enc = resolveEncoder(v.encoder, v, video.encoders), want = dims(v);
+  const cur = await req("GetVideoSettings").catch(() => ({} as any));
+  const dimsOff = cur.outputWidth !== want.outputWidth || cur.outputHeight !== want.outputHeight || cur.baseWidth !== want.baseWidth || cur.baseHeight !== want.baseHeight || cur.fpsNumerator !== want.fpsNumerator || (cur.fpsDenominator ?? 1) !== 1;
+  const encOff = (await getParam(req, "SimpleOutput", "StreamEncoder")) !== enc.id || (await getParam(req, "SimpleOutput", "Preset")) !== enc.preset;
+  const stopBuffer = async () => { // a Stop sent while OBS is still starting the buffer is ignored, so it is repeated until the buffer is really off
+    for (let i = 0; i < 60; i++) {
+      if (!(await rbAvailable(req)).active) return;
+      if (i % 5 === 0) await req("StopReplayBuffer").catch(() => {});
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  };
+  if (dimsOff) {
+    await stopBuffer();
+    if ((await rbAvailable(req)).active) { notes.push("The video size could not be changed right now (the replay buffer would not stop). Press Repair to try again."); return true; }
+    await req("SetVideoSettings", want).catch((e) => notes.push(`Could not set the video size: ${e.message}`));
   }
-  const fmt = await getParam(req, "SimpleOutput", "RecFormat2");
-  const changed = await setParams(req, [["Output", "Mode", "Simple"], ["SimpleOutput", "RecRB", "true"], ["SimpleOutput", "RecRBTime", "60"], ["SimpleOutput", "UseAdvanced", "true"], ["SimpleOutput", "x264Settings", "keyint=60"], ...(replayDir ? [["SimpleOutput", "FilePath", replayDir] as [string, string, string], ["Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"] as [string, string, string]] : []), ["SimpleOutput", "RecFormat2", CRASH_SAFE.includes(fmt) ? fmt : "hybrid_mp4"]]);
+  const extra: [string, string, string][] = replayDir ? [["SimpleOutput", "FilePath", replayDir], ["Output", "FilenameFormatting", "%CCYY-%MM-%DD %hh-%mm-%ss"]] : [];
+  const changed = await setParams(req, [["Output", "Mode", "Simple"], ["SimpleOutput", "RecRB", "true"], ["SimpleOutput", "UseAdvanced", "true"], ["SimpleOutput", "x264Settings", "keyint=60"], ...extra, ...outputParams(v, enc)]);
   let rb = await rbAvailable(req);
-  if (rb.ok && rb.active && changed) { // the running buffer keeps its old encoder settings: restart it
-    await req("StopReplayBuffer").catch(() => {});
-    for (let i = 0; i < 100 && (await rbAvailable(req)).active; i++) await new Promise((r) => setTimeout(r, 100));
-    rb = await rbAvailable(req);
-  }
-  if (!rb.ok) { // hop to any other profile and back so OBS rebuilds its outputs with the new settings
+  if (rb.ok && rb.active && changed) { await stopBuffer(); rb = await rbAvailable(req); } // the running buffer keeps its old settings: restart it
+  if (!rb.ok) { // only a profile OBS has not built its outputs for yet needs this (see the header): hop to any other profile and back
+    await stopBuffer();
     const other = ((await req("GetProfileList")).profiles as string[]).find((p) => p !== PROFILE);
     if (other) { await req("SetCurrentProfile", { profileName: other }); await req("SetCurrentProfile", { profileName: PROFILE }); rb = await rbAvailable(req); }
   }
-  if (!rb.ok) { notes.push("The OBS replay buffer is not available; instant replay is off."); return false; }
+  if (!rb.ok) { notes.push("The replay buffer is not available; instant replay is off."); return false; }
   if (!rb.active) await req("StartReplayBuffer").catch((e) => notes.push(`Replay buffer would not start: ${e.message}`));
   return (await rbAvailable(req)).active;
+}
+
+/** What OBS itself says it is set to, for read-back after applying. */
+export async function readApplied(req: Req): Promise<VideoApplied> {
+  const v = await req("GetVideoSettings").catch(() => ({} as any));
+  const n = (x: unknown) => Number(x) || 0;
+  const [vb, ab, enc, fmt, rb] = await Promise.all([["VBitrate"], ["ABitrate"], ["StreamEncoder"], ["RecFormat2"], ["RecRBTime"]].map(([k]) => getParam(req, "SimpleOutput", k)));
+  return { resolution: n(v.outputHeight) >= 1080 ? "1080p" : n(v.outputHeight) >= 720 ? "720p" : `${n(v.outputWidth)}x${n(v.outputHeight)}`, fps: n(v.fpsDenominator) ? Math.round(n(v.fpsNumerator) / n(v.fpsDenominator)) : 0, videoKbps: n(vb), audioKbps: n(ab), encoder: enc, recordFormat: fmt, replaySeconds: n(rb), outputWidth: n(v.outputWidth), outputHeight: n(v.outputHeight) };
 }
 
 export async function canvasSize(req: Req) {
@@ -84,12 +111,12 @@ async function ensureInScene(req: Req, scene: string, input: string, created: (n
   created(`${input} in ${scene}`);
 }
 
-export async function provision(req: Req, o: { overlayUrl: string; inputKinds: Set<string>; replayDir?: string }): Promise<ProvisionReport> {
+export async function provision(req: Req, o: { overlayUrl: string; inputKinds: Set<string>; replayDir?: string; video?: VideoPlan }): Promise<ProvisionReport> {
   const notes: string[] = [];
-  const replayBuffer = await ensureOutputs(req, notes, o.replayDir);
+  const replayBuffer = await ensureOutputs(req, notes, o.replayDir, o.video ?? { settings: DEFAULT_VIDEO, encoders: [] });
   if (!(await req("GetStudioModeEnabled").then((r) => r.studioModeEnabled, () => false))) await req("SetStudioModeEnabled", { studioModeEnabled: true });
   const tr = ((await req("GetSceneTransitionList")).transitions ?? []) as { transitionName: string }[];
-  for (const t of ["Cut", "Fade"]) if (tr.length && !tr.some((x) => x.transitionName === t)) notes.push(`OBS has no "${t}" transition; add one in OBS (Scene Transitions).`);
+  for (const t of ["Cut", "Fade"]) if (tr.length && !tr.some((x) => x.transitionName === t)) notes.push(`The video engine has no "${t}" transition. Press Repair in Settings > Video engine.`);
 
   const canvas = await canvasSize(req);
   const have = new Set(((await req("GetSceneList")).scenes as { sceneName: string }[]).map((s) => s.sceneName));
@@ -115,9 +142,13 @@ export async function provision(req: Req, o: { overlayUrl: string; inputKinds: S
   const micKind = ["pulse_input_capture", "wasapi_input_capture", "coreaudio_input_capture"].find((k) => o.inputKinds.has(k));
   if (micKind) await make(scenes[0], MIC, micKind, { device_id: "default" });
 
+  const audio = [...inputs.keys()].filter((n) => isManagedAudio(n) && n !== MIC).sort(); // inputs the operator added in Settings > Video and audio
   for (const s of scenes) {
     const video = s === REPLAY_SCENE ? REPLAY_MEDIA : camInput(s.slice(3));
-    for (const inp of [video, ...(micKind ? [MIC] : []), OVERLAY]) await ensureInScene(req, s, inp, note);
+    for (const inp of [video, ...(micKind || inputs.has(MIC) ? [MIC] : []), ...audio, OVERLAY]) {
+      // OBS 32 can list an input the operator just removed for a moment (a "zombie"); a scene item cannot be made for it, which is fine
+      try { await ensureInScene(req, s, inp, note); } catch (e) { if (!audio.includes(inp)) throw e; }
+    }
     const items = (await req("GetSceneItemList", { sceneName: s })).sceneItems as { sourceName: string; sceneItemId: number; sceneItemIndex: number; sceneItemTransform?: any }[] | undefined;
     if (!items) continue;
     const by = (n: string) => items.find((i) => i.sourceName === n);

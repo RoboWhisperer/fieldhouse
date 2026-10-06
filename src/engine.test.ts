@@ -92,7 +92,7 @@ test("disk-low and restore", () => {
 
 test("slots and devices", async () => {
   const d = await e.detectDevices();
-  expect(d.map((x) => x.label)).toEqual(["Logitech Brio (USB)", "Elgato Cam Link 4K", "NDI: Coach iPhone", "SRT: Press-box cam", "Scarlett 2i2 (audio)", "Screen capture: scoreboard PC"]);
+  expect(d.map((x) => x.label)).toEqual(["Logitech Brio (USB)", "Elgato Cam Link 4K", "NDI: Coach iPhone", "SRT: Press-box cam", "Scarlett 2i2 (audio)", "Desktop sound (monitor of built-in audio)", "Screen capture: scoreboard PC"]);
   expect(e.status().sources[0]).toMatchObject({ id: "cam1", deviceId: "usb-brio" }); // default slots carry their device
   expect(d.filter((x) => x.inUse).map((x) => x.id)).toEqual(["usb-brio", "usb-camlink", "ndi-coach", "screen-scoreboard"]);
   await e.setSlot(2, "srt-press", "Hallway");
@@ -136,4 +136,22 @@ test("meters stay in range and move", async () => {
   expect(b.cpu).toBeLessThanOrEqual(45);
   expect(b.sources[0].audio).not.toBe(a.sources[0].audio);
   for (const m of b.mixer) { expect(m.level).toBeGreaterThanOrEqual(0); expect(m.level).toBeLessThanOrEqual(1); }
+});
+
+test("FakeEngine supports the settings, audio and per-camera contracts so the demo and CI run the whole screen", async () => {
+  const { DEFAULT_VIDEO } = await import("./video-settings");
+  expect((await e.videoInfo()).applied).toMatchObject({ resolution: "720p", fps: 30, encoder: "x264" });
+  expect(await e.applyVideo({ ...DEFAULT_VIDEO, resolution: "1080p", videoKbps: 8000 })).toMatchObject({ resolution: "1080p", videoKbps: 8000, outputHeight: 1080 });
+  await e.startRecord(TMP, "vid-live");
+  await expect(e.applyVideo({ ...DEFAULT_VIDEO, resolution: "720p" })).rejects.toThrow("cannot be changed during a broadcast");
+  await e.stopRecord();
+  const a = await e.addAudio({ role: "mic", label: "Commentary mic" });
+  expect(a).toMatchObject({ id: "audio-2", label: "Commentary mic", managed: true, removable: true });
+  expect((await e.updateAudio("audio-2", { label: "Press box", muted: true, gainDb: -3 }))).toMatchObject({ label: "Press box", muted: true, gainDb: -3 });
+  await expect(e.removeAudio("commentary")).rejects.toThrow("Only extra inputs");
+  await e.removeAudio("audio-2");
+  expect((await e.audioInputs()).inputs.some((i) => i.id === "audio-2")).toBe(false);
+  expect(await e.sourceOptions(1)).toMatchObject({ type: "camera" });
+  expect(await e.setSourceOptions(1, { framerate: "60" })).toMatchObject({ framerate: "60" });
+  await expect(e.setSourceOptions(1, { resolution: "nope" })).rejects.toThrow("not one the camera offers");
 });
