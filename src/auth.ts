@@ -21,13 +21,13 @@ import * as diag from "./diagnostics";
 import { parseEv } from "./game";
 import type { Store } from "./store";
 
-export type Role = "score" | "score+marks";
+export type Role = "score" | "score+marks" | "producer";
 export interface DeviceDoc { id: string; name: string; role: Role; createdAt: number; lastSeen: number; tokenHash: string }
 export type WsData = { dev: string };
 
-const ROLES: Role[] = ["score", "score+marks"];
+const ROLES: Role[] = ["score", "score+marks", "producer"];
 const SCORE_EVENTS = ["clock.start", "clock.stop", "clock.set", "period.set", "score", "foul", "timeout", "undo"];
-export const allowedEvents = (role: Role) => (role === "score+marks" ? [...SCORE_EVENTS, "mark"] : SCORE_EVENTS);
+export const allowedEvents = (role: Role) => (role === "score" ? SCORE_EVENTS : [...SCORE_EVENTS, "mark"]); // score+marks and producer
 const UNDOABLE = ["score", "foul", "timeout"];
 const MAX_BODY = 4096, MAX_DEVICES = 20, COOKIE = "fh_device", COOKIE_AGE = 90 * 86400;
 
@@ -127,9 +127,9 @@ export function createRemote(deps: RemoteDeps) {
   const ipLimit = new Limiter(5, 300_000, 300_000, now); // 5 wrong codes / 5 min per address -> 5 min lockout
   const allLimit = new Limiter(25, 300_000, 300_000, now); // the same for the whole network, so changing address does not help
   const buckets = new Map<string, { tokens: number; at: number }>();
-  const spend = (id: string) => { // 20 events / second per device
-    const t = now(), b = buckets.get(id) ?? { tokens: 20, at: t };
-    b.tokens = Math.min(20, b.tokens + ((t - b.at) / 1000) * 20); b.at = t; buckets.set(id, b);
+  const spend = (id: string, rate = 20) => { // `rate` requests / second per device and kind (events 20, snapshots 15)
+    const t = now(), b = buckets.get(id) ?? { tokens: rate, at: t };
+    b.tokens = Math.min(rate, b.tokens + ((t - b.at) / 1000) * rate); b.at = t; buckets.set(id, b);
     if (b.tokens < 1) return false; b.tokens--; return true;
   };
 
@@ -139,16 +139,34 @@ export function createRemote(deps: RemoteDeps) {
   const livePending = () => { for (const [id, p] of pending) if (now() - p.createdAt > 120_000) pending.delete(id); return [...pending.values()]; };
 
   // ---------------------------------------------------------------- state for phones (no settings, destinations, recordings)
-  function trimmed() {
+  /** What a device may see, by role. Never settings, destinations, pairing code, file paths or stream keys. */
+  function stateFor(role: Role) {
     const st = app.state(), d = st.gameDoc;
     const tm = (t: { name: string; abbr: string; color: string; roster: unknown }) => ({ name: t.name, abbr: t.abbr, color: t.color, roster: t.roster });
-    return { kind: "state", serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, events: st.events, graphics: st.graphics, profile: st.settings.profile };
+    const base = { kind: "state", role, serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, events: st.events, graphics: st.graphics, profile: st.settings.profile };
+    if (role !== "producer") return base;
+    const e = st.engine, n = st.next;
+    return {
+      ...base, canBroadcast: !!st.settings.remote.producerCanBroadcast,
+      next: n && { sponsorId: n.sponsorId, name: n.name, abbr: n.abbr, color: n.color, seconds: n.seconds, trigger: n.trigger },
+      engine: {
+        engine: e.engine, connected: e.connected, program: e.program, preview: e.preview, replay: { active: !!e.replay?.active },
+        sources: e.sources.map((x) => ({ id: x.id, slot: x.slot, label: x.label, kind: x.kind, status: x.status, audio: x.audio })),
+        mixer: e.mixer.map((m) => ({ id: m.id, label: m.label, level: m.level, gainDb: m.gainDb, muted: m.muted })),
+        stream: { live: e.stream.live, kbps: e.stream.kbps, droppedFrames: e.stream.droppedFrames, reconnecting: e.stream.reconnecting },
+        record: { active: e.record.active, bytes: e.record.bytes }, cpu: e.cpu, diskFreeBytes: e.diskFreeBytes, graphicsInProgram: !!e.graphicsInProgram,
+      },
+    };
   }
+  const trimmed = () => stateFor("score");
   const send = (ws: ServerWebSocket<WsData>, msg: string) => { try { ws.send(msg); } catch {} };
   function broadcast() {
     if (![...sockets.values()].some((s) => s.size)) return;
-    const msg = JSON.stringify(trimmed());
-    for (const set of sockets.values()) for (const ws of set) send(ws, msg);
+    const cache = new Map<Role, string>();
+    for (const [id, set] of sockets) {
+      const role = byId.get(id)?.role; if (!role) continue;
+      for (const w of set) { if (!cache.has(role)) cache.set(role, JSON.stringify(stateFor(role))); send(w, cache.get(role)!); }
+    }
   }
   const closeDevice = (id: string, code: number, why: string) => { for (const ws of [...(sockets.get(id) ?? [])]) { try { ws.close(code, why); } catch {} } };
   const tick = setInterval(() => { // keepalive: the phone treats silence as a dropped connection
@@ -163,7 +181,7 @@ export function createRemote(deps: RemoteDeps) {
       const d = byId.get(w.data.dev);
       if (!d) return w.close(4001, "revoked");
       (sockets.get(d.id) ?? sockets.set(d.id, new Set()).get(d.id)!).add(w);
-      send(w, JSON.stringify({ kind: "me", device: publicDev(d) })); send(w, JSON.stringify(trimmed()));
+      send(w, JSON.stringify({ kind: "me", device: publicDev(d) })); send(w, JSON.stringify(stateFor(d.role)));
       diag.log("INFO", `Phone connected: ${d.name}`); app.changed();
     },
     message() {}, // read-only channel; writes go through POST /api/event
@@ -246,9 +264,49 @@ export function createRemote(deps: RemoteDeps) {
     return res;
   }
 
+  // ---- producer: full production from another computer, still no administration. Bodies are checked here, then the normal handlers run.
+  const txt = (v: unknown, max: number, what: string): string => (typeof v === "string" && v.length <= max && !/[\u0000-\u001f]/.test(v) ? v : fail(400, `${what} is not valid.`));
+  const num = (v: unknown, lo: number, hi: number, what: string, dflt?: number): number => (v === undefined && dflt !== undefined ? dflt : typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fail(400, `${what} must be a number from ${lo} to ${hi}.`));
+  const PRODUCER: Record<string, (b: any) => Record<string, unknown>> = {
+    "POST /api/engine/preview": (b) => ({ sourceId: txt(b.sourceId, 80, "The source") }),
+    "POST /api/engine/cut": () => ({}),
+    "POST /api/engine/fade": (b) => ({ ms: num(b.ms, 0, 5000, "Fade length", 500) }),
+    "POST /api/engine/mute": (b) => ({ id: txt(b.id, 80, "The channel"), muted: typeof b.muted === "boolean" ? b.muted : fail(400, "muted must be true or false.") }),
+    "POST /api/engine/gain": (b) => ({ id: txt(b.id, 80, "The channel"), gainDb: num(b.gainDb, -60, 20, "Gain") }),
+    "POST /api/replay": (b) => ({ secondsBack: num(b.secondsBack, 1, 60, "Replay length", 10), speed: num(b.speed, 0.1, 2, "Replay speed", 1) }),
+    "POST /api/replay/stop": () => ({}),
+    "POST /api/graphics": (b) => {
+      const o: Record<string, unknown> = {};
+      if ("scorebug" in b) o.scorebug = typeof b.scorebug === "boolean" ? b.scorebug : fail(400, "scorebug must be true or false.");
+      if ("slate" in b) o.slate = b.slate === null ? null : txt(b.slate, 120, "The slate text");
+      if ("lower" in b) o.lower = b.lower === null ? null : b.lower && typeof b.lower === "object" ? { title: txt(b.lower.title, 60, "The title"), sub: txt(b.lower.sub ?? "", 80, "The subtitle") } : fail(400, "The lower third is not valid.");
+      return o;
+    },
+    "POST /api/sponsors/fire": (b) => ({ ...(b.sponsorId !== undefined ? { sponsorId: txt(b.sponsorId, 80, "The sponsor") } : {}), ...(b.outcome !== undefined ? { outcome: ["aired", "skipped", "delayed"].includes(b.outcome) ? b.outcome : fail(400, "Outcome must be aired, skipped or delayed.") } : {}) }),
+    "POST /api/broadcast/start": () => ({}),
+    "POST /api/broadcast/stop": () => ({}),
+  };
+  async function producer(req: Request, url: URL, key: string, d: DeviceDoc) {
+    if (d.role !== "producer") fail(403, "This device is not allowed to do that. Ask the person at the console for the Producer role.");
+    if (key.includes("/broadcast/") && !settings().remote.producerCanBroadcast) fail(403, "Starting and stopping the broadcast is turned off for remote devices. Do it on the console, or allow it in Settings > Remote access.");
+    if (locked) fail(423, "The console has locked the remote");
+    sameOrigin(req, url);
+    if (!spend(d.id)) fail(429, "Slow down: too many taps at once.");
+    const body = PRODUCER[key](await readJson(req));
+    const res = await app.handle(new Request(url.origin + url.pathname, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+    diag.log(res.ok ? "INFO" : "WARN", `remote ${d.name}: ${key.slice(5)} -> ${res.status}`);
+    return res;
+  }
+  async function snapshot(d: DeviceDoc, id: string) {
+    if (d.role !== "producer") fail(403, "This device cannot view video. Ask the person at the console for the Producer role.");
+    if (!spend(d.id + ":snap", 15)) fail(429, "Slow down: too many picture requests.");
+    const img = await app.snapshot(id);
+    return img ? new Response(img.body as any, { headers: { "content-type": img.type } }) : jsonRes({ error: "No picture." }, 404);
+  }
+
   const FILES: Record<string, string> = {
     "/remote": "remote/index.html", "/remote/": "remote/index.html", "/remote/remote.js": "remote/remote.js", "/remote/remote.css": "remote/remote.css",
-    "/tokens.css": "tokens.css", "/ui.css": "ui.css", "/icons.js": "icons.js",
+    "/remote/producer.js": "remote/producer.js", "/remote/producer.css": "remote/producer.css", "/tokens.css": "tokens.css", "/ui.css": "ui.css", "/icons.js": "icons.js",
   };
 
   async function gated(req: Request, ip: string, url: URL, o: HandleOpts): Promise<Response | "upgraded"> {
@@ -261,8 +319,11 @@ export function createRemote(deps: RemoteDeps) {
       if (m === "GET" && p === "/favicon.ico") return new Response(null, { status: 204 });
       if (m === "POST" && p === "/api/remote/pair") { sameOrigin(req, url); return await pair(req, ip); }
       if (m === "GET" && p === "/api/remote/me") { const d = authenticate(req, url); return jsonRes({ device: publicDev(d), locked }); }
-      if (m === "GET" && p === "/api/state") { authenticate(req, url); return jsonRes(trimmed()); }
+      if (m === "GET" && p === "/api/state") return jsonRes(stateFor(authenticate(req, url).role));
       if (m === "POST" && p === "/api/event") { sameOrigin(req, url); return await event(req, authenticate(req, url), url); }
+      const sm = m === "GET" ? /^\/snap\/([\w-]{1,40})$/.exec(p) : null;
+      if (sm) return await snapshot(authenticate(req, url), sm[1]);
+      if (PRODUCER[m + " " + p]) { const d = authenticate(req, url); return await producer(req, url, m + " " + p, d); }
       if (m === "GET" && p === "/ws") {
         sameOrigin(req, url);
         const d = authenticate(req, url, true);
@@ -308,9 +369,9 @@ export function createRemote(deps: RemoteDeps) {
       let mt = /^\/api\/remote\/devices\/([\w-]+)$/.exec(p);
       if (mt && m === "PUT") {
         const b = await readJson(req), d = byId.get(mt[1]); if (!d) fail(404, "That phone is not paired.");
-        if (!ROLES.includes(b.role)) fail(400, "Role must be score or score+marks.");
+        if (!ROLES.includes(b.role)) fail(400, "Role must be score, score+marks or producer.");
         d!.role = b.role; save(d!);
-        for (const w of sockets.get(d!.id) ?? []) send(w, JSON.stringify({ kind: "me", device: publicDev(d!) }));
+        for (const w of sockets.get(d!.id) ?? []) { send(w, JSON.stringify({ kind: "me", device: publicDev(d!) })); send(w, JSON.stringify(stateFor(d!.role))); } // takes effect on live sockets at once
         app.changed(); return jsonRes(publicDev(d!));
       }
       if (mt && m === "DELETE") { revoke(mt[1]); return jsonRes({ ok: true }); }

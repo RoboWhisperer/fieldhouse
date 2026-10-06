@@ -28,7 +28,7 @@
 
   // ------------------------------------------------------------------ screens
   const SCREENS = ["pair", "wait", "msg", "live"];
-  function show(name) { SCREENS.forEach((s) => { $("#s-" + s).hidden = s !== name; }); screen = name; if (name === "live") wake(); }
+  function show(name) { SCREENS.forEach((s) => { $("#s-" + s).hidden = s !== name; }); screen = name; if (name === "live") { wake(); applyRole(); } else $("#s-prod").hidden = true; }
   let screen = "";
   function blocked(h, p) { show("msg"); text($("#msg-h"), h); text($("#msg-p"), p); stopLive(); }
 
@@ -118,8 +118,7 @@
   let alive = false;
 
   function startLive(device) {
-    me = device; show("live"); alive = true; gone = false; retry = 0;
-    $("#mark").hidden = me.role !== "score+marks";
+    me = device; alive = true; gone = false; retry = 0; show("live");
     connect();
   }
   function stopLive() {
@@ -138,7 +137,7 @@
       if (ws !== mine) return;
       let d; try { d = JSON.parse(m.data); } catch (e) { return; }
       lastMsg = performance.now();
-      if (d.kind === "me") { me = d.device; $("#mark").hidden = me.role !== "score+marks"; render(); }
+      if (d.kind === "me") { me = d.device; applyRole(); }
       else if (d.kind === "state") { S = d; recvAt = performance.now(); locked = !!d.locked; onState(); render(); }
     };
     ws.onclose = (e) => { if (ws !== mine) return; wsOpen = false; ws = null; render(); if (e && e.code === 4001) removedNote = "This phone was removed from the console. Enter the code to connect again."; verify(); };
@@ -195,11 +194,14 @@
       const r = await call("POST", "/api/event", body);
       if (r && r.seq) mineSeq.add(r.seq);
       if (!$("#note").hidden && noteKind === "err") hideNote();
-    } catch (e) {
-      if (e.status === 401) { stopLive(); showPair("This phone is no longer connected to the console. Enter the code to connect again."); }
-      else if (e.status === 423) { locked = true; render(); }
-      else note("err", "Did not go through", e.message);
-    } finally { inflight--; checkForeign(); }
+    } catch (e) { fail(e); }
+    finally { inflight--; checkForeign(); }
+  }
+  // One place for failed requests: not paired any more, console lock, or a plain message (never a stack).
+  function fail(e) {
+    if (e.status === 401) { stopLive(); showPair("This device is no longer connected to the console. Enter the code to connect again."); }
+    else if (e.status === 423) { locked = true; render(); }
+    else note("err", e.status === 403 ? "Not allowed" : "Did not go through", e.message);
   }
 
   // ------------------------------------------------------------------ notes ("Console changed score", errors)
@@ -236,6 +238,33 @@
 
   // ------------------------------------------------------------------ rendering
   let tab = "foul", armed = 0, armT = 0, logSig = "";
+  const hooks = [];
+  const wide = window.matchMedia ? window.matchMedia("(min-width: 900px)") : { matches: false };
+  const isProd = () => !!me && me.role === "producer";
+  const desk = () => wide.matches && !isProd(); // desktop scorekeeper layout: every panel visible, no tabs
+  const showTab = (t) => desk() || tab === t;
+  if (wide.addEventListener) wide.addEventListener("change", () => { $("#pbtns").dataset.k = ""; $("#log").dataset.k = ""; render(); });
+
+  // The console decides the role; it can change at any time. Producers get the producer layout around the same scoring panel.
+  function applyRole() {
+    const prod = isProd(), live = $("#s-live"), box = $("#s-prod");
+    document.body.classList.toggle("is-prod", prod);
+    if (prod && live.parentNode !== $("#pside")) $("#pside").append(live);
+    if (!prod && live.parentNode !== document.body) document.body.insertBefore(live, box);
+    box.hidden = !(prod && screen === "live");
+    $("#mark").hidden = !me || me.role === "score";
+    if (prod) loadProducer(); else if (window.FHR.producer) window.FHR.producer.unmount();
+    $("#pbtns").dataset.k = ""; $("#log").dataset.k = "";
+    render();
+  }
+  let prodLoading = false;
+  function loadProducer() {
+    if (window.FHR.producer) return window.FHR.producer.mount();
+    if (prodLoading) return; prodLoading = true;
+    const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "/remote/producer.css"; document.head.append(l);
+    const sc = document.createElement("script"); sc.src = "/remote/producer.js"; sc.onload = () => { if (isProd() && window.FHR.producer) window.FHR.producer.mount(); }; sc.onerror = () => { prodLoading = false; note("err", "Could not load the producer screen", "Reload the page to try again."); };
+    document.head.append(sc);
+  }
   function render() {
     if (screen !== "live") return;
     const g = game(), d = doc(), ok = canAct();
@@ -278,19 +307,20 @@
     ub.hidden = !$("#note").hidden; text($("#undo-t"), lu ? "Undo last: " + describe(lu) : "Nothing to undo");
     ub.disabled = !ok || !lu;
     renderPeriod(); renderLog();
+    hooks.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
   }
   function tickClock() { const t = mmss(clockNow()); $$("[data-clock]").forEach((el) => text(el, t)); }
   setInterval(() => { if (screen === "live") tickClock(); }, 100);
 
   function renderPeriod() {
-    if (tab !== "per" || !S || !S.game) return;
+    if (!showTab("per") || !S || !S.game) return;
     const n = (S.profile && S.profile.periods) || 4, box = $("#pbtns"), cur = S.game.period, k = n + "/" + cur + "/" + armed + "/" + canAct();
     if (box.dataset.k === k) return; box.dataset.k = k;
     box.innerHTML = Array.from({ length: n + 1 }, (_, i) => { const p = i + 1, a = armed === p; return '<button type="button" class="btn' + (a ? " arm" : "") + '" data-per="' + p + '" aria-pressed="' + (p === cur) + '"' + (canAct() ? "" : " disabled") + ">" + esc(a ? "Tap again" : perLabel(p)) + "</button>"; }).join("");
     text($("#p-hint"), armed ? "Tap " + perLabel(armed) + " again to start it. This resets the clock and team fouls." : "Changing the period resets the clock and team fouls.");
   }
   function renderLog() {
-    if (tab !== "log" || !S) return;
+    if (!showTab("log") || !S) return;
     const u = undoneSet(), list = S.events.filter((e) => ["score", "foul", "timeout", "mark", "period.set"].indexOf(e.type) >= 0).slice(-30).reverse();
     const sig = list.map((e) => e.seq + (u.has(e.seq) ? "u" : "")).join() + canAct() + Math.floor(Date.now() / 10000);
     const box = $("#log"); if (box.dataset.k === sig) return; box.dataset.k = sig;
@@ -345,6 +375,45 @@
     if (screen === "live") { wake(); if (alive && !wsOpen) { clearTimeout(retryT); connect(); } }
   });
   window.addEventListener("online", () => { if (alive && !wsOpen) { clearTimeout(retryT); connect(); } });
+
+  // ------------------------------------------------------------------ keyboard shortcuts + help (desktop)
+  const typing = (t) => !!(t && t.closest && t.closest("input,textarea,select,[contenteditable]"));
+  const extraKeys = {}; // key -> handler, added by the producer screen
+  const helpGroups = [["Scorekeeping", [["C", "Start or stop the clock"], ["Q  W  E", "Home +1, +2, +3"], ["I  O  P", "Away +1, +2, +3"], ["Ctrl+Z", "Undo the last change"], ["M", "Mark a moment (if allowed)"]]], ["Help", [["?", "Show or hide this list"], ["Esc", "Close it"]]]];
+  const press = (sel) => { const b = $(sel); if (b && !b.disabled) { b.classList.add("kdown"); setTimeout(() => b.classList.remove("kdown"), 140); b.click(); } };
+  const KEYS = { c: "#clk", m: "#mark", q: '.score-block[data-team="home"] [data-pts="1"]', w: '.score-block[data-team="home"] [data-pts="2"]', e: '.score-block[data-team="home"] [data-pts="3"]', i: '.score-block[data-team="away"] [data-pts="1"]', o: '.score-block[data-team="away"] [data-pts="2"]', p: '.score-block[data-team="away"] [data-pts="3"]' };
+  const keyOf = (e) => (e.key.length === 1 ? e.key.toLowerCase() : (e.shiftKey ? "Shift+" : "") + e.key);
+  let helpOpen = false, helpFrom = null;
+  function openHelp() {
+    const box = $("#help-rows"); box.innerHTML = "";
+    for (const [h, rows] of helpGroups.concat(window.FHR.extraHelp || [])) {
+      const g = document.createElement("div"); g.className = "kg"; const t = document.createElement("h3"); t.textContent = h; g.append(t);
+      for (const [k, d] of rows) { const r = document.createElement("div"); r.className = "kr"; const kk = document.createElement("span"); kk.className = "kbd"; kk.textContent = k; const dd = document.createElement("span"); dd.textContent = d; r.append(kk, dd); g.append(r); }
+      box.append(g);
+    }
+    helpFrom = document.activeElement; $("#help").hidden = false; helpOpen = true; $("#help-x").focus();
+  }
+  function closeHelp() { $("#help").hidden = true; helpOpen = false; if (helpFrom && helpFrom.focus) helpFrom.focus(); }
+  $("#helpbtn").addEventListener("click", () => (helpOpen ? closeHelp() : openHelp()));
+  $("#help-x").addEventListener("click", closeHelp);
+  $("#help").addEventListener("click", (e) => { if (e.target === $("#help")) closeHelp(); });
+  document.addEventListener("keydown", (e) => {
+    if (helpOpen) { // focus trap: the dialog has one control, so Tab stays on it
+      if (e.key === "Escape" || e.key === "?") { e.preventDefault(); closeHelp(); }
+      else if (e.key === "Tab") { e.preventDefault(); $("#help-x").focus(); }
+      return;
+    }
+    if (screen !== "live" || e.altKey || e.metaKey || typing(e.target)) return;
+    if (e.ctrlKey) { if (e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); press("#undo-last"); } return; }
+    if (e.key === "?") { e.preventDefault(); return openHelp(); }
+    const k = keyOf(e);
+    if (e.repeat) return;
+    if (KEYS[k]) { e.preventDefault(); return press(KEYS[k]); }
+    if (extraKeys[k]) { e.preventDefault(); extraKeys[k](e); }
+  });
+
+  // Small surface for web/remote/producer.js (loaded only for the Producer role).
+  window.FHR = { call, fail, note, buzz, esc, text, mmss, extraKeys, extraHelp: [], onRender: (f) => hooks.push(f), state: () => S, me: () => me, connected, ready: () => connected() && !locked, locked: () => locked, canAct, send, typing };
 
   boot();
 })();

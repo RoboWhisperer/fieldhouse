@@ -21,7 +21,7 @@ Built:
 - Real OBS control (scenes, overlay, switching, recording, streaming, replay), plus a built-in demo engine for practice that records a test pattern
 
 Built, but verified less:
-- Phone remote for a scorekeeper (pairing code, QR code), checked with automated tests and real network connections, not on a physical phone
+- Remote access from phones and other computers on the gym Wi-Fi: a scorekeeper page (phone or desktop, with keyboard shortcuts) and a Producer page (camera pictures, cut and fade, replay, graphics, sponsors), with pairing code, QR code and per-device roles. Checked with automated tests and real network connections, not on a physical phone or a second computer
 - Update check against the GitHub Releases page (only the "no release found" case was seen)
 - Data retention setting, daily database backups, rotating logs
 - Desktop app (Electron with a bundled Bun program): Linux AppImage and .deb built and run; Windows and macOS builds exist only as untested build recipes

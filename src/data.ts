@@ -24,7 +24,7 @@ export function defaultSettings(): SettingsDoc {
       homePlus1: "q", homePlus2: "w", homePlus3: "e", awayPlus1: "i", awayPlus2: "o", awayPlus3: "p", undo: "Ctrl+Z",
     },
     storageDir: paths().recordings, retention: "never", lowSpaceGb: 40,
-    remote: { requireCode: true, code: newCode(), lockedToLan: true, enabled: false, port: 8081 },
+    remote: { requireCode: true, code: newCode(), lockedToLan: true, enabled: false, port: 8081, producerCanBroadcast: false },
     telemetry: false, autoFireSponsors: false,
     engine: { kind: paths().packaged && process.env.DEMO !== "1" && process.env.ENGINE !== "fake" ? "obs" : "fake", obsUrl: "ws://127.0.0.1:4455" },
   };
@@ -97,7 +97,7 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
         next.remote = { ...cur.remote };
         for (const [rk, rv] of Object.entries(v)) {
           if (rk === "code") { if (typeof rv !== "string" || !/^[A-Za-z0-9-]{4,16}$/.test(rv)) throw new Error("Remote code must be 4-16 letters, digits or dashes"); }
-          else if (rk === "requireCode" || rk === "lockedToLan" || rk === "enabled") bool(rv, rk);
+          else if (rk === "requireCode" || rk === "lockedToLan" || rk === "enabled" || rk === "producerCanBroadcast") bool(rv, rk);
           else if (rk === "port") { if (!intIn(rv, 1024, 65535)) throw new Error("Port must be a whole number from 1024 to 65535"); }
           else throw new Error(`Unknown remote field: ${rk}`);
           next.remote[rk] = rv;

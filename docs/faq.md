@@ -16,7 +16,7 @@
 
 **The computer crashed mid-game. Is my game lost?** No. Score and clock are saved as you go. Reopen the app.
 
-**Can the scorekeeper use a phone?** Yes. It is built but not yet tried on a physical phone. See [Scorekeeper phone remote](scorekeeper-phone-remote.md).
+**Can the scorekeeper use a phone, or a second computer run the video?** Yes. A phone or computer on the same Wi-Fi can keep the score, and a Producer device can run cameras, replay and graphics. It is built but not yet tried on a physical phone or a second computer. See [Remote access: phones and computers](scorekeeper-phone-remote.md).
 
 **Can I add NDI cameras?** Fieldhouse does not include NDI. See [OBS setup](obs-setup.md).
 

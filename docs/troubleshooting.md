@@ -4,6 +4,22 @@ Find your symptom, check the likely cause, try the fix. If nothing works, export
 
 > Recordings keep going when other things fail. Don't panic.
 
+## My phone or computer cannot connect
+
+| Cause | Fix |
+|-------|-----|
+| Remote access is off | On the laptop, open **Settings, Remote access** and turn on **Allow phones and computers on this network**. It is off by default |
+| Different Wi-Fi networks | The device and the laptop must be on the same network. Phone data (4G/5G) will not work. Use the address shown in Settings |
+| The Wi-Fi isolates devices | Guest Wi-Fi often blocks devices from seeing each other. Use a staff network, or bring a small router and connect both to it |
+| Wrong address | Use the address listed in **Settings, Remote access** (it ends in `/remote`), not `localhost`. If the laptop shows several addresses, try the one on the same Wi-Fi |
+| A firewall blocks the port | Allow Fieldhouse through the laptop's firewall (Windows asks the first time; on macOS and Linux check the firewall settings). The port is shown in Settings |
+| The port was busy | Settings shows which port is used instead. Open that address |
+| "Too many wrong tries" | Wait the time shown (5 minutes). Check the code on the laptop; **New code** gives a fresh one |
+| "This remote only works on the same Wi-Fi network" | Your router uses unusual addresses. Turn off **Only allow devices on this Wi-Fi network** only if you understand the risk |
+| The page shows "Not allowed" | The device does not have the role for that. The console can change the role in **Settings, Remote access** |
+| "The console has locked the remote" | The console turned the lock on. Ask the person at the laptop to turn it off |
+| "This device was removed" | The console disconnected it. Enter the code to connect again |
+
 ## Stream drops or stutters
 
 | Cause | Fix |

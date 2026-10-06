@@ -18,7 +18,7 @@ Fieldhouse is free and open source. There is no account, no trial and no license
 | [Cameras and sources](cameras-and-sources.md) | You are choosing or connecting cameras |
 | [OBS setup](obs-setup.md) | You are connecting Fieldhouse to OBS Studio |
 | [Streaming destinations](streaming-destinations.md) | You are sending the game to YouTube, Facebook or another site |
-| [Scorekeeper phone remote](scorekeeper-phone-remote.md) | Someone else keeps the score from a phone |
+| [Remote access: phones and computers](scorekeeper-phone-remote.md) | Someone else keeps the score from a phone, or runs the video from a second computer |
 | [Replay and highlights](replay-and-highlights.md) | You want instant replay or a highlight reel |
 | [Sponsors and proof of play](sponsors-and-proof-of-play.md) | You sell or show sponsor messages |
 | [Troubleshooting](troubleshooting.md) | Something went wrong |

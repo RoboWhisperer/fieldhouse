@@ -55,6 +55,7 @@ body.remote{font-size:15px;line-height:1.4;overscroll-behavior:none;-webkit-tap-
 .scores .plus .btn:active:not(:disabled){background:var(--action-fill);border-color:var(--action-fill)}
 .under{margin:10px 16px 0;display:grid;gap:6px}
 .under .toast{min-height:48px;padding:8px 12px}
+.under .toast .btn{height:44px;min-width:64px}
 .under .toast .nt{flex:1;min-width:0}
 .under .toast .nt .muted{font-size:12.5px}
 .under .toast .i:first-child{color:var(--action-hi)}
@@ -90,11 +91,11 @@ body.remote{font-size:15px;line-height:1.4;overscroll-behavior:none;-webkit-tap-
 
 /* ---- short landscape: scoring left, extras right */
 @media (orientation:landscape) and (max-height:520px){
-  .pr{max-width:none;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh;height:100dvh;min-height:0;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-  .pr .top{grid-column:1/-1;height:36px}
-  .main{overflow-y:auto;padding-bottom:8px}
-  .sheet{margin-top:8px;border-radius:16px 0 0 0;overflow:hidden}
-  .sheet .body{flex:1}
+  body:not(.is-prod) .pr{max-width:none;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh;height:100dvh;min-height:0;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  body:not(.is-prod) .pr .top{grid-column:1/-1;height:36px}
+  body:not(.is-prod) .main{overflow-y:auto;padding-bottom:8px}
+  body:not(.is-prod) .sheet{margin-top:8px;border-radius:16px 0 0 0;overflow:hidden}
+  body:not(.is-prod) .sheet .body{flex:1}
   .clkbtn{height:76px;margin-top:8px}
   .clkbtn .disp{padding:8px 10px}
   .clkbtn .disp .led{font-size:26px}
@@ -106,3 +107,51 @@ body.remote{font-size:15px;line-height:1.4;overscroll-behavior:none;-webkit-tap-
 }
 @media (max-width:359px){.scores .plus .btn{font-size:16px}.pr .ribbon .team{font-size:10px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---- keyboard help dialog */
+.remote .scrim{position:fixed;inset:0;z-index:100;background:rgba(4,7,12,.72);display:grid;place-items:center;padding:16px}
+.dlg{width:min(480px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--raised);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-float);padding:20px;display:grid;gap:12px}
+.dlg h2{margin:0;font-size:20px}.dlg p{margin:0}
+.kg h3{margin:8px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.kr{display:flex;gap:14px;align-items:center;min-height:34px}
+.kr .kbd{min-width:92px;justify-content:center}
+.help-btn{display:none;width:44px;height:44px;padding:0;font-weight:700;flex:none}
+.remote .sheet .pt{display:none}
+
+/* ---- hover, focus, press */
+.remote :focus-visible{outline:2px solid var(--action-hi);outline-offset:2px}
+.clkbtn:hover:not(:disabled){filter:brightness(1.12)}
+.scores .plus .btn:hover:not(:disabled){border-color:var(--action);background:var(--action-wash)}
+.kdown{transform:scale(.97)}
+@media (pointer:coarse){.remote .btn{min-height:44px}.help-btn{display:none!important}}
+
+/* ---- desktop, laptop and tablet landscape (>= 900 px): two columns, every panel visible, no tabs */
+@media (min-width:700px){
+  .gate-in{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:32px;box-shadow:var(--shadow-float);max-width:460px}
+  .gate{justify-items:center}
+}
+@media (min-width:900px){
+  .help-btn{display:inline-flex}
+  body.remote:not(.is-prod) .pr{max-width:1240px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);grid-template-rows:auto auto auto auto minmax(0,1fr);column-gap:24px;row-gap:16px;padding:0 24px 24px;min-height:100vh;align-content:start}
+  body.remote:not(.is-prod) .pr .top{grid-column:1/-1;height:56px;padding:0;border-bottom:1px solid var(--line)}
+  body.remote:not(.is-prod) .main{grid-column:1;grid-row:2}
+  body.remote:not(.is-prod) .sheet{display:contents}
+  body.remote:not(.is-prod) .sheet .grab,body.remote:not(.is-prod) .sheet .tabs{display:none}
+  body.remote:not(.is-prod) .sheet .body[hidden]{display:grid!important}
+  body.remote:not(.is-prod) .sheet .body{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;gap:14px}
+  body.remote:not(.is-prod) .sheet .pt{display:block;margin:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+  body.remote:not(.is-prod) #p-foul{grid-column:1;grid-row:3}
+  body.remote:not(.is-prod) #p-per{grid-column:2;grid-row:3;align-self:start}
+  body.remote:not(.is-prod) #p-log{grid-column:2;grid-row:2;align-content:start;overflow-y:auto;max-height:max(300px,calc(100vh - 420px))}
+  body.remote:not(.is-prod) .main>.banner,body.remote:not(.is-prod) .pr .ribbon,body.remote:not(.is-prod) .clkbtn,body.remote:not(.is-prod) .scores,body.remote:not(.is-prod) .under{margin-left:0;margin-right:0}
+  body.remote:not(.is-prod) .pr .ribbon{height:44px;margin-top:0}
+  body.remote:not(.is-prod) .pr .ribbon .score,body.remote:not(.is-prod) .pr .ribbon .clk{font-size:24px}
+  body.remote:not(.is-prod) .clkbtn{height:120px;margin-top:16px;cursor:pointer}
+  body.remote:not(.is-prod) .clkbtn .disp .led{font-size:44px}
+  body.remote:not(.is-prod) .scores{margin-top:16px;gap:16px}
+  body.remote:not(.is-prod) .scores .score-block .led{font-size:76px}
+  body.remote:not(.is-prod) .scores .plus .btn{height:64px;font-size:20px;cursor:pointer}
+  body.remote:not(.is-prod) .under{margin-top:12px}
+  body.remote:not(.is-prod) .btn{cursor:pointer}
+  body.remote:not(.is-prod) .log .ev{min-height:52px}
+}

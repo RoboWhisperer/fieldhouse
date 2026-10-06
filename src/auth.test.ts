@@ -1,4 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createApp } from "./app";
 import { createRemote, hashToken, isLoopback, isPrivate, lanAddresses, type Remote } from "./auth";
 import { saveSettings, seedDemo } from "./data";
@@ -9,7 +12,8 @@ import { openStore } from "./store";
 const LAN = "192.168.1.50";
 const rigs: Remote[] = [];
 const engines: FakeEngine[] = [];
-afterAll(() => { rigs.forEach((r) => r.close()); engines.forEach((e) => e.close()); });
+const dirs: string[] = [];
+afterAll(() => { rigs.forEach((r) => r.close()); engines.forEach((e) => e.close()); dirs.forEach((d) => rmSync(d, { recursive: true, force: true })); });
 
 /** A fresh app + remote with a controllable clock, an active demo game and the remote switched on (without opening a port). */
 async function rig(remoteSettings: Record<string, unknown> = {}) {
@@ -125,7 +129,7 @@ test("the phone gets a trimmed state: no settings, destinations, recordings or p
   const { call, pair } = await rig();
   const p = await pair();
   const st = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).body;
-  expect(Object.keys(st).sort()).toEqual(["events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "profile", "serverNow"]);
+  expect(Object.keys(st).sort()).toEqual(["events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "profile", "role", "serverNow"]);
   expect(st.gameDoc.home.roster.length).toBeGreaterThan(0);
   const text = JSON.stringify(st);
   for (const secret of ["WILD-4821", "demo-key", "storageDir", "destination", "recording", "tokenHash", "remote"]) expect(text).not.toContain(secret);
@@ -353,5 +357,154 @@ test("REAL network: pair and score from the machine's actual LAN address", async
   expect(state.game.home.score).toBe(3);
   expect((await app.handle(new Request("http://x/api/state")).then((r) => r.json())).game.home.score).toBe(3); // the console sees it
   expect((await fetch(base + "/api/settings", { headers: { cookie } })).status).toBe(403);
+  void remote;
+});
+
+// ---------------------------------------------------------------- producer role
+const PRODUCER_OK: [string, string, unknown][] = [
+  ["POST", "/api/engine/preview", { sourceId: "cam2" }], ["POST", "/api/engine/cut", {}], ["POST", "/api/engine/fade", { ms: 250 }],
+  ["POST", "/api/engine/mute", { id: "crowd", muted: true }], ["POST", "/api/engine/gain", { id: "crowd", gainDb: -3 }],
+  ["POST", "/api/replay", { secondsBack: 10, speed: 0.5 }], ["POST", "/api/replay/stop", {}],
+  ["POST", "/api/graphics", { scorebug: false, slate: "Halftime", lower: { title: "#3 Reyes", sub: "Guard" } }], ["POST", "/api/sponsors/fire", { outcome: "skipped" }],
+];
+const NEVER: [string, string, unknown?][] = [
+  ["GET", "/api/settings"], ["PUT", "/api/settings", { telemetry: true }], ["GET", "/api/destinations"], ["POST", "/api/destinations", {}], ["DELETE", "/api/destinations/dest_demo_yt"],
+  ["POST", "/api/engine/obs/provision", {}], ["POST", "/api/engine", {}], ["GET", "/api/venues"], ["PUT", "/api/venues", {}], ["GET", "/api/devices"], ["POST", "/api/slots", {}],
+  ["POST", "/api/games", {}], ["PUT", "/api/games/x", {}], ["POST", "/api/games/x/finish", {}], ["POST", "/api/games/x/activate", {}], ["POST", "/api/sponsors", {}], ["DELETE", "/api/sponsors/x"],
+  ["POST", "/api/roster/parse", {}], ["GET", "/api/recordings"], ["DELETE", "/api/recordings/x"], ["GET", "/api/storage"], ["GET", "/api/diagnostics"], ["POST", "/api/diagnostics/bundle", {}],
+  ["POST", "/api/demo", {}], ["POST", "/api/dev/simulate", {}], ["GET", "/api/log"], ["GET", "/rec/x.mp4"], ["GET", "/overlay"], ["GET", "/"],
+  ["GET", "/api/remote/status"], ["POST", "/api/remote/lock", { locked: true }], ["POST", "/api/remote/code/rotate", {}], ["DELETE", "/api/remote/devices/x"], ["PUT", "/api/remote/devices/x", { role: "producer" }], ["POST", "/api/remote/pending/x", { allow: true }],
+];
+async function producerRig(extra: Record<string, unknown> = {}) {
+  const r = await rig(extra);
+  const dir = mkdtempSync(join(tmpdir(), "fh-prod-")); dirs.push(dir);
+  saveSettings(r.store, { storageDir: dir });
+  const p = await r.pair("Producer Pat");
+  expect((await r.admin("PUT", "/devices/" + p.id, { role: "producer" })).status).toBe(200);
+  return { ...r, p, dir };
+}
+
+test("producer: allowed routes work, everything else (and every route for other roles) is 403", async () => {
+  const { call, p, pair, admin } = await producerRig();
+  for (const [m, path, body] of PRODUCER_OK) { const r = await call(LAN, m, path, body, p.cookie); expect([m + " " + path, [200, 409].includes(r.status)]).toEqual([m + " " + path, true]); }
+  const st = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).body;
+  expect(st.engine.preview).toBeDefined(); expect(st.graphics.slate).toBe("Halftime");
+  for (const [m, path, body] of NEVER) { const r = await call(LAN, m, path, body, p.cookie); expect([m + " " + path, r.status]).toEqual([m + " " + path, 403]); }
+  // bad bodies are refused at the gate
+  for (const [path, body] of [["/api/engine/fade", { ms: 99999 }], ["/api/engine/mute", { id: "crowd" }], ["/api/engine/gain", { id: "crowd", gainDb: 900 }], ["/api/replay", { secondsBack: 0 }], ["/api/graphics", { lower: { title: "x".repeat(200) } }], ["/api/sponsors/fire", { outcome: "boom" }], ["/api/engine/preview", { sourceId: 5 }]] as const)
+    expect([path, (await call(LAN, "POST", path, body, p.cookie)).status]).toEqual([path, 400]);
+  // a Score or Score + marks device gets none of it, and cannot promote itself
+  const s = await pair("Scorer", "192.168.1.60");
+  for (const [m, path, body] of [...PRODUCER_OK, ["GET", "/snap/cam1", undefined], ["POST", "/api/broadcast/start", {}]] as [string, string, unknown][]) expect([path, (await call("192.168.1.60", m, path, body, s.cookie)).status]).toEqual([path, 403]);
+  expect((await call("192.168.1.60", "PUT", "/api/remote/devices/" + s.id, { role: "producer" }, s.cookie)).status).toBe(403);
+  await admin("PUT", "/devices/" + s.id, { role: "score+marks" });
+  expect((await call("192.168.1.60", "POST", "/api/engine/cut", {}, s.cookie)).status).toBe(403);
+  expect((await call(LAN, "POST", "/api/engine/cut", {})).status).toBe(401); // no token
+  expect((await call(LAN, "POST", "/api/engine/cut", {}, { ...p.cookie, origin: "http://evil.example" })).status).toBe(403);
+});
+
+test("producer: broadcast start and stop need the producerCanBroadcast setting", async () => {
+  const { call, p, pair, store, admin } = await producerRig();
+  for (const path of ["/api/broadcast/start", "/api/broadcast/stop"]) { const r = await call(LAN, "POST", path, {}, p.cookie); expect(r.status).toBe(403); expect(r.body.error).toContain("turned off"); }
+  saveSettings(store, { remote: { producerCanBroadcast: true } });
+  expect((await call(LAN, "POST", "/api/broadcast/start", {}, p.cookie)).status).toBe(200);
+  expect((await call(LAN, "GET", "/api/state", undefined, p.cookie)).body.engine.record.active).toBe(true);
+  expect((await call(LAN, "POST", "/api/broadcast/stop", {}, p.cookie)).status).toBe(200);
+  const s = await pair("Scorer", "192.168.1.61"); // the flag never helps other roles
+  expect((await call("192.168.1.61", "POST", "/api/broadcast/start", {}, s.cookie)).status).toBe(403);
+  await admin("POST", "/lock", { locked: true });
+  expect((await call(LAN, "POST", "/api/broadcast/start", {}, p.cookie)).status).toBe(423);
+  expect(() => saveSettings(store, { remote: { producerCanBroadcast: "yes" } })).toThrow();
+  expect(saveSettings(store, { remote: { producerCanBroadcast: false } }).remote.producerCanBroadcast).toBe(false);
+});
+
+test("producer: snapshots are producer-only, rate limited, and still work while the remote is locked", async () => {
+  const { call, p, pair, admin, t } = await producerRig();
+  const img = await call(LAN, "GET", "/snap/cam1", undefined, p.cookie);
+  expect(img.status).toBe(200); expect(img.res.headers.get("content-type")).toContain("image/svg");
+  expect(img.res.headers.get("cache-control")).toBe("no-store");
+  expect((await call(LAN, "GET", "/snap/nope", undefined, p.cookie)).status).toBe(404);
+  expect((await call(LAN, "GET", "/snap/cam1")).status).toBe(401);
+  expect((await call(LAN, "GET", "/snap/bad%20id", undefined, p.cookie)).status).toBe(403);
+  const s = await pair("Scorer", "192.168.1.62");
+  expect((await call("192.168.1.62", "GET", "/snap/cam1", undefined, s.cookie)).status).toBe(403);
+  await admin("POST", "/lock", { locked: true });
+  expect((await call(LAN, "GET", "/snap/cam1", undefined, p.cookie)).status).toBe(200); // reads are not locked
+  expect((await call(LAN, "GET", "/api/state", undefined, p.cookie)).body.locked).toBe(true);
+  for (const [m, path, body] of PRODUCER_OK) expect([path, (await call(LAN, m, path, body, p.cookie)).status]).toEqual([path, 423]); // writes are
+  t.now += 5000;
+  const codes: number[] = [];
+  for (let i = 0; i < 30; i++) codes.push((await call(LAN, "GET", "/snap/cam1", undefined, p.cookie)).status);
+  expect(codes.filter((c) => c === 429).length).toBeGreaterThan(10);
+  expect(codes.slice(0, 14).every((c) => c === 200)).toBe(true);
+  t.now += 1000;
+  expect((await call(LAN, "GET", "/snap/cam1", undefined, p.cookie)).status).toBe(200);
+});
+
+test("producer state carries no settings, destinations, pairing code, file paths or stream keys", async () => {
+  const { call, p, store, dir } = await producerRig({ producerCanBroadcast: true });
+  await call(LAN, "POST", "/api/broadcast/start", {}, p.cookie); // recording is live: a file path exists on the server
+  const raw = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).res; void raw;
+  const st = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).body;
+  const text = JSON.stringify(st);
+  for (const secret of ["WILD-4821", "demo-key", "rtmp://", "a.rtmp.youtube", "YouTube", "tokenHash", "storageDir", dir, ".mp4", "destination", "\"file\"", "settings", "recording\"", "obsPassword", "obsUrl", "deviceId", "usb-brio"]) expect([secret, text.includes(secret)]).toEqual([secret, false]);
+  expect(Object.keys(st.engine.stream).sort()).toEqual(["droppedFrames", "kbps", "live", "reconnecting"]);
+  expect(Object.keys(st.engine.record).sort()).toEqual(["active", "bytes"]);
+  expect(Object.keys(st.engine.sources[0]).sort()).toEqual(["audio", "id", "kind", "label", "slot", "status"]);
+  expect(st.engine.record.active).toBe(true); expect(st.engine.graphicsInProgram).toBe(false); expect(st.canBroadcast).toBe(true);
+  expect(Object.keys(st).sort()).toEqual(["canBroadcast", "engine", "events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "next", "profile", "role", "serverNow"]);
+  void store;
+});
+
+test("producer role changes and revoke reach a live WebSocket at once", async () => {
+  const { remote, store, pair, admin } = await rig();
+  saveSettings(store, { remote: { port: 18251 } }); await remote.sync();
+  const base = "127.0.0.1:" + remote.port();
+  const p = await pair("Pat"); await admin("PUT", "/devices/" + p.id, { role: "producer" });
+  const ws = new WebSocket(`ws://${base}/ws`, { headers: p.cookie } as any), msgs: any[] = [];
+  let closed = -1; ws.onmessage = (m) => msgs.push(JSON.parse(String(m.data))); ws.onclose = (e) => { closed = e.code; };
+  await new Promise<void>((r) => (ws.onopen = () => r()));
+  await Bun.sleep(100);
+  expect(msgs.find((m) => m.kind === "me").device.role).toBe("producer");
+  expect(msgs.filter((m) => m.kind === "state").at(-1).engine).toBeTruthy();
+  // downgraded: the same socket gets the new role and the smaller state, and the routes close
+  msgs.length = 0;
+  await admin("PUT", "/devices/" + p.id, { role: "score" });
+  await Bun.sleep(150);
+  expect(msgs.find((m) => m.kind === "me").device.role).toBe("score");
+  const after = msgs.filter((m) => m.kind === "state").at(-1);
+  expect(after.role).toBe("score"); expect(after.engine).toBeUndefined();
+  remote.broadcast(); await Bun.sleep(100);
+  expect(msgs.filter((m) => m.kind === "state").every((m) => m.engine === undefined)).toBe(true);
+  expect((await fetch(`http://${base}/api/engine/cut`, { method: "POST", headers: { ...p.cookie, "content-type": "application/json" }, body: "{}" })).status).toBe(403);
+  // upgraded again, then revoked: the socket closes with 4001
+  await admin("PUT", "/devices/" + p.id, { role: "producer" }); await Bun.sleep(100);
+  expect(msgs.filter((m) => m.kind === "state").at(-1).engine).toBeTruthy();
+  expect((await admin("DELETE", "/devices/" + p.id)).status).toBe(200);
+  await Bun.sleep(300);
+  expect(closed).toBe(4001);
+  expect((await fetch(`http://${base}/snap/cam1`, { headers: p.cookie })).status).toBe(401);
+});
+
+test("REAL network: a Producer on the LAN address gets pictures and can cut, but not administer", async () => {
+  const ip = lanAddresses()[0];
+  if (!ip) { console.log("no private LAN IPv4 on this machine: skipping the real-network producer test"); return; }
+  const { remote, store, app, admin } = await rig();
+  saveSettings(store, { remote: { port: 18261 } });
+  const st = (await admin("GET", "/status")).body; expect(st.urls).toContain(`http://${ip}:18261/remote`);
+  const base = `http://${ip}:18261`, J = { "content-type": "application/json" };
+  const pr = await fetch(base + "/api/remote/pair", { method: "POST", headers: J, body: JSON.stringify({ code: "WILD-4821", name: "Laptop" }) });
+  expect(pr.status).toBe(200);
+  const cookie = pr.headers.get("set-cookie")!.split(";")[0], id = (await pr.json()).device.id;
+  expect((await fetch(base + "/snap/cam1", { headers: { cookie } })).status).toBe(403); // paired as Score: no video
+  expect((await fetch(base + "/api/remote/devices/" + id, { method: "PUT", headers: { ...J, cookie }, body: JSON.stringify({ role: "producer" }) })).status).toBe(403); // cannot promote itself
+  expect((await admin("PUT", "/devices/" + id, { role: "producer" })).status).toBe(200); // only the console can
+  const img = await fetch(base + "/snap/cam1", { headers: { cookie } });
+  expect(img.status).toBe(200); expect(img.headers.get("content-type")).toContain("image/svg"); expect((await img.text()).length).toBeGreaterThan(100);
+  const before = app.state().engine.program;
+  expect((await fetch(base + "/api/engine/preview", { method: "POST", headers: { ...J, cookie }, body: JSON.stringify({ sourceId: "cam3" }) })).status).toBe(200);
+  expect((await fetch(base + "/api/engine/cut", { method: "POST", headers: { ...J, cookie, origin: base }, body: "{}" })).status).toBe(200);
+  expect(app.state().engine.program).toBe("cam3"); expect(app.state().engine.program).not.toBe(before);
+  for (const [m, path] of [["POST", "/api/settings"], ["GET", "/api/settings"], ["GET", "/rec/x.mp4"], ["GET", "/overlay"], ["POST", "/api/broadcast/start"]]) expect([path, (await fetch(base + path, { method: m, headers: { ...J, cookie }, body: m === "POST" ? "{}" : undefined })).status]).toEqual([path, 403]);
   void remote;
 });

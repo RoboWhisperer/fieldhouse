@@ -109,7 +109,7 @@ export interface SettingsDoc {
   storageDir: string;
   retention: "never" | "90d" | "season";
   lowSpaceGb: number;
-  remote: { requireCode: boolean; code: string; lockedToLan: boolean; enabled: boolean; port: number };
+  remote: { requireCode: boolean; code: string; lockedToLan: boolean; enabled: boolean; port: number; producerCanBroadcast: boolean };
   telemetry: boolean; // opt-in, default false
   activeGameId?: string;
   autoFireSponsors: boolean;

@@ -2,6 +2,14 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Remote access from other computers as well as phones: the remote page now has a desktop layout (two columns, hover and focus states, keyboard shortcuts with a `?` help dialog) and a pairing screen that fits a laptop.
+- New device role **Producer**: camera pictures, cut and fade, preview, replay, graphics, audio mutes and sponsor breaks from another computer, with the scorekeeper controls beside them. Enforced on the server. Still no settings, destinations, recordings, stream keys or file paths.
+- Setting `remote.producerCanBroadcast` (off by default) lets a Producer start and stop the broadcast; stopping needs a 1.5 second hold.
+- Settings > Remote is now "Remote access": three role choices per device, the broadcast switch and a trusted-network warning. The role can be changed while a device is connected and takes effect at once.
+
 ## [1.0.0-beta.1] - Unreleased
 
 First beta. Nothing has been released yet and no public installers exist.

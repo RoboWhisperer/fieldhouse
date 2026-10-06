@@ -12,10 +12,10 @@
   <div class="gate-in">
     <div class="brand-row"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span><b>Fieldhouse Remote</b></div>
     <h1>Connect to the console</h1>
-    <p class="muted">Run the clock and score from this phone. It works on the gym Wi-Fi with no internet and no account.</p>
+    <p class="muted">Run the clock and score from this phone or computer. It works on the gym Wi-Fi with no internet and no account.</p>
     <form id="pf" autocomplete="off" novalidate>
       <div class="field"><label for="code">Pairing code</label>
-        <input class="input big mono" id="code" name="code" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="WILD-4821" maxlength="24" aria-describedby="code-h">
+        <input class="input big mono" id="code" name="code" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="WILD-4821" maxlength="24" autofocus aria-describedby="code-h">
         <span class="hint" id="code-h">Shown on the console. Scanning its QR code fills this in.</span></div>
       <div class="field"><label for="name">Your name</label>
         <input class="input big" id="name" name="name" autocomplete="name" autocapitalize="words" spellcheck="false" enterkeyhint="go" placeholder="Coach Dana" maxlength="40" aria-describedby="perr"></div>
@@ -53,6 +53,7 @@
     <span class="ttl" id="title">Fieldhouse</span>
     <span class="sp"></span>
     <span class="chip" id="conn" role="status"><span class="dot"></span><span id="conn-t">Connecting</span></span>
+    <button class="btn ghost help-btn" id="helpbtn" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
   </div>
   <div class="main">
     <div class="banner warn" id="banner" role="status" hidden><svg class="i"><use href="#i-alert"/></svg><div><b id="banner-h"></b><div class="muted" id="banner-p"></div></div></div>
@@ -87,6 +88,7 @@
       <button role="tab" id="t-log" aria-controls="p-log" aria-selected="false" data-tab="log" tabindex="-1">Undo log</button>
     </div>
     <div class="body" id="p-foul" role="tabpanel" aria-labelledby="t-foul">
+      <h3 class="pt">Fouls &amp; timeouts</h3>
       <div class="tm2" data-team="home"><div class="h"><i></i><span class="tn">Home</span><span class="chip warn bn" hidden>Bonus</span></div>
         <div class="stp"><button class="btn" data-ctl data-foul="-1" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led fv">0</span><button class="btn" data-ctl data-foul="1" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
         <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
@@ -95,14 +97,27 @@
         <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
     </div>
     <div class="body" id="p-per" role="tabpanel" aria-labelledby="t-per" hidden>
+      <h3 class="pt">Period &amp; clock</h3>
       <div class="field"><span class="fl">Period</span><div class="pbtns" id="pbtns"></div><span class="hint" id="p-hint">Changing the period resets the clock and team fouls.</span></div>
       <div class="field"><span class="fl">Fix the clock</span>
         <div class="nudge"><button class="btn" data-ctl data-nudge="-10000">&minus;10 s</button><button class="btn" data-ctl data-nudge="-1000">&minus;1 s</button><button class="btn" data-ctl data-nudge="1000">+1 s</button><button class="btn" data-ctl data-nudge="10000">+10 s</button></div></div>
     </div>
     <div class="body" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>
+      <h3 class="pt">Events &amp; undo log</h3>
       <button class="btn lg" id="mark" type="button" data-ctl hidden><svg class="i"><use href="#i-flag"/></svg>Mark moment</button>
       <div class="log" id="log"></div>
     </div>
+  </div>
+</div>
+<!-- Producer layout: its panels are built by /remote/producer.js; the scoring panel (#s-live) is moved into #pside -->
+<div class="prod" id="s-prod" hidden><div class="pgrid"><div class="pmain" id="pmain"></div><aside class="pside" id="pside"></aside></div></div>
+
+<div class="scrim" id="help" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="help-h">
+    <h2 id="help-h">Keyboard shortcuts</h2>
+    <p class="muted">Shortcuts do nothing while you are typing in a box.</p>
+    <div id="help-rows"></div>
+    <button class="btn pri lg" id="help-x" type="button">Close</button>
   </div>
 </div>
 <script src="/icons.js"></script><script src="/remote/remote.js"></script>
