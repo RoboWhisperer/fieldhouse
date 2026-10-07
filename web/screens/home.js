@@ -6,13 +6,14 @@ const when = (t) => `${new Date(t).toDateString() === new Date().toDateString() 
 const hasRoster = (g) => g.home.roster.length > 0 && g.away.roster.length > 0;
 const seen = () => { try { return !!localStorage.getItem("fieldhouse.seenOnboarding"); } catch { return true; } };
 
+const sportName = (n) => (n ? n[0].toUpperCase() + n.slice(1) : "");
 export default {
   shell: "manage", nav: "home",
   css: `.hm{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;padding:24px 32px}
 .hm-l{display:grid;gap:16px;min-width:0;align-content:start}.hm-r{display:grid;gap:16px;align-content:start;min-width:0}
 .hm-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;padding:20px 24px;flex-direction:row}
 .hm-vs{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.hm-vs .tm{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:650}.hm-vs .at{color:var(--text-3);font-weight:600}
-.hm-stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}.hm-stat:last-child{border-bottom:0}.hm-stat b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}`,
+.sp-c{color:var(--text-2)}.ok-t{display:inline-flex;align-items:center;gap:6px;color:var(--ready);font-weight:550}.hm .tbl td:first-child,.hm .tbl th:first-child{padding-left:14px}.hm-stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}.hm-stat:last-child{border-bottom:0}.hm-stat b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}`,
   async load(ctx) {
     const games = await api.get("/games");
     if (!games.length && !seen()) { go("/welcome"); return { games, redirect: true }; }
@@ -40,7 +41,7 @@ export default {
       <section class="panel hm-hero">${next ? html`<div>
           <h2 class="t" style="margin-bottom:12px">Next game</h2>
           <div class="hm-vs"><div class="tm">${logo(next.home)}${next.home.name}</div><span class="at">vs</span><div class="tm">${logo(next.away)}${next.away.name}</div></div>
-          <div class="muted" style="margin-top:10px;font-size:14px">${when(next.startsAt)}${d.venueNames[venue(next)] ? ` · ${d.venueNames[venue(next)]}` : ""}</div>
+          <div class="muted" style="margin-top:10px;font-size:14px">${next.sport ? `${sportName(next.sport)} · ` : ""}${when(next.startsAt)}${d.venueNames[venue(next)] ? ` · ${d.venueNames[venue(next)]}` : ""}</div>
           <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
             ${hasRoster(next) ? chip("ok", "check", "Rosters") : chip("warn", "alert", "Roster missing")}
             ${(st?.engine?.sources?.length || 0) > 0 ? chip("ok", "check", `Sources (${st.engine.sources.length})`) : chip("warn", "alert", "No sources")}
@@ -49,9 +50,9 @@ export default {
           <button class="btn pri xl" style="width:240px" data-start="${next.id}">${icon("play", "lg")}Start game night</button>`
         : html`<div><h2 class="t">No upcoming games</h2><div class="muted" style="margin-top:8px">Create the next game to get set up.</div></div><button class="btn pri xl" data-go="/game/new?fresh=1">${icon("plus", "lg")}New game</button>`}</section>
       <section class="panel"><div class="ph"><h3>Upcoming games</h3><span class="sp"></span><button class="btn sm ghost" data-go="/game/new?fresh=1">${icon("plus", "sm")}New game</button></div>
-        ${sched.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Setup</th><th></th></tr></thead><tbody>${sched.map((g) => html`<tr><td class="m">${fmtDate(g.startsAt)}, ${fmtTime(g.startsAt)}</td><td>${g.title}</td><td>${hasRoster(g) ? chip("ok", "check", "Rosters") : chip("warn", "alert", "Roster missing")}</td><td class="n"><button class="btn sm ghost" data-open="${g.id}">Open</button></td></tr>`)}</tbody></table>` : html`<div class="empty">Nothing scheduled.</div>`}</section>
+        ${sched.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th>Setup</th><th></th></tr></thead><tbody>${sched.map((g) => html`<tr><td class="m">${fmtDate(g.startsAt)}, ${fmtTime(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td>${hasRoster(g) ? html`<span class="ok-t">${icon("check", "sm")}Rosters ready</span>` : chip("warn", "alert", "Roster missing")}</td><td class="n"><button class="btn sm ghost" data-open="${g.id}">Open</button></td></tr>`)}</tbody></table>` : html`<div class="empty">Nothing scheduled.</div>`}</section>
       <section class="panel"><div class="ph"><h3>Recent games</h3></div>
-        ${done.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th class="n">Score</th><th>Recording</th><th>Highlights</th></tr></thead><tbody>${done.slice(0, 5).map((g) => { const r = recOf(g); return html`<tr><td class="m">${fmtDate(g.startsAt)}</td><td>${g.title}</td><td class="n">${g.finalScore ? `${g.finalScore.home} – ${g.finalScore.away}` : "-"}</td><td>${r ? chip("ok", "check", `Saved · ${fmtBytes(r.bytes)}`) : chip("", "clock", "No recording")}</td><td>${r ? (r.exported ? chip("ok", "check", "Exported") : chip("warn", "alert", "Not exported")) : ""}</td></tr>`; })}</tbody></table>` : html`<div class="empty">Finished games appear here.</div>`}</section>`}
+        ${done.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th class="n">Score</th><th>Recording</th><th>Highlights</th></tr></thead><tbody>${done.slice(0, 5).map((g) => { const r = recOf(g); return html`<tr><td class="m">${fmtDate(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td class="n">${g.finalScore ? `${g.finalScore.home} – ${g.finalScore.away}` : "-"}</td><td>${r ? chip("ok", "check", `Saved · ${fmtBytes(r.bytes)}`) : html`<span class="faint">No recording</span>`}</td><td>${r ? (r.exported ? chip("ok", "check", "Exported") : chip("warn", "alert", "Not exported")) : ""}</td></tr>`; })}</tbody></table>` : html`<div class="empty">Finished games appear here.</div>`}</section>`}
     </div><aside class="hm-r">
       <section class="panel"><div class="ph"><h3>Season</h3></div><div class="pb" style="padding:4px 14px">
         <div class="hm-stat"><span class="muted">Games streamed</span><b>${done.length}</b></div>

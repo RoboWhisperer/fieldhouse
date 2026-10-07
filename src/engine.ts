@@ -63,6 +63,7 @@ export class SwitchableEngine implements Engine {
   snapshot(id: string) { return this.cur.snapshot(id); }
   async addNetworkSource(url: string, label: string) { if (!this.cur.addNetworkSource) throw new Error("This engine cannot add network sources."); return this.cur.addNetworkSource(url, label); }
   async provision() { if (!this.cur.provision) throw new Error("Only the OBS engine has a setup to repair."); return this.cur.provision(); }
+  async setExternalLayers(l: Parameters<NonNullable<Engine["setExternalLayers"]>>[0]) { await this.cur.setExternalLayers?.(l); }
   videoInfo() { return this.cur.videoInfo ? this.cur.videoInfo() : Promise.reject(unsupported("change video settings")); }
   applyVideo(v: VideoSettings) { return this.cur.applyVideo ? this.cur.applyVideo(v) : Promise.reject(unsupported("change video settings")); }
   audioInputs() { return this.cur.audioInputs ? this.cur.audioInputs() : Promise.reject(unsupported("manage audio inputs")); }
@@ -274,6 +275,9 @@ export class FakeEngine implements Engine {
   }
 
   async stopReplay() { clearTimeout(this.replayTimer); this.s.replay.active = false; this.emit(); }
+  /** Graphics tests read what the app asked the engine to draw as separate layers. */
+  layers: Parameters<NonNullable<Engine["setExternalLayers"]>>[0] = [];
+  async setExternalLayers(l: Parameters<NonNullable<Engine["setExternalLayers"]>>[0]) { this.layers = structuredClone(l); }
 
   async snapshot(sourceId: string) {
     const svg = this.src(sourceId) && this.feeds.get(sourceId);

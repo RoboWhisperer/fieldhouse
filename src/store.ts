@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Ev, Logged } from "./game";
+import { BASKETBALL } from "./profiles/builtins";
 
 // Two tables: an append-only event log per game, and a generic document table for everything
 // else (games, venues, sponsors, airings, settings). ponytail: JSON docs, listed and filtered in memory;
@@ -16,6 +17,16 @@ export const MIGRATIONS: ((db: Database) => void)[] = [
     db.run("CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY AUTOINCREMENT, game TEXT NOT NULL, t INTEGER NOT NULL, body TEXT NOT NULL)");
     db.run("CREATE INDEX IF NOT EXISTS events_game ON events (game, seq)");
     db.run("CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (kind, id))");
+  },
+  // v2: sport profiles. Every game that already has events was played by the hard-coded basketball rules, so freeze exactly those
+  // rules into it (BASKETBALL = the old constants). Games with no events yet stay unfrozen and take the default sport when they start.
+  (db) => {
+    const started = new Set((db.query("SELECT DISTINCT game FROM events").all() as { game: string }[]).map((r) => r.game));
+    const upd = db.query("UPDATE docs SET body = ? WHERE kind = 'game' AND id = ?");
+    for (const r of db.query("SELECT id, body FROM docs WHERE kind = 'game'").all() as { id: string; body: string }[]) {
+      const g = JSON.parse(r.body);
+      if (started.has(r.id) && !g.profileSnapshot) upd.run(JSON.stringify({ ...g, sport: "Basketball", profileId: "basketball", profileSnapshot: BASKETBALL }), r.id);
+    }
   },
 ];
 

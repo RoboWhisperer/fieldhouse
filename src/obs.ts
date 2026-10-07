@@ -14,6 +14,7 @@ import { log } from "./diagnostics";
 import { cameraInput, dropInput, isAudioDevice, networkDevice, parseDeviceId, probeDevices, type Req } from "./obs-devices";
 import { MIC, OVERLAY, PROBE_SCENE, REPLAY_MEDIA, REPLAY_SCENE, SLOTS, camInput, canvasSize, fitItem, idOfScene, isManagedAudio, provision, readApplied, sceneOf, type ProvisionReport } from "./obs-provision";
 import { maskAddress, parseNetworkSource } from "./source-url";
+import { ObsLayers } from "./obs-layers";
 import { DEFAULT_VIDEO, dims, differences, encoderOptions, liveBlocked, resolveEncoder } from "./video-settings";
 import type { AudioInput, AudioList, DeviceInfo, Engine, EngineStatus, EncoderChoice, EncoderOption, MixerChannel, SourceInfo, SourceOptions, SourceOptionsPatch, VideoApplied, VideoSettings } from "./types";
 
@@ -230,6 +231,12 @@ export class ObsEngine implements Engine {
     this.poller.unref?.();
   }
 
+  /** Web pages drawn as their own OBS layers ("FH Ext <id>", src/obs-layers.ts). Remembered, so every provisioning/reconnect puts them back. */
+  private ext = new ObsLayers((t, d) => this.request(t, d, 15000), () => [...SLOTS.map((n) => sceneOf(`cam${n}`)), REPLAY_SCENE]);
+  async setExternalLayers(layers: Parameters<NonNullable<Engine["setExternalLayers"]>>[0]) {
+    this.ext.set(layers);
+    if (this.s.connected && this.s.obs?.provisioned && !this.provisioning) await this.ext.apply();
+  }
   /** (Re)create the Fieldhouse scenes/inputs in OBS and resync. Safe to call any time; idempotent. */
   private provQ: Promise<unknown> = Promise.resolve();
   async provision(): Promise<void> { // one at a time: a reconnect's setup and an operator's "apply" must never interleave their OBS requests
@@ -249,6 +256,7 @@ export class ObsEngine implements Engine {
     finally { this.provisioning = false; }
     await this.refresh();
     await this.autoRoute();
+    await this.ext.apply(true).catch((e) => log("WARN", `OBS web layers: ${e.message}`));
     o.provisioned = true;
     this.emit();
   }
@@ -291,7 +299,7 @@ export class ObsEngine implements Engine {
     const labelOf = (name: string) => (this.side.audio[name]?.label ? this.side.audio[name].label : name === MIC ? "Microphone" : /^FH cam\d video$/.test(name) ? this.side.slots[name.slice(3, 7)]?.label ?? name : name);
     const roleOf = (name: string): MixerChannel["role"] => (name === MIC || /^FH Mic \d+$/.test(name) ? "mic" : /^FH Desktop/.test(name) ? "desktop" : /^FH cam\d video$/.test(name) ? "camera" : "other");
     const rank = (n: string) => (n === MIC ? 0 : n.startsWith("FH ") ? 1 : 2);
-    s.mixer = [...this.mix].filter(([n]) => n !== OVERLAY && n !== REPLAY_MEDIA && !n.startsWith("FH probe") && // probes exist for a moment while devices are scanned
+    s.mixer = [...this.mix].filter(([n]) => n !== OVERLAY && n !== REPLAY_MEDIA && !n.startsWith("FH probe") && !n.startsWith("FH Ext ") && // probes exist for a moment while devices are scanned
        !(n.startsWith("FH cam") && !s.sources.some((x) => camInput(x.id) === n)))
       .sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]))
       .map(([id, m]): MixerChannel => ({ id, label: labelOf(id), level: m.muted ? 0 : this.meters.get(id) ?? 0, gainDb: m.gainDb, muted: m.muted, role: roleOf(id) }));

@@ -37,7 +37,8 @@ Navigation: hash routes. `go("/preflight")`. Route table is in `app.js` (`ROUTES
   game: { period, clockMs, running, home:{abbr,name,score,fouls,timeouts,bonus}, away:{...} } | null,
   events: Logged[],          // last 60 score/foul/timeout/mark/undo/period events: {seq,t,type,...}
   engine: EngineStatus,      // sources, program/preview, mixer, stream, record, cpu, diskFreeBytes (see src/types.ts)
-  graphics: { scorebug, lower, slate, sponsor },
+  graphics: { scorebug, lower, slate, sponsor,        // the original four, unchanged
+              items, vars, engineLayers },             // every enabled graphic with its render info, and the variables (docs/dev/graphics-api.md)
   next: { sponsorId,name,abbr,color,seconds,trigger,assets } | null,   // next sponsor break due
   settings: SettingsDoc, recording: RecordingDoc|null,
   recovered: { at } | null } // set when the app restarted into a live game
@@ -64,3 +65,21 @@ Images: `GET /snap/<sourceId>` returns the current still for a source (poll `<im
 - Every control must work. Destructive actions are guarded as in the spec (End broadcast = hold 1.5 s; delete recording = type the game name).
 - Never show stream keys (the API never returns them). Free and open source: no pricing, trial or account UI.
 - Text >= 12px, keyboard reachable, visible focus, status = icon + text + color.
+
+## Customization module (`web/customize.js`)
+
+Owned by the automation/appearance UI; `console.js` and `app.js` call it. `app.js` loads it lazily and runs `applyUi` on every state push.
+
+- `applyUi(state)`: applies `settings.ui` (theme dark/light/high-contrast/auto, accent, density, text size, motion, custom CSS) as CSS variables, `data-theme`/`data-density`/`data-motion` on `<html>` and one `<style id="user-css">`. Custom CSS is applied only in the local console (never `/remote` or `/overlay`). Cheap when the look did not change. `applyTokens(apiUiResult)` applies a `/api/ui` answer at once.
+- `consolePanels(state, column)`: ordered panel ids (`game events graphics macros replay audio sponsor custom`) shown in `"left" | "center" | "right"` by the active layout preset.
+- `macroBar(state)`: html string `<div class="macrobar" data-macrobar>` with one big button per `settings.ui.macroButtons` entry (macro color, icon, hotkey hint). Put it inside the `macros` panel. `bindMacroBar(root, state)`: wires button clicks and every macro hotkey to `POST /api/macros/:id/run` with a toast result; returns a cleanup. Macros are cached from `GET /api/macros` and bars repaint themselves when the cache or `macroButtons` change. Also exported: `PANEL_NAMES`, `runMacro(id,label)`, `refreshMacros()`, `activePreset(state)`.
+
+Screens: `#/automation/<rules|macros|fields|webhooks|integrations|log>` (`screens/automation*.js`) and `#/settings/appearance` (`screens/settings-appearance.js`).
+
+## Sport profiles in the UI
+
+The console, phone remote, New game and Settings > Sport profiles all draw from the active sport (`state.sport`, a `ProfileSummary`; `docs/dev/profiles.md`), never from constants.
+
+- `web/sport.js` is a plain script (`import "../sport.js"`, then `globalThis.FHSport`): score buttons, counter controls (`ctl` + `patchCtl`), period labels, hotkeys (`scoreKeys`: the +1/+2/+3 shortcuts follow the points; an option's `hotkey` scores for home, Shift+letter for away), `summaryOf(profileDoc)`, `describe`. The phone remote keeps a small copy in `remote.js` because the phone listener only serves allowlisted files (`src/auth.ts` `FILES`).
+- Console: counters tap `foul`/`timeout` events for the `fouls`/`timeouts` counters (so automation rules keep firing) and `counter` events for the rest; scores send `kind`. No-clock sports hide the clock and answer clock keys with a plain message. `period()` in `app.js` uses `game.periodLabel`. Layout presets and the macro panel come from `customize.js` (default preset keeps the built-in arrangement).
+- Settings > Sport profiles is `screens/profile-editor.js` (list, default, duplicate, delete, reset, import/export, editor with live preview). New game has a Sport picker (`profileId`); a started game's sport is locked.

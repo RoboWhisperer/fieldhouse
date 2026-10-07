@@ -94,7 +94,7 @@ test("security and validation guards", async () => {
 test("the OBS overlay depends on no fonts (OBS's embedded browser has no monospace and does not load web fonts)", async () => {
   const html = await Bun.file(__join(import.meta.dir, "overlay.html")).text();
   expect(html).not.toContain("@font-face");
-  expect(html).not.toMatch(/font[^;{}]*monospace/i);
+  expect(html).not.toMatch(/font(-family)?\s*:[^;{}]*monospace/i); // (the font probe names monospace only as a measuring baseline)
   expect(html).toMatch(/seven-segment/i); // the clock is drawn as SVG
 });
 

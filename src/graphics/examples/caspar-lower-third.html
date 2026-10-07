@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Example lower third (XML data)</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: "DejaVu Sans", "Liberation Sans", Roboto, Arial, sans-serif; }
+  #card { position: absolute; left: 120px; bottom: 140px; min-width: 560px; background: #0B1018; color: #fff; border-left: 12px solid #F5A524; padding: 18px 30px;
+          transform: translateX(-900px); opacity: 0; transition: transform .5s ease-out, opacity .5s; }
+  #card.in { transform: none; opacity: 1; }
+  #f0 { font-size: 48px; font-weight: bold; }
+  #f1 { font-size: 30px; color: #9FB0C5; margin-top: 4px; }
+</style></head>
+<body>
+<div id="card"><div id="f0">Name</div><div id="f1">Title</div></div>
+<script>
+// CasparCG-style HTML template. CasparCG (and Fieldhouse) call play(), stop(), next() and update(data).
+// This one receives XML:  <templateData><componentData id="f0"><data id="text" value="Jane Doe"/></componentData></templateData>
+function update(str) {
+  var doc = new DOMParser().parseFromString(str, "text/xml");
+  var comps = doc.getElementsByTagName("componentData");
+  for (var i = 0; i < comps.length; i++) {
+    var id = comps[i].getAttribute("id"), d = comps[i].getElementsByTagName("data")[0];
+    var el = document.getElementById(id);
+    if (el && d) el.textContent = d.getAttribute("value");
+  }
+}
+function play() { document.getElementById("card").className = "in"; }
+function stop() { document.getElementById("card").className = ""; }
+</script></body></html>

@@ -71,3 +71,13 @@ body.is-prod{overflow-x:hidden}
 .pside .pr .clkbtn .disp .led{font-size:28px}
 .pside .pr .ribbon,.pside .pr .scores,.pside .pr .under,.pside .pr .main>.banner{margin-left:14px;margin-right:14px}
 @media (max-width:1100px) and (min-width:1001px){.pgrid{grid-template-columns:minmax(0,1.3fr) minmax(400px,1fr)}}
+/* polish: panels never grow past the column; the control strip reflows cleanly on a phone */
+.pb{grid-template-columns:minmax(0,1fr)}
+.pctl .btn,.pctl .seg{min-width:0}
+@media (max-width:600px){
+  .pgrid{padding:12px;gap:12px}
+  .pctl{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pctl .vr{display:none}
+  .pctl>*{min-width:0}.pctl .btn,.pctl .sel,.pctl .sel .select{width:100%}.pctl .seg{justify-self:stretch;display:grid;grid-auto-flow:column}
+  .pctl .btn .kbd{display:none}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

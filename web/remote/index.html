@@ -60,18 +60,18 @@
     <div class="ribbon sm" aria-label="Game">
       <i class="cap" id="r-hc"></i>
       <div class="team"><span id="r-ha">HOME</span> <span class="score" id="r-hs">0</span></div>
-      <div class="mid"><span class="per"><small id="r-pre">Q</small><span id="r-per">1</span></span><span class="clk" data-clock>00:00</span></div>
+      <div class="mid"><span class="per"><small id="r-pre">Q</small><span id="r-per">1</span></span><span class="clk" id="r-clk" data-clock>00:00</span></div>
       <div class="team"><span class="score" id="r-as">0</span> <span id="r-aa">AWAY</span></div>
       <i class="cap" id="r-ac"></i>
     </div>
     <button class="clkbtn" id="clk" type="button" data-ctl><svg class="i xl"><use id="clk-i" href="#i-play"/></svg>
       <span class="tx"><span id="clk-t">Start clock</span><small id="clk-s">Stopped</small></span>
       <span class="disp"><span class="led" data-clock>00:00</span></span></button>
+    <div class="setsline" id="setsline" role="status" hidden></div>
     <div class="scores">
-      <div class="score-block" data-team="home"><div class="nm"><i></i><span class="tn">Home</span></div><div class="led sc" aria-live="off">0</div>
-        <div class="plus"><button class="btn" data-ctl data-pts="1">+1</button><button class="btn" data-ctl data-pts="2">+2</button><button class="btn" data-ctl data-pts="3">+3</button></div></div>
-      <div class="score-block" data-team="away"><div class="nm"><i></i><span class="tn">Away</span></div><div class="led sc" aria-live="off">0</div>
-        <div class="plus"><button class="btn" data-ctl data-pts="1">+1</button><button class="btn" data-ctl data-pts="2">+2</button><button class="btn" data-ctl data-pts="3">+3</button></div></div>
+      <!-- the score buttons (.plus) are drawn by remote.js from the sport profile: state.sport.scoring -->
+      <div class="score-block" data-team="home"><div class="nm"><i></i><span class="tn">Home</span></div><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
+      <div class="score-block" data-team="away"><div class="nm"><i></i><span class="tn">Away</span></div><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
     </div>
     <div class="under">
       <div class="toast" id="note" role="status" aria-live="polite" hidden><svg class="i"><use id="note-i" href="#i-info"/></svg>
@@ -88,18 +88,15 @@
       <button role="tab" id="t-log" aria-controls="p-log" aria-selected="false" data-tab="log" tabindex="-1">Undo log</button>
     </div>
     <div class="body" id="p-foul" role="tabpanel" aria-labelledby="t-foul">
-      <h3 class="pt">Fouls &amp; timeouts</h3>
-      <div class="tm2" data-team="home"><div class="h"><i></i><span class="tn">Home</span><span class="chip warn bn" hidden>Bonus</span></div>
-        <div class="stp"><button class="btn" data-ctl data-foul="-1" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led fv">0</span><button class="btn" data-ctl data-foul="1" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
-        <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
-      <div class="tm2" data-team="away"><div class="h"><i></i><span class="tn">Away</span><span class="chip warn bn" hidden>Bonus</span></div>
-        <div class="stp"><button class="btn" data-ctl data-foul="-1" aria-label="Remove foul"><svg class="i"><use href="#i-minus"/></svg></button><span class="led fv">0</span><button class="btn" data-ctl data-foul="1" aria-label="Add foul"><svg class="i"><use href="#i-plus"/></svg></button></div>
-        <div class="to"><span class="pips" role="img"></span><button class="btn" data-ctl data-to>Timeout</button></div></div>
+      <h3 class="pt" id="p-foul-h">Fouls &amp; timeouts</h3>
+      <!-- the counters (.cs) are drawn by remote.js from state.sport.counters -->
+      <div class="tm2" data-team="home"><div class="h"><i></i><span class="tn">Home</span></div><div class="cs"></div></div>
+      <div class="tm2" data-team="away"><div class="h"><i></i><span class="tn">Away</span></div><div class="cs"></div></div>
     </div>
     <div class="body" id="p-per" role="tabpanel" aria-labelledby="t-per" hidden>
       <h3 class="pt">Period &amp; clock</h3>
       <div class="field"><span class="fl">Period</span><div class="pbtns" id="pbtns"></div><span class="hint" id="p-hint">Changing the period resets the clock and team fouls.</span></div>
-      <div class="field"><span class="fl">Fix the clock</span>
+      <div class="field" id="nudge-f"><span class="fl">Fix the clock</span>
         <div class="nudge"><button class="btn" data-ctl data-nudge="-10000">&minus;10 s</button><button class="btn" data-ctl data-nudge="-1000">&minus;1 s</button><button class="btn" data-ctl data-nudge="1000">+1 s</button><button class="btn" data-ctl data-nudge="10000">+10 s</button></div></div>
     </div>
     <div class="body" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>

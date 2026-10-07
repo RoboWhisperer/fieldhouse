@@ -8,7 +8,7 @@
 
 **How many cameras?** One to four.
 
-**Which sports?** Basketball only for now. Others are planned.
+**Which sports?** Basketball, soccer, American football, volleyball and ice hockey are built in, and you can change them or define your own. See [Sport profiles](sport-profiles.md). The rest of this guide describes basketball.
 
 **Which computers?** Tested on Linux. Windows and macOS are the targets, but their builds and installers have never been run.
 

@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Example score bug (JSON data)</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: "DejaVu Sans", "Liberation Sans", Roboto, Arial, sans-serif; }
+  #bug { position: absolute; left: 60px; top: 50px; display: flex; align-items: stretch; background: #0B1018; color: #fff; font-size: 40px; font-weight: bold;
+         opacity: 0; transition: opacity .4s; }
+  #bug.in { opacity: 1; }
+  #bug div { padding: 12px 22px; }
+  .score { background: #fff; color: #0B1018; min-width: 60px; text-align: center; }
+  #clock { background: #1A2433; color: #FFB224; }
+</style></head>
+<body>
+<div id="bug"><div id="home">HOME</div><div id="homeScore" class="score">0</div><div id="awayScore" class="score">0</div><div id="away">AWAY</div><div id="clock">00:00</div></div>
+<script>
+// Receives JSON text:  {"home":"LIONS","away":"TIGERS","homeScore":12,"awayScore":9,"clock":"04:31"}
+function update(str) {
+  var d = typeof str === "string" ? JSON.parse(str) : str;
+  for (var k in d) { var el = document.getElementById(k); if (el) el.textContent = d[k]; }
+}
+function play() { document.getElementById("bug").className = "in"; }
+function stop() { document.getElementById("bug").className = ""; }
+</script></body></html>

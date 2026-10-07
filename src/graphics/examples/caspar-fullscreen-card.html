@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Example full-screen card (two steps)</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: transparent; font-family: "DejaVu Sans", "Liberation Sans", Roboto, Arial, sans-serif; }
+  #card { position: absolute; inset: 0; background: #0B1018; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+          opacity: 0; transition: opacity .6s; }
+  #card.in { opacity: 1; }
+  #headline { font-size: 96px; font-weight: bold; }
+  #body { font-size: 48px; color: #9FB0C5; margin-top: 24px; opacity: 0; transition: opacity .6s; }
+  #body.in { opacity: 1; }
+</style></head>
+<body>
+<div id="card"><div id="headline">Halftime</div><div id="body">Second line</div></div>
+<script>
+// next() reveals the second line: a multi-step template. update() accepts XML or JSON.
+function update(str) {
+  var m = {};
+  if (/^\s*</.test(str)) {
+    var comps = new DOMParser().parseFromString(str, "text/xml").getElementsByTagName("componentData");
+    for (var i = 0; i < comps.length; i++) m[comps[i].getAttribute("id")] = comps[i].getElementsByTagName("data")[0].getAttribute("value");
+  } else m = JSON.parse(str);
+  for (var k in m) { var el = document.getElementById(k); if (el) el.textContent = m[k]; }
+}
+function play() { document.getElementById("card").className = "in"; document.getElementById("body").className = ""; }
+function next() { document.getElementById("body").className = "in"; }
+function stop() { document.getElementById("card").className = ""; }
+</script></body></html>

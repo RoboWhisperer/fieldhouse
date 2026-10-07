@@ -1,101 +1,266 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Fieldhouse graphics</title>
 <style>
-:root{--ink:#0B1018;--panel:#1A2433;--led:#FFB224;--ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+:root{--ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 html,body{margin:0;background:transparent;overflow:hidden;font-family:var(--ui)}
-/* Transparent 1920x1080 page for an OBS browser source. One page draws every on-air graphic:
-   score bug, lower third, slate, sponsor corner. All driven by the same state the app uses. */
-.bug,.lower,.slate,.spons{position:absolute;opacity:0;transition:opacity .3s}
-.on{opacity:1}
-.bug{left:64px;bottom:64px;display:flex;height:56px;border-radius:6px;overflow:hidden;font:800 24px/1 var(--ui);box-shadow:0 6px 18px rgba(0,0,0,.5)}
-.tm{display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--ink);color:#fff;letter-spacing:.04em}
-.tm i{width:6px;align-self:stretch}
-.sc{display:grid;place-items:center;min-width:64px;padding:0 12px;background:#fff;color:var(--ink);font-size:30px;font-variant-numeric:tabular-nums}
-.sc+.sc{background:#E6ECF4}
-.cl{display:flex;align-items:center;gap:10px;padding:8px 18px;background:var(--panel);color:var(--led)}
-.cl small{font:700 15px var(--ui);color:#9FB0C5}
-.seg{display:flex;align-items:center;gap:3px;height:28px}
-.seg svg{height:28px;width:auto;display:block}
+/* Transparent 1920x1080 page for an OBS browser source. One page draws every enabled graphic from the state the app pushes over /ws
+   (state.graphics.items). Built-in graphics are drawn here from their designer style; custom and CasparCG graphics run in sandboxed
+   iframes served from /gfx/<id>/. Nothing here depends on fonts, web fonts or timers for correctness (the clock is interpolated
+   every 100 ms, everything else is driven by messages and CSS transitions). */
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px}
+.pos{position:absolute;font:var(--fw) var(--fs)/1 var(--font);color:var(--tx)}
+.anim{visibility:hidden;opacity:0}
+.pos iframe{display:block;border:0;background:transparent}
+/* ---- score bug */
+.bug{display:flex;height:2.3333em;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.tm{display:flex;align-items:center;gap:.5em;padding:0 .6667em;background:var(--bg);color:var(--tx);letter-spacing:.04em}
+.tm i{width:.25em;align-self:stretch}
+.sc{display:grid;place-items:center;min-width:2.1333em;padding:0 .4em;background:var(--score);color:var(--scoretx);font-size:var(--ss);font-variant-numeric:tabular-nums}
+.sc.alt{filter:brightness(.92)}
 .sc.flash{animation:fl .2s}
-@keyframes fl{from{background:var(--led)}}
-.lower{left:64px;bottom:140px;min-width:420px;background:var(--ink);color:#fff;border-radius:6px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.5)}
-.lower b{display:block;padding:12px 20px 4px;font-size:30px}
-.lower span{display:block;padding:0 20px 12px;font-size:20px;color:#9FB0C5}
-.lower i{display:block;height:6px;background:var(--hc,#F5A524)}
-.slate{inset:0;display:grid;place-items:center;background:var(--ink);color:#fff;text-align:center}
-.slate div{font:700 64px/1.2 var(--ui);max-width:1200px}
-.spons{right:64px;top:64px;display:flex;align-items:center;gap:14px;padding:12px 20px;background:var(--ink);color:#fff;border-radius:6px;font:700 22px var(--ui);box-shadow:0 6px 18px rgba(0,0,0,.5)}
-.spons i{width:36px;height:36px;border-radius:8px;background:var(--sc,#1f7a8c)}
-.spons small{display:block;font:600 14px var(--ui);color:#9FB0C5}
-@media (prefers-reduced-motion:reduce){.sc.flash{animation:none}.bug,.lower,.slate,.spons{transition:none}}
+@keyframes fl{from{background:var(--clk)}}
+.cl{display:flex;align-items:center;gap:.4167em;padding:.3333em .75em;background:var(--panel);color:var(--clk)}
+.cl small{font:700 .625em var(--font);color:var(--mu)}
+.seg{display:flex;align-items:center;gap:3px;height:1.1667em}
+.seg svg{height:100%;width:auto;display:block}
+.seg .on{fill:var(--clk)}.seg .off{fill:var(--clkoff)}
+.stat{display:flex;align-items:center;gap:.4167em;padding:0 .6667em;background:var(--panel);color:var(--tx);font-size:.7em;font-weight:700;letter-spacing:.04em}
+.stat b{font-variant-numeric:tabular-nums}
+.stat em{font-style:normal;color:var(--mu)}
+.stat u{text-decoration:none;color:var(--accentc)}
+/* ---- lower third, slate, sponsor */
+.lower{min-width:17.5em;background:var(--bg);color:var(--tx);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.lower b{display:block;padding:.5em .8333em .1667em;font-size:1.25em}
+.lower span{display:block;padding:0 .8333em .5em;font-size:.8333em;font-weight:400;color:var(--mu)}
+.lower i{display:block;height:.25em;background:var(--accentc)}
+.slate{width:1920px;height:1080px;display:grid;place-items:center;background:var(--bg);color:var(--tx);text-align:center}
+.slate div{font-size:2.6667em;font-weight:700;line-height:1.2;max-width:1200px}
+.spons{display:flex;align-items:center;gap:.5833em;padding:.5em .8333em;background:var(--bg);color:var(--tx);border-radius:var(--r);font-size:.9167em;font-weight:700;box-shadow:var(--sh)}
+.spons i{width:1.6364em;height:1.6364em;border-radius:.3636em;background:var(--sc)}
+.spons small{display:block;font:600 .6364em var(--font);color:var(--mu)}
+/* ---- scoreboard, final card, lineup card, ticker, clock */
+.board{width:1100px;padding:40px 56px;background:var(--bg);color:var(--tx);border-radius:calc(var(--r)*2);box-shadow:var(--sh);text-align:center}
+.board h1{margin:0 0 .6em;font-size:1.1em;font-weight:700;color:var(--mu);letter-spacing:.08em;text-transform:uppercase}
+.board .row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:32px}
+.board .tmx{display:flex;flex-direction:column;align-items:center;gap:.3em}
+.board .tmx i{display:block;width:100%;height:.3em;background:var(--tc)}
+.board .nm{font-size:1.6em}
+.board .big{font-size:calc(var(--ss)*3);font-variant-numeric:tabular-nums;line-height:1;background:var(--score);color:var(--scoretx);padding:.1em .3em;border-radius:var(--r)}
+.board .mid{display:flex;flex-direction:column;align-items:center;gap:.4em;color:var(--clk)}
+.board .mid small{font:700 1em var(--font);color:var(--mu)}
+.board .mid .seg{height:2.2em}
+.board .stats{display:grid;grid-template-columns:1fr auto 1fr;gap:32px;margin-top:1em;font-size:.9em;color:var(--mu)}
+.board .stats b{color:var(--tx);font-size:1.3em}
+.lineup{width:1200px;padding:36px 48px;background:var(--bg);color:var(--tx);border-radius:calc(var(--r)*2);box-shadow:var(--sh)}
+.lineup h1{margin:0 0 .6em;text-align:center;font-size:1.3em}
+.lineup .cols{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+.lineup h2{margin:0 0 .5em;padding-bottom:.3em;border-bottom:.2em solid var(--tc);font-size:1.1em}
+.lineup ol{list-style:none;margin:0;padding:0}
+.lineup li{display:flex;gap:.8em;padding:.35em 0;font-weight:600;font-size:.95em}
+.lineup li .n{min-width:2em;color:var(--accentc);font-variant-numeric:tabular-nums}
+.lineup li .ps{margin-left:auto;color:var(--mu)}
+.ticker{width:1920px;height:2.2em;overflow:hidden;background:var(--bg);color:var(--tx);box-shadow:var(--sh)}
+.ticker .track{display:inline-block;white-space:nowrap;line-height:2.2em;animation:tick linear infinite;animation-duration:20s;will-change:transform}
+@keyframes tick{from{transform:translateX(1920px)}to{transform:translateX(-100%)}}
+.solo{border-radius:var(--r);box-shadow:var(--sh)}
+@media (prefers-reduced-motion:reduce){.sc.flash{animation:none}}
 </style></head>
 <body>
-<div class="bug" id="bug">
-  <div class="tm"><i id="hc"></i><span id="ha">HOME</span></div>
-  <div class="sc" id="hs">0</div><div class="sc" id="as">0</div>
-  <div class="tm"><span id="aa">AWAY</span><i id="ac"></i></div>
-  <div class="cl"><small id="pd">Q1</small><span id="ck" class="seg"></span></div>
-</div>
-<div class="lower" id="lower"><b id="lt"></b><span id="ls"></span><i></i></div>
-<div class="slate" id="slate"><div id="st"></div></div>
-<div class="spons" id="spons"><i id="si"></i><div><small>Brought to you by</small><span id="sn"></span></div></div>
+<div id="stage"></div>
+<script src="/gfx/_runtime.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
-let st = null, recvAt = 0;
+const FH = window.Fieldhouse, stage = document.getElementById("stage");
+const recs = new Map();
+let st = null, recvAt = 0, lastClock = "", dirty = true;
 const mmss = (ms) => { const s = Math.ceil(ms / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const cssSafe = (s) => String(s).replace(/[^\w #.,%()\/\-]/g, "");
 
-// Seven-segment digits drawn as SVG. OBS's embedded browser has no monospace font and does not load web fonts,
-// so the clock must not depend on any font. Looks the same in every browser.
+// ---------------------------------------------------------------- clock digits: SVG seven-segment, no fonts needed (OBS's browser has no monospace font)
 const SEG = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
 const hx = (y) => `0.9,${y} 8.1,${y} 9,${y + 0.9} 8.1,${y + 1.8} 0.9,${y + 1.8} 0,${y + 0.9}`;
 const vt = (x, a, b) => `${x + 0.9},${a} ${x + 1.8},${a + 0.9} ${x + 1.8},${b - 0.9} ${x + 0.9},${b} ${x},${b - 0.9} ${x},${a + 0.9}`;
 const SHAPE = { a: hx(0), g: hx(8.1), d: hx(16.2), f: vt(0, 1, 8.9), b: vt(7.2, 1, 8.9), e: vt(0, 9.1, 17), c: vt(7.2, 9.1, 17) };
-const digit = (n) => `<svg viewBox="0 0 9 18" aria-hidden="true">${[..."abcdefg"].map((k) => `<polygon points="${SHAPE[k]}" fill="${SEG[n].includes(k) ? "#FFB224" : "#3A2A0C"}"/>`).join("")}</svg>`;
-const colon = '<svg viewBox="0 0 3 18" aria-hidden="true"><rect x="0.5" y="4.5" width="2" height="2" fill="#FFB224"/><rect x="0.5" y="11.5" width="2" height="2" fill="#FFB224"/></svg>';
-let shown = "";
-const led = (txt) => { if (txt === shown) return; shown = txt; $("ck").innerHTML = [...txt].map((c) => (c === ":" ? colon : digit(+c))).join(""); $("ck").setAttribute("aria-label", txt); };
-function render() {
-  const g = st && st.game; if (!g) return;
-  // clock is interpolated locally from the server's reading; the server stays the source of truth
-  led(mmss(g.running ? Math.max(0, g.clockMs - (performance.now() - recvAt)) : g.clockMs));
+const digit = (n) => `<svg viewBox="0 0 9 18" aria-hidden="true">${[..."abcdefg"].map((k) => `<polygon points="${SHAPE[k]}" class="${SEG[n].includes(k) ? "on" : "off"}"/>`).join("")}</svg>`;
+const colon = '<svg viewBox="0 0 3 18" aria-hidden="true"><rect x="0.5" y="4.5" width="2" height="2" class="on"/><rect x="0.5" y="11.5" width="2" height="2" class="on"/></svg>';
+const led = (el, txt) => { if (el.__led === txt) return; el.__led = txt; el.innerHTML = [...txt].map((c) => (c === ":" ? colon : /\d/.test(c) ? digit(+c) : "")).join(""); el.setAttribute("aria-label", txt); };
+
+// ---------------------------------------------------------------- built-in graphics: structure only; text and colours are bound from variables and fields
+const B = (v, a) => `<span data-fh-bind="${v}"${a || ""}></span>`;
+const PARTS = ["colorBars", "clock", "period", "fouls", "timeouts", "bonus", "accentBar", "swatch", "caption", "names", "numbers", "positions", "label"];
+const STARTERS = [...Array(12).keys()].map((i) => i + 1);
+const lineupCol = (side) => `<div style="--tc:var(--${side === "home" ? "hc" : "ac"})"><h2>${B(side + ".name")}</h2><ol>${STARTERS.map((n) => `<li data-fh-show="${side}.starters.${n}.name"><span class="n p-numbers" data-fh-bind="${side}.starters.${n}.number"></span><span data-fh-bind="${side}.starters.${n}.name"></span><span class="ps p-positions" data-fh-bind="${side}.starters.${n}.position"></span></li>`).join("")}</ol></div>`;
+const teamCol = (side) => `<div class="tmx" style="--tc:var(--${side === "home" ? "hc" : "ac"})"><i></i><span class="nm p-names" data-fh-bind="${side}.name"></span><span class="big" data-fh-bind="${side}.score" data-flash></span></div>`;
+const statRow = (cls, label, k) => `<div class="p-${cls} stats"><b data-fh-bind="home.${k}"></b><span>${label}</span><b data-fh-bind="away.${k}"></b></div>`;
+const BUILD = {
+  scorebug: () => `<div class="bug"><div class="tm"><i class="p-colorBars" style="background:var(--hc)"></i>${B("home.abbr")}</div><div class="sc" data-fh-bind="home.score" data-flash></div><div class="sc alt" data-fh-bind="away.score" data-flash></div><div class="tm">${B("away.abbr")}<i class="p-colorBars" style="background:var(--ac)"></i></div>` +
+    `<div class="cl"><small class="p-period" data-fh-bind="periodLabel"></small><span class="seg p-clock clk"></span></div><div class="stat p-fouls"><em>FOULS</em> <b data-fh-bind="home.fouls"></b>-<b data-fh-bind="away.fouls"></b></div><div class="stat p-timeouts"><em>TO</em> <b data-fh-bind="home.timeouts"></b>-<b data-fh-bind="away.timeouts"></b></div>` +
+    `<div class="stat p-bonus"><em>BONUS</em> <u data-fh-show="home.bonus">HOME</u> <u data-fh-show="away.bonus">AWAY</u></div></div>`,
+  lowerthird: () => `<div class="lower"><b data-fh-bind="@title"></b><span data-fh-bind="@sub"></span><i class="p-accentBar"></i></div>`,
+  slate: () => `<div class="slate"><div data-fh-bind="@text"></div></div>`,
+  sponsor: () => `<div class="spons"><i class="p-swatch"></i><div><small class="p-caption">Brought to you by</small><span data-fh-bind="@name"></span></div></div>`,
+  scoreboard: () => `<div class="board"><h1 data-fh-bind="@title"></h1><div class="row">${teamCol("home")}<div class="mid"><small class="p-period" data-fh-bind="periodLabel"></small><span class="seg p-clock clk"></span></div>${teamCol("away")}</div>${statRow("fouls", "FOULS", "fouls")}${statRow("timeouts", "TIMEOUTS", "timeouts")}</div>`,
+  final: () => `<div class="board"><h1 class="p-label" data-fh-bind="@label"></h1><div class="row">${teamCol("home")}<div class="mid"><small class="p-period" data-fh-bind="periodLabel"></small></div>${teamCol("away")}</div></div>`,
+  lineup: () => `<div class="lineup"><h1 data-fh-bind="@title"></h1><div class="cols">${lineupCol("home")}${lineupCol("away")}</div></div>`,
+  clock: () => `<div class="cl solo"><small class="p-period" data-fh-bind="periodLabel"></small><span class="seg clk"></span></div>`,
+  ticker: () => `<div class="ticker"><div class="track"><span data-fh-bind="@text"></span></div></div>`,
+};
+
+// ---------------------------------------------------------------- placement and animation
+const HIDDEN = { fade: { o: 0, t: "none", c: "none" }, "slide-left": { o: 0, t: "translateX(-110%)", c: "none" }, "slide-right": { o: 0, t: "translateX(110%)", c: "none" }, "slide-up": { o: 0, t: "translateY(-110%)", c: "none" }, "slide-down": { o: 0, t: "translateY(110%)", c: "none" },
+  wipe: { o: 1, t: "none", c: "inset(0 100% 0 0)" }, scale: { o: 0, t: "scale(.6)", c: "none" }, none: { o: 0, t: "none", c: "none" } };
+function place(rec, p, w, h) {
+  const s = rec.pos.style, [v, hz] = p.anchor === "center" ? ["center", "center"] : p.anchor.includes("-") ? p.anchor.split("-") : ["left", "right"].includes(p.anchor) ? ["center", p.anchor] : [p.anchor, "center"];
+  s.left = s.right = s.top = s.bottom = "auto";
+  let tx = "", ty = "";
+  if (hz === "left") s.left = p.x + "px"; else if (hz === "right") s.right = p.x + "px"; else { s.left = `calc(50% + ${p.x}px)`; tx = "translateX(-50%) "; }
+  if (v === "top") s.top = p.y + "px"; else if (v === "bottom") s.bottom = p.y + "px"; else { s.top = `calc(50% + ${p.y}px)`; ty = "translateY(-50%) "; }
+  s.transform = `${tx}${ty}scale(${p.scale})`; s.transformOrigin = `${hz === "center" ? "50%" : hz} ${v === "center" ? "50%" : v}`;
+  s.opacity = p.opacity; s.zIndex = p.z;
+  if (w) { s.width = w + "px"; s.height = h + "px"; }
 }
-function show(s) {
-  const g = s.game, gr = s.graphics, d = s.gameDoc;
-  if (g) {
-    const flash = (id, v) => { if ($(id).textContent !== String(v)) { $(id).textContent = v; $(id).classList.remove("flash"); void $(id).offsetWidth; $(id).classList.add("flash"); } };
-    flash("hs", g.home.score); flash("as", g.away.score);
-    $("ha").textContent = g.home.abbr; $("aa").textContent = g.away.abbr;
-    $("pd").textContent = g.period > 4 ? "OT" + (g.period - 4 > 1 ? g.period - 4 : "") : "Q" + g.period;
-    if (d) { $("hc").style.background = d.home.color; $("ac").style.background = d.away.color; }
+function go(rec, dir, spec) {
+  const a = rec.anim.style, none = !spec || spec.preset === "none" || rec.kind === "caspar" || rec.kind === "url";
+  const hid = HIDDEN[none ? "none" : spec.preset] || HIDDEN.fade, dur = none ? 0 : spec.durationMs, dl = none ? 0 : spec.delayMs, e = spec ? spec.easing : "ease";
+  const tr = (p) => `${p} ${dur}ms ${e} ${dl}ms`, props = [tr("opacity"), tr("transform"), tr("clip-path")];
+  const set = (x) => { a.opacity = x.o; a.transform = x.t; a.clipPath = x.c; };
+  if (dir === "in") { a.transition = "none"; a.visibility = "hidden"; set(hid); void rec.anim.offsetWidth; a.visibility = "visible"; a.transition = props.join(","); set({ o: 1, t: "none", c: "none" }); }
+  else { a.transition = [...props, `visibility 0s linear ${dl + dur}ms`].join(","); a.visibility = "hidden"; set(hid); }
+}
+
+// ---------------------------------------------------------------- iframes (custom HTML, CasparCG templates, and the demo fallback for web pages)
+window.addEventListener("message", (ev) => {
+  const m = ev.data; if (!m || m.fh !== 1) return;
+  for (const r of recs.values()) if (r.frame && r.frame.contentWindow === ev.source) { if (m.op === "ready") { r.ready = true; flush(r); } else if (m.op === "error") r.err = m.message; }
+});
+const post = (r, msg) => { try { r.frame.contentWindow.postMessage({ fh: 1, mode: r.kind === "caspar" ? "caspar" : "html", ...msg }, "*"); } catch {} };
+function flush(r) {
+  if (!r.ready) return;
+  if (r.needState) { r.needState = false; post(r, { op: "state", vars: r.vars, fields: r.item.fields, data: r.item.data }); }
+  if (r.replay) { r.replay = false; if (!r.todo.includes("play")) r.todo.push("play"); }
+  if (r.todo.length) for (const op of r.todo.splice(0)) post(r, { op });
+}
+function mkFrame(rec, item) {
+  const f = document.createElement("iframe"), src = item.source;
+  f.setAttribute("sandbox", "allow-scripts"); f.setAttribute("scrolling", "no"); f.src = src.src; f.style.width = src.width + "px"; f.style.height = src.height + "px";
+  rec.frame = f; rec.content.append(f); rec.ready = false;
+}
+
+// ---------------------------------------------------------------- one record per graphic
+function mk(item) {
+  const pos = document.createElement("div"), anim = document.createElement("div"), content = document.createElement("div");
+  pos.className = "pos"; anim.className = "anim"; content.className = "content"; pos.append(anim); anim.append(content); stage.append(pos);
+  const rec = { id: item.id, kind: item.kind, pos, anim, content, shown: false, phase: "off", seq: 0, nextSeq: 0, todo: [], item, vars: {}, needState: true };
+  if (item.kind === "builtin") { content.innerHTML = BUILD[item.builtin] ? BUILD[item.builtin]() : ""; }
+  else if (item.kind === "html" || item.kind === "caspar") mkFrame(rec, item);
+  recs.set(item.id, rec);
+  return rec;
+}
+function styleOf(rec, item, v) {
+  const s = item.style, c = s.colors, p = rec.pos.style, set = (k, val) => p.setProperty(k, val);
+  const team = (x) => (x === "home" ? "var(--hc)" : x === "away" ? "var(--ac)" : cssSafe(x));
+  set("--bg", cssSafe(c.bg)); set("--panel", cssSafe(c.panel)); set("--tx", cssSafe(c.text)); set("--mu", cssSafe(c.muted)); set("--accentc", team(c.accent)); set("--score", cssSafe(c.score)); set("--scoretx", cssSafe(c.scoreText));
+  set("--clk", cssSafe(c.clock)); set("--clkoff", cssSafe(c.clockOff)); set("--r", s.radius + "px"); set("--sh", s.shadow ? "0 6px 18px rgba(0,0,0,.5)" : "none");
+  set("--fs", s.fontSize + "px"); set("--ss", s.scoreSize + "px"); set("--fw", s.fontWeight);
+  set("--font", (s.fontFamily ? `"${cssSafe(s.fontFamily)}",` : "") + "system-ui,-apple-system,'Segoe UI',Roboto,sans-serif");
+  set("--hc", cssSafe(v["home.color"] || "#F5A524")); set("--ac", cssSafe(v["away.color"] || "#1F7A8C")); set("--sc", cssSafe(item.fields.color || v["sponsor.color"] || "#1F7A8C"));
+  rec.content.setAttribute("data-off", PARTS.filter((k) => s.parts[k] === false).join(" "));
+}
+function paint(rec, item, v) {
+  rec.item = item; rec.vars = v;
+  if (item.kind === "builtin") {
+    styleOf(rec, item, v);
+    FH.set(v, item.fields); FH.apply(rec.content);
+    rec.content.querySelectorAll(".clk").forEach((el) => led(el, String(v.clock)));
+    rec.content.querySelectorAll("[data-flash]").forEach((el) => { const t = el.textContent; if (el.__t !== undefined && el.__t !== t) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); } el.__t = t; });
+    if (item.builtin === "ticker") { const tr = rec.content.querySelector(".track"), key = item.fields.text + "|" + item.style.speed; if (tr && tr.__k !== key) { tr.__k = key; tr.style.animation = "none"; void tr.offsetWidth; tr.style.animation = ""; tr.style.animationDuration = ((tr.offsetWidth + 1920) / item.style.speed).toFixed(2) + "s"; } }
+  } else if (rec.frame) {
+    if (rec.src !== item.source.src) { if (rec.src) { rec.ready = false; rec.needState = true; rec.replay = item.phase === "on"; rec.frame.src = item.source.src; } rec.src = item.source.src; } // files changed: reload the frame
+    const k = JSON.stringify([item.fields, item.data, v]); if (k !== rec.k) { rec.k = k; rec.needState = true; } flush(rec); }
+}
+
+const stateOf = () => (st && st.graphics) || { items: [], vars: {} };
+function liveVars() {
+  const g = stateOf(), v = g.vars;
+  if (!(st && st.game && st.game.running)) return v;
+  const ms = Math.max(0, v.clockMs - (performance.now() - recvAt));
+  return Object.assign({}, v, { clockMs: ms, clock: mmss(ms) });
+}
+function render() {
+  const g = stateOf(), v = liveVars(), keep = new Set();
+  for (const item of g.items) {
+    if (item.external && g.engineLayers) continue; // OBS draws this one as its own layer
+    keep.add(item.id);
+    let rec = recs.get(item.id);
+    if (rec && rec.kind !== item.kind) { rec.pos.remove(); recs.delete(item.id); rec = null; }
+    if (rec && item.external && !rec.ext) { rec.pos.remove(); recs.delete(item.id); rec = null; }
+    if (!rec && item.external) { // demo fallback: no OBS layers, so show the page in a frame
+      const pos = document.createElement("div"), anim = document.createElement("div"); pos.className = "pos"; anim.className = "anim"; pos.append(anim); stage.append(pos);
+      const f = document.createElement("iframe"); f.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups"); f.src = item.external.url; f.style.width = item.external.width + "px"; f.style.height = item.external.height + "px"; anim.append(f);
+      rec = { id: item.id, kind: "url", ext: true, pos, anim, content: anim, shown: false, phase: "off", todo: [], item, vars: {} }; recs.set(item.id, rec);
+    }
+    if (!rec) rec = mk(item);
+    const w = rec.ext ? item.external.width : item.source && item.source.width, h = rec.ext ? item.external.height : item.source && item.source.height;
+    place(rec, item.placement, w, h);
+    paint(rec, item, v);
+    const shown = item.phase !== "off";
+    if (shown && !rec.shown) { go(rec, "in", item.animation.in); rec.shown = true; }
+    else if (!shown && rec.shown) { go(rec, "out", item.animation.out); rec.shown = false; }
+    else if (shown && rec.phase === "off") { /* already handled */ }
+    if (rec.frame) {
+      if (item.phase === "on" && (rec.phase !== "on" || item.seq !== rec.seq)) rec.todo.push("play");
+      if (item.phase !== "on" && rec.phase === "on") rec.todo.push("stop");
+      if (item.nextSeq !== rec.nextSeq) { if (item.phase === "on") rec.todo.push("next"); }
+      flush(rec);
+    }
+    rec.phase = item.phase; rec.seq = item.seq; rec.nextSeq = item.nextSeq;
   }
-  $("bug").classList.toggle("on", !!g && gr.scorebug);
-  $("lower").classList.toggle("on", !!gr.lower);
-  if (gr.lower) { $("lt").textContent = gr.lower.title; $("ls").textContent = gr.lower.sub; $("lower").style.setProperty("--hc", d ? d.home.color : "#F5A524"); }
-  $("slate").classList.toggle("on", !!gr.slate);
-  if (gr.slate) $("st").textContent = gr.slate;
-  $("spons").classList.toggle("on", !!gr.sponsor);
-  if (gr.sponsor) { $("sn").textContent = gr.sponsor.name; $("si").style.setProperty("--sc", gr.sponsor.color); }
-  st = s; recvAt = performance.now();
-  try { render(); } catch (e) { fail = e.message; } // never let a clock error stop the rest of the graphics
+  for (const [id, rec] of recs) if (!keep.has(id)) { rec.pos.remove(); recs.delete(id); }
+  lastClock = v.clock; dirty = false;
   if (DEBUG) debug();
 }
+function show(s) { st = s; recvAt = performance.now(); try { render(); } catch (e) { fail = e.message + " " + (e.stack || "").split("\n")[1]; } }
 (function connect() {
   const ws = new WebSocket("ws://" + location.host + "/ws");
   ws.onmessage = (m) => show(JSON.parse(m.data));
   ws.onclose = () => setTimeout(connect, 1000); // survives a server restart; graphics hold the last state meanwhile
 })();
-setInterval(render, 100);
-const DEBUG = location.search.includes("debug"); // ?debug prints what this browser really did (OBS's embedded Chromium differs from a normal one)
+setInterval(() => { if (st && st.game && st.game.running && liveVars().clock !== lastClock) { try { render(); } catch (e) { fail = e.message; } } }, 100);
+
+// ---------------------------------------------------------------- font probe: which families really render here (OBS's browser has few fonts and no web fonts)
+const CANDIDATES = ["Arial", "Arial Black", "Helvetica", "Helvetica Neue", "Verdana", "Tahoma", "Trebuchet MS", "Georgia", "Times New Roman", "Courier New", "Impact", "Comic Sans MS", "Palatino Linotype", "Segoe UI", "Calibri", "Cambria", "Consolas", "Lucida Console",
+  "Menlo", "Monaco", "SF Pro Display", "San Francisco", "Avenir", "Futura", "Gill Sans", "Optima", "DejaVu Sans", "DejaVu Sans Condensed", "DejaVu Sans Mono", "DejaVu Serif", "Liberation Sans", "Liberation Sans Narrow", "Liberation Serif", "Liberation Mono", "FreeSans", "FreeSerif", "FreeMono",
+  "Noto Sans", "Noto Sans Display", "Noto Serif", "Noto Mono", "Noto Sans Mono", "Roboto", "Roboto Condensed", "Roboto Mono", "Open Sans", "Lato", "Montserrat", "Oswald", "Bebas Neue", "Anton", "Raleway", "Source Sans Pro", "Source Sans 3", "Source Code Pro", "Ubuntu", "Ubuntu Sans", "Ubuntu Mono", "Cantarell",
+  "Inter", "IBM Plex Sans", "IBM Plex Sans Condensed", "IBM Plex Mono", "Space Grotesk", "Fira Sans", "Fira Code", "Droid Sans", "Cousine", "Arimo", "Tinos", "Carlito", "Caladea", "Nimbus Sans", "Nimbus Roman", "URW Bookman", "C059", "P052", "Z003", "Bitstream Vera Sans", "Cursive", "Fantasy"];
+function probe() {
+  const bases = ["monospace", "sans-serif", "serif"], s = document.createElement("span");
+  s.style.cssText = "position:absolute;left:-9999px;top:0;font-size:72px;visibility:hidden;white-space:nowrap"; s.textContent = "mmmmmmmmmmlliWWWW@#0123"; document.body.append(s);
+  const w = (f) => { s.style.fontFamily = f; return s.offsetWidth; }, base = bases.map(w);
+  const hits = CANDIDATES.filter((f) => bases.some((b, i) => w(`"${f}",${b}`) !== base[i]));
+  const generics = Object.fromEntries(["sans-serif", "serif", "monospace", "system-ui", "cursive", "fantasy"].map((g) => [g, w(g) > 0]));
+  s.remove(); return { hits, generics };
+}
+let fontInfo = "";
+function reportFonts() {
+  try {
+    const { hits: families, generics } = probe(); fontInfo = families.join(", ") + " | generics " + JSON.stringify(generics);
+    fetch("/api/graphics/fonts/report", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ families, generics, obs: !!window.obsstudio, userAgent: navigator.userAgent }) }).catch(() => {});
+  } catch (e) { fontInfo = "ERR " + e.message; }
+}
+window.addEventListener("load", () => setTimeout(reportFonts, 1500));
+
+// ---------------------------------------------------------------- ?debug prints what this browser really did (OBS's embedded Chromium differs from a normal one)
+const DEBUG = location.search.includes("debug");
 let fail = "", dbg;
 function debug() {
-  if (!dbg) { dbg = document.createElement("pre"); dbg.style.cssText = "position:absolute;top:8px;left:8px;margin:0;padding:8px;background:#000;color:#0f0;font:16px sans-serif;white-space:pre-wrap;max-width:1000px"; document.body.append(dbg); }
+  if (!dbg) { dbg = document.createElement("pre"); dbg.style.cssText = "position:absolute;top:8px;left:8px;margin:0;padding:8px;background:#000;color:#0f0;font:16px sans-serif;white-space:pre-wrap;max-width:1000px;z-index:99999"; document.body.append(dbg); }
   const t = (f) => { try { return f(); } catch (e) { return "ERR " + e.message; } };
-  const txt = "ua: " + t(() => navigator.userAgent) + "\nvisibility: " + t(() => document.visibilityState) +
-    "\nfonts: " + t(() => document.fonts.status + " " + [...document.fonts].map((f) => f.family + ":" + f.status).join(",")) +
-    "\nck: " + t(() => { const e = document.getElementById("ck"); return `"${e.getAttribute("aria-label")}" digits=${e.querySelectorAll("svg").length} w=${e.offsetWidth}`; }) +
-    "\ngame: " + t(() => JSON.stringify(st && st.game && { c: st.game.clockMs, r: st.game.running })) + "\nrender error: " + fail;
+  const txt = "ua: " + t(() => navigator.userAgent) + "\nobs: " + !!window.obsstudio + "\nvisibility: " + t(() => document.visibilityState) +
+    "\nitems: " + t(() => stateOf().items.map((i) => i.id + ":" + i.phase).join(" ")) + "\nframes: " + t(() => [...recs.values()].filter((r) => r.frame).map((r) => r.id + " ready=" + r.ready + " err=" + (r.err || "-") + " shown=" + r.shown + " phase=" + r.phase).join(" | ")) + "\nclock: " + lastClock + "\nfonts: " + fontInfo + "\nrender error: " + fail;
   dbg.textContent = txt;
   fetch("/api/overlay-debug", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: txt }) }).catch(() => {});
 }
+// one CSS rule per part name: [data-off~=part] .p-part { display:none }
+document.head.append(Object.assign(document.createElement("style"), { textContent: PARTS.map((k) => `[data-off~="${k}"] .p-${k}{display:none!important}`).join("\n") }));
 </script>
 </body></html>

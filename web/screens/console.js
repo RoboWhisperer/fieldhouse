@@ -1,14 +1,19 @@
 // Live Production Console (/live, night shell step 3). Spec: design/screens/07-live-console.html + 13a-d recovery frames.
 // DOM is built once in render(); onState() only patches text/classes/attributes (inputs, drags, hold-to-end survive pushes).
-import { esc, html, raw, icon, api, S, toast, fail, go, keys, fmtBytes, fmtDate, fmtElapsed, period, clockMs } from "../app.js";
+import { esc, html, raw, icon, api, S, toast, fail, go, keys, fmtBytes, fmtDate, fmtElapsed, clockMs } from "../app.js";
+import "../sport.js"; // sport-profile helpers: globalThis.FHSport (scoring buttons, counters, period labels all come from state.sport)
+
+const SP = globalThis.FHSport;
+// Layout presets and macro buttons come from customize.js (written separately). The console works without it.
+let CUS = null;
+try { CUS = await import("../customize.js"); } catch (e) { console.warn("customize.js not available; using the built-in layout", e); }
 
 const I = (n, c = "") => icon(n, c).s;
 const TRIG = { timeout: "At next timeout", period_end: "At end of period", halftime: "At halftime", pregame: "Before tip-off", postgame: "After the game" };
-const PTS = { 1: "free throw", 2: "basket", 3: "3-pointer" };
 const MIX_ICON = { commentary: "mic", crowd: "vol", program: "sliders" };
 const GAIN_MIN = -40, GAIN_MAX = 6;
 const BYTES_PER_MIN = (6e6 / 8) * 60; // 6 Mbps recording estimate
-const ACTIONS = [["cut", "Cut"], ["fade", "Fade"], ["preview1", "Preview source 1"], ["preview2", "Preview source 2"], ["preview3", "Preview source 3"], ["preview4", "Preview source 4"], ["clock", "Start / stop clock"], ["replay", "Replay last 10 s"], ["replayScore", "Replay last score"], ["mark", "Mark moment"], ["fireSponsor", "Fire sponsor"], ["homePlus1", "Home +1"], ["homePlus2", "Home +2"], ["homePlus3", "Home +3"], ["awayPlus1", "Away +1"], ["awayPlus2", "Away +2"], ["awayPlus3", "Away +3"], ["undo", "Undo"]];
+const ACTIONS = [["cut", "Cut"], ["fade", "Fade"], ["preview1", "Preview source 1"], ["preview2", "Preview source 2"], ["preview3", "Preview source 3"], ["preview4", "Preview source 4"], ["clock", "Start / stop clock"], ["replay", "Replay last 10 s"], ["replayScore", "Replay last score"], ["mark", "Mark moment"], ["fireSponsor", "Fire sponsor"], ["undo", "Undo"]];
 
 // ---- pure helpers (checked with bun in the verify step)
 export const normKey = (k) => { const p = String(k).split("+"), key = p.pop(); return [p.includes("Ctrl") ? "Ctrl" : "", p.includes("Shift") ? "Shift" : "", key.length === 1 ? key.toUpperCase() : key].filter(Boolean).join("+"); };
@@ -24,7 +29,7 @@ export const startingFive = (roster) => {
   return names.length <= 80 ? names : st.map((p) => "#" + p.number).join(" · ");
 };
 
-const css = `
+const css = SP.CSS + `
 .cons{display:flex;flex-direction:column;height:100%;min-height:0}
 .bns{display:grid;gap:8px;flex:none}.bns:not(:empty){margin-bottom:12px}.bns .banner{min-width:0}.banner .sub{color:var(--text-2);font-size:12.5px}
 .con{display:grid;grid-template-columns:minmax(0,1fr) 462px;gap:16px;flex:1;min-height:0}
@@ -49,15 +54,23 @@ const css = `
 .ch .vol .fd{width:4px;border-radius:2px;background:var(--line-strong);position:relative;margin:4px 10px}
 .ch .vol .fd::after{content:"";position:absolute;left:50%;top:var(--v,30%);width:22px;height:10px;border-radius:3px;background:#dfe7f2;transform:translate(-50%,-50%)}
 .ch .db{font:600 11px var(--mono);color:var(--text-3)}
-.right{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;min-height:0}.right>*{min-width:0}
+.right{display:grid;grid-template-rows:max-content minmax(96px,1fr) max-content;gap:12px;min-height:0;overflow:auto}.right>*{min-width:0}.right>[data-panel="game"],.right>[data-panel="sponsor"],.right>[data-panel="macros"]{min-height:max-content}
 .gs{display:grid;gap:10px;padding:12px;min-width:0}
 .gs2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 .clockbox .led{font-size:52px}.score-block .led{font-size:52px}
 .score-block .nm .tn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.pipbtn{background:none;border:0;padding:3px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:6px}.pipbtn:hover{background:var(--raised)}
-.pips.bonus i.on{background:var(--caution)}.score-block{position:relative}.bn2{position:absolute;left:12px;top:44px;font-size:11px;font-weight:800;letter-spacing:.07em;color:var(--caution)}
+.score-block{position:relative}.bn2{position:absolute;left:12px;top:44px;font-size:11px;font-weight:800;letter-spacing:.07em;color:var(--caution)}
 .bug .cl{display:flex;align-items:center}
-.gs3{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ctrs{display:grid;gap:6px}.ctcell{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 6px 12px;background:var(--inset);border:1px solid var(--line);border-radius:8px;min-height:44px}
+.ctcell .ab{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.btn.undo{height:40px;width:100%;justify-content:flex-start;background:transparent;border-style:dashed;color:var(--text-2)}.btn.undo:not(:disabled){color:var(--text);border-style:solid}.btn.undo .ul{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis}
+
+.gs3{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.gs3 .lbl{min-width:76px}
+.pbox{padding:8px 14px}.pbox .plab{font-size:24px;font-weight:700;line-height:1.1}.pbox>div{display:flex;align-items:baseline;gap:12px}.pbox .lbl{margin:0}
+.perrow{padding:10px 14px 0;overflow-x:auto}.perrow .seg{flex-wrap:wrap}
+.setsum{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:8px;background:#06090f;flex-wrap:wrap}.setsum .led{font-size:30px}.setsum .sh{flex:1;min-width:0;text-align:right;color:var(--text-2);font-size:12.5px}
+.setsum.won{border-color:var(--ready)}.setsum .wn{flex-basis:100%;color:var(--ready);font-weight:700}
+.macrop .pb{padding:12px}
 .seg span{cursor:pointer}
 .sponsor{display:grid;gap:10px;padding:12px 14px}
 .cd{height:4px;border-radius:2px;background:var(--line-strong);overflow:hidden}.cd b{display:block;height:100%;width:0;background:var(--action)}
@@ -109,13 +122,18 @@ function render(ctx) {
   const st = S.state;
   if (!st?.gameDoc) return html`<div class="empty" style="margin-top:80px"><svg class="i xl"><use href="#i-ball"/></svg><h2 class="t">No game is active</h2><div>Pick or create a game first, then come back to run the broadcast.</div><a class="btn pri" href="#/game/new">Set up a game</a></div>`;
   const sc = st.settings.shortcuts, kb = (a) => html`<span class="kbd">${keyLabel(sc[a] ?? "")}</span>`;
-  const blk = (t) => html`<div class="score-block" data-team="${t}"><div class="nm"><i></i><span class="tn"></span><span class="sp"></span><button class="pipbtn" data-foul="${t}"><span class="bn2 hidden">BONUS</span><span class="pips"></span></button></div><div class="led" data-bind="game.${t}.score"></div><div class="plus">${[1, 2, 3].map((p) => html`<button class="btn" data-pts="${t}:${p}" title="${keyLabel(sc[t + "Plus" + p] ?? "")}">+${p}</button>`)}</div></div>`;
+  const sp = SP.sportOf(st), keyOf = SP.scoreKeys(sp, sc);
+  const hintOf = (t, i) => { const k = keyOf.find((x) => x.team === t && x.i === i); return sp.scoring[i].label + (k ? " (" + keyLabel(k.key) + ")" : ""); };
+  const nameCtr = sp.counters.find((c) => c.id === "fouls" && c.showAs === "pips"), rows = sp.counters.filter((c) => c !== nameCtr);
+  const blk = (t) => html`<div class="score-block" data-team="${t}"><div class="nm"><i></i><span class="tn"></span><span class="sp"></span>${nameCtr && raw(SP.ctl(nameCtr, t, { inName: true }))}</div><div class="led" data-bind="game.${t}.score"></div>${raw(SP.plusRow(sp, t, hintOf))}</div>`;
+  const noClock = sp.clockMode === "none", longSeg = sp.periodLabels.join("").length > 20;
+  const perSeg = html`<span class="seg" id="per" role="group" aria-label="Period">${sp.periodLabels.map((l, i) => html`<span tabindex="0" data-per="${i + 1}">${l}</span>`)}</span>`;
   return html`<div class="cons"><div class="bns" id="bns"></div>
  <div class="con"><section class="left">
   <div class="mons">
    <div class="monitor pvw"><img data-mon="pvw" alt=""><span class="tag">PREVIEW</span><span class="src" id="pvwsrc"></span></div>
    <div class="monitor pgm" id="pgm"><img data-mon="pgm" alt="">
-    <div class="bug" id="bug"><div class="tm h"><i></i><span class="ha"></span></div><div class="sc" data-bind="game.home.score"></div><div class="sc" style="background:#e6ecf4" data-bind="game.away.score"></div><div class="tm a"><span class="aa"></span><i></i></div><div class="cl"><small class="pl"></small><span class="pn"></span><small style="margin:0 6px"> </small><span data-clock></span></div></div>
+    <div class="bug" id="bug"><div class="tm h"><i></i><span class="ha"></span></div><div class="sc" data-bind="game.home.score"></div><div class="sc" style="background:#e6ecf4" data-bind="game.away.score"></div><div class="tm a"><span class="aa"></span><i></i></div><div class="cl"><small class="pl"></small><span class="pn"></span><small class="cgap" style="margin:0 6px"> </small><span class="cclk" data-clock></span></div></div>
     <div class="l3 hidden" id="l3"><b></b><span></span></div><div class="spc hidden" id="spc"><i></i><span></span></div>
     <div class="slate hidden" id="slate"><div class="bar2 t"><i></i><i></i></div><div class="bar2 b"><i></i><i></i></div><div><h4></h4><div class="vs"></div></div></div>
     <span class="tag">${icon("rec", "sm")}PROGRAM</span><span class="src" id="pgmsrc"></span></div>
@@ -129,10 +147,9 @@ function render(ctx) {
    <div class="grp"><button class="btn xl" id="replay">${icon("replay", "lg")}Replay 10 s ${kb("replay")}</button>
     <div class="seg" id="spd" role="group" aria-label="Replay speed"><span class="on" tabindex="0" data-sp="1">1×</span><span tabindex="0" data-sp="0.5">½×</span><span tabindex="0" data-sp="0.25">¼×</span></div></div>
    <div class="sp"></div>
-   <button class="btn lg" disabled title="Coming later">${icon("pip")}PiP</button>
   </div>
   <div class="low">
-   <div class="panel gfxp"><div class="ph"><h3>Graphics</h3><span class="sp"></span><span class="faint" style="font-size:12px">Theme: ${st.settings.theme[0].toUpperCase() + st.settings.theme.slice(1)}</span></div>
+   <div class="panel gfxp" data-panel="graphics"><div class="ph"><h3>Graphics</h3><span class="sp"></span><span class="faint" style="font-size:12px">Theme: ${st.settings.theme[0].toUpperCase() + st.settings.theme.slice(1)}</span></div>
     <div class="pb"><div class="gfx">
      <button class="btn" id="g-bug">${icon("eye")}Score bug <span class="st"></span></button>
      <button class="btn" data-five="home">${icon("users")}Starting five · Home</button>
@@ -141,22 +158,27 @@ function render(ctx) {
      <button class="btn" id="g-slate">${icon("clock")}Halftime card <span class="st"></span></button>
      <button class="btn" id="g-spon">${icon("sponsor")}Sponsor corner <span class="st"></span></button>
     </div></div></div>
-   <div class="panel audp"><div class="ph"><h3>Audio</h3></div><div class="pb"><div class="mix" id="mix"></div></div></div>
+   <div class="panel audp" data-panel="audio"><div class="ph"><h3>Audio</h3></div><div class="pb"><div class="mix" id="mix"></div></div></div>
   </div>
  </section>
  <aside class="right">
-  <div class="panel"><div class="ph"><h3>Game state</h3><span class="sp"></span>
-    <span class="seg" id="per" role="group" aria-label="Period">${[1, 2, 3, 4, 5].map((p) => html`<span tabindex="0" data-per="${p}">${p === 5 ? "OT" : "Q" + p}</span>`)}</span></div>
+  <div class="panel" data-panel="game"><div class="ph"><h3>Game state</h3><span class="sp"></span>${longSeg ? "" : perSeg}</div>
+   ${longSeg ? html`<div class="perrow">${perSeg}</div>` : ""}
    <div class="hidden" style="padding:10px 14px 0"><a class="chip" id="phones" href="#/settings/remote" style="text-decoration:none"></a></div>
-   <div class="gs"><div class="clockbox"><span class="led" data-clock></span>
+   <div class="gs">${noClock
+     ? html`<div class="clockbox pbox"><div><span class="lbl">Now playing</span><div class="plab" id="plab" aria-live="polite"></div></div></div>`
+     : html`<div class="clockbox"><span class="led" data-clock></span>
      <div class="col-g" style="gap:8px;align-items:flex-end"><button class="btn lg" id="clk" style="width:124px"></button>
-      <div class="row" style="gap:6px"><button class="btn sm" data-nudge="-1000">−1s</button><button class="btn sm" data-nudge="1000">+1s</button></div></div></div>
+      <div class="row" style="gap:6px"><button class="btn sm" data-nudge="-1000">−1s</button><button class="btn sm" data-nudge="1000">+1s</button></div></div></div>`}
+    ${sp.win ? html`<div class="setsum" id="setsum" role="status"><span class="lbl">Sets won</span><span class="led" id="sh">0</span><span class="muted">to</span><span class="led" id="sa">0</span><span class="sh" id="shist"></span><span class="wn hidden" id="swin"></span></div>` : ""}
     <div class="gs2">${blk("home")}${blk("away")}</div>
-    <div class="gs3"><span class="lbl">Timeouts</span><span class="muted" data-ta="home"></span><button class="pipbtn" data-to="home"><span class="pips"></span></button><span class="muted" data-ta="away"></span><button class="pipbtn" data-to="away"><span class="pips"></span></button></div>
+    ${rows.map((d) => html`<div class="ctrs"><span class="lbl">${d.label}</span><div class="gs2">${["home", "away"].map((t) => html`<div class="ctcell"><span class="ab" data-ta="${t}"></span>${raw(SP.ctl(d, t))}</div>`)}</div></div>`)}
+    <button class="btn undo" id="undo" disabled>${icon("undo")}<span class="ul">Nothing to undo yet</span>${kb("undo")}</button>
    </div></div>
-  <div class="panel" style="min-height:0"><div class="ph"><h3>Events</h3><span class="sp"></span><button class="btn sm" id="mark">${icon("flag", "sm")}Mark moment ${kb("mark")}</button></div>
+  <div class="panel" style="min-height:0" data-panel="events"><div class="ph"><h3>Events</h3><span class="sp"></span><button class="btn sm" id="mark">${icon("flag", "sm")}Mark moment ${kb("mark")}</button></div>
    <div class="scroll" style="flex:1" id="evs"></div></div>
-  <div class="panel sponsor" id="spon"></div>
+  <div class="panel sponsor" id="spon" data-panel="sponsor"></div>
+  ${CUS ? html`<div class="panel macrop hidden" data-panel="macros"><div class="ph"><h3>Macro buttons</h3></div><div class="pb" id="macros">${raw(CUS.macroBar(st))}</div></div>` : ""}
  </aside></div>
  <div id="modal"></div></div>`;
 }
@@ -170,6 +192,7 @@ function bind(root, ctx) {
   let skew = 0, speed = 1, popOpen = false, editing = false, lastAir = null, airKey = "", busy = false;
   const prevStatus = {}, dragging = {}, gainTimers = {};
   const cleanups = [];
+  const listen = (type, fn) => { root.addEventListener(type, fn); cleanups.push(() => root.removeEventListener(type, fn)); }; // root outlives a redraw, so every listener is removed in cleanup
   const nowMs = () => Date.now() + skew;
   const st = () => S.state;
   const eng = () => st().engine;
@@ -184,11 +207,16 @@ function bind(root, ctx) {
   const evt = (body, msg, undoable) => run(async () => { await api.post("/event", body); if (msg) toast(msg, undoable ? { label: "Undo", fn: undo } : undefined); });
   const undo = () => run(async () => { await api.post("/event", { type: "undo" }); toast("Undone"); });
   const teamName = (t) => st().game?.[t]?.name ?? t;
-  const score = (team, points) => evt({ type: "score", team, points }, `${teamName(team)} +${points}`, true);
-  const foul = (team) => evt({ type: "foul", team }, `Foul on ${teamName(team)}`, true);
-  const timeout = (team) => evt({ type: "timeout", team }, `Timeout: ${teamName(team)}`, true);
-  const toggleClock = () => evt({ type: st().game?.running ? "clock.stop" : "clock.start" });
-  const nudge = (d) => evt({ type: "clock.set", ms: Math.max(0, Math.round(clockMs()) + d) }, d > 0 ? "Clock +1 s" : "Clock −1 s");
+  const sport = () => SP.sportOf(st());
+  const score = (team, i) => { const o = sport().scoring[i]; if (o) return evt({ type: "score", team, points: o.points, kind: o.id }, `${teamName(team)} +${o.points}`, true); };
+  const counter = (id, team, delta) => {
+    const d = sport().counters.find((c) => c.id === id); if (!d) return;
+    const msg = d.id === "fouls" && delta === 1 ? `Foul on ${teamName(team)}` : d.id === "timeouts" && delta === -1 ? `Timeout: ${teamName(team)}` : `${teamName(team)}: ${d.label.toLowerCase()} ${delta > 0 ? "+1" : "−1"}`;
+    return evt(SP.counterEvent(d, team, delta), msg, true);
+  };
+  const noClock = () => sport().clockMode === "none" && (toast(`${sport().name} has no clock.`), true); // a plain answer instead of a refused event
+  const toggleClock = () => noClock() || evt({ type: st().game?.running ? "clock.stop" : "clock.start" });
+  const nudge = (d) => noClock() || evt({ type: "clock.set", ms: Math.max(0, Math.round(clockMs()) + d) }, d > 0 ? "Clock +1 s" : "Clock −1 s");
   const mark = () => evt({ type: "mark" }, "Moment marked");
   const programDown = () => { const e = eng(), p = src(e.program); return !!p && p.status !== "ok"; };
   const switchTarget = () => { const e = eng(), pv = src(e.preview); if (pv && pv.status === "ok" && pv.id !== e.program) return pv; return e.sources.find((s) => s.status === "ok" && s.id !== e.program); };
@@ -207,22 +235,27 @@ function bind(root, ctx) {
   const H = {
     cut, fade, clock: toggleClock, replay: () => replay(10), replayScore, mark, fireSponsor: () => fire(), undo,
     ...Object.fromEntries([1, 2, 3, 4].map((n) => [`preview${n}`, () => { const s = eng().sources.find((x) => x.slot === n); if (s) preview(s.id); }])),
-    ...Object.fromEntries(["home", "away"].flatMap((t) => [1, 2, 3].map((p) => [`${t}Plus${p}`, () => score(t, p)]))),
   };
   const map = { Escape: () => { closeModal(); }, "Shift+?": () => openKeys(), "?": () => openKeys() };
   for (const [a, k] of Object.entries(sc)) if (H[a] && k) map[normKey(k)] = onEnterGuard(H[a]);
+  // score keys come from the sport: the +1/+2/+3 shortcuts for those point values, plus any hotkey set on a scoring option
+  const sp0 = SP.sportOf(st0), scoreKeys = SP.scoreKeys(sp0, sc);
+  for (const { team, i, key } of scoreKeys) { const k = normKey(key); if (!map[k]) map[k] = onEnterGuard(() => score(team, i)); }
+  for (const t of ["home", "away"]) for (const n of [1, 2, 3]) { // a +2 key in a sport with no 2-point score says so instead of doing nothing
+    const k = sc[t + "Plus" + n] && normKey(sc[t + "Plus" + n]);
+    if (k && !map[k]) map[k] = () => toast(`${sp0.name} has no ${n}-point score button.`);
+  }
   cleanups.push(keys(map));
 
   // ---------------- static click wiring (delegation; root content never re-rendered)
-  root.addEventListener("click", (e) => {
+  listen("click", (e) => {
     const t = e.target, b = (s) => t.closest(s);
     let x;
     if ((x = b("[data-src]"))) return preview(x.dataset.src);
-    if ((x = b("[data-pts]"))) { const [tm, p] = x.dataset.pts.split(":"); return score(tm, +p); }
-    if ((x = b("[data-foul]"))) return foul(x.dataset.foul);
-    if ((x = b("[data-to]"))) return timeout(x.dataset.to);
+    if ((x = b("[data-pts]"))) { const [tm, i] = x.dataset.pts.split(":"); return score(tm, +i); }
+    if ((x = b("[data-ctr]"))) return counter(x.dataset.ctr, x.dataset.t, +x.dataset.d);
     if ((x = b("[data-nudge]"))) return nudge(+x.dataset.nudge);
-    if ((x = b("[data-per]"))) return evt({ type: "period.set", period: +x.dataset.per }, "Period set to " + period(+x.dataset.per));
+    if ((x = b("[data-per]"))) return evt({ type: "period.set", period: +x.dataset.per }, "Period set to " + SP.periodLabel(sport(), +x.dataset.per));
     if ((x = b("[data-sp]"))) { speed = +x.dataset.sp; $$("#spd span").forEach((s) => cls(s, "on", s === x)); return; }
     if ((x = b("[data-five]"))) { const d = st().gameDoc, tm = d[x.dataset.five]; return graphics({ lower: { title: `Starting five · ${tm.name}`, sub: startingFive(tm.roster) } }); }
     if ((x = b("[data-replay]"))) return replay(+x.dataset.replay);
@@ -231,6 +264,7 @@ function bind(root, ctx) {
     if (b("#replay")) return replay(10);
     if (b("#clk")) return toggleClock();
     if (b("#mark")) return mark();
+    if (b("#undo")) return undo();
     if (b("#g-bug")) return graphics({ scorebug: !st().graphics.scorebug });
     if (b("#g-slate")) return graphics({ slate: st().graphics.slate ? null : "Halftime" });
     if (b("#g-spon")) return st().graphics.sponsor ? null : fire();
@@ -244,10 +278,10 @@ function bind(root, ctx) {
     if (b("#b-clock-x")) { editing = false; return patchBanners(true); }
     if (b("#b-free")) return openFree();
   });
-  root.addEventListener("change", (e) => {
+  listen("change", (e) => {
     if (e.target.id === "g-player") { const [tm, i] = e.target.value.split(":"); if (!tm) return; const p = st().gameDoc[tm].roster[+i]; e.target.value = ""; if (p) graphics({ lower: { title: `#${p.number} ${p.name}`, sub: `${st().gameDoc[tm].name}${p.position ? " · " + p.position : ""}` } }); }
   });
-  root.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && e.target.matches?.("[data-sp],[data-per]")) { e.preventDefault(); e.stopPropagation(); e.target.click(); } if ((e.key === "Enter") && e.target.matches?.(".tile")) { e.preventDefault(); e.stopPropagation(); e.target.click(); } });
+  listen("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && e.target.matches?.("[data-sp],[data-per]")) { e.preventDefault(); e.stopPropagation(); e.target.click(); } if ((e.key === "Enter") && e.target.matches?.(".tile")) { e.preventDefault(); e.stopPropagation(); e.target.click(); } });
 
   // ---------------- faders
   const faderSet = (vol, y, flush) => {
@@ -261,11 +295,11 @@ function bind(root, ctx) {
     const send = () => run(() => api.post("/engine/gain", { id, gainDb: g }));
     if (flush) send(); else gainTimers[id] = setTimeout(() => { delete gainTimers[id]; send(); }, 120);
   };
-  root.addEventListener("pointerdown", (e) => { const v = e.target.closest?.(".vol"); if (!v) return; dragging[v.dataset.fd] = true; v.setPointerCapture(e.pointerId); faderSet(v, e.clientY); });
-  root.addEventListener("pointermove", (e) => { const v = e.target.closest?.(".vol"); if (v && dragging[v.dataset.fd]) faderSet(v, e.clientY); });
+  listen("pointerdown", (e) => { const v = e.target.closest?.(".vol"); if (!v) return; dragging[v.dataset.fd] = true; v.setPointerCapture(e.pointerId); faderSet(v, e.clientY); });
+  listen("pointermove", (e) => { const v = e.target.closest?.(".vol"); if (v && dragging[v.dataset.fd]) faderSet(v, e.clientY); });
   const endDrag = (e) => { const v = e.target.closest?.(".vol"); if (v && dragging[v.dataset.fd]) { dragging[v.dataset.fd] = false; } };
-  root.addEventListener("pointerup", endDrag); root.addEventListener("pointercancel", endDrag);
-  root.addEventListener("keydown", (e) => { const v = e.target.closest?.(".vol"); if (!v || !["ArrowUp", "ArrowDown"].includes(e.key)) return; e.preventDefault(); const m = st().engine.mixer.find((x) => x.id === v.dataset.fd); const cur = Number(v.getAttribute("aria-valuenow") ?? m.gainDb); setGain(v.dataset.fd, Math.min(GAIN_MAX, Math.max(GAIN_MIN, cur + (e.key === "ArrowUp" ? 1 : -1))), false); });
+  listen("pointerup", endDrag); listen("pointercancel", endDrag);
+  listen("keydown", (e) => { const v = e.target.closest?.(".vol"); if (!v || !["ArrowUp", "ArrowDown"].includes(e.key)) return; e.preventDefault(); const m = st().engine.mixer.find((x) => x.id === v.dataset.fd); const cur = Number(v.getAttribute("aria-valuenow") ?? m.gainDb); setGain(v.dataset.fd, Math.min(GAIN_MAX, Math.max(GAIN_MIN, cur + (e.key === "ArrowUp" ? 1 : -1))), false); });
 
   // ---------------- images
   const loadInto = (img) => {
@@ -299,8 +333,9 @@ function bind(root, ctx) {
     cls($("#bug"), "hidden", !g.scorebug || gp);
     text($("#bug .ha"), d.home.abbr); text($("#bug .aa"), d.away.abbr);
     $("#bug .tm.h i").style.background = d.home.color; $("#bug .tm.a i").style.background = d.away.color;
-    const pr = s.game?.period ?? 1;
-    text($("#bug .pl"), pr > 4 ? "OT" : "Q"); text($("#bug .pn"), pr > 4 ? (pr - 4 > 1 ? String(pr - 4) : "") : String(pr));
+    const sp = SP.sportOf(s), [pl, pn] = SP.splitLabel(s.game?.periodLabel ?? SP.periodLabel(sp, s.game?.period ?? 1));
+    text($("#bug .pl"), pl); text($("#bug .pn"), pn);
+    $$("#bug .cclk, #bug .cgap").forEach((x) => cls(x, "hidden", sp.clockMode === "none"));
     // lower third
     cls($("#l3"), "hidden", !g.lower);
     if (g.lower) { text($("#l3 b"), g.lower.title); text($("#l3 span"), g.lower.sub); }
@@ -361,35 +396,38 @@ function bind(root, ctx) {
       if (!dragging[m.id] && !gainTimers[m.id]) { const v = root.querySelector(`[data-fd="${m.id}"]`); v.querySelector(".fd").style.setProperty("--v", (100 - gainToPos(m.gainDb) * 100) + "%"); v.setAttribute("aria-valuenow", m.gainDb); text(root.querySelector(`[data-db="${m.id}"]`), (m.gainDb > 0 ? "+" : "") + m.gainDb + " dB"); }
     }
   }
-  const pips = (el, n, total, c) => { const k = n + "/" + total + c; if (el.dataset.k === k) return; el.dataset.k = k; el.className = "pips " + c; el.innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join(""); };
   function patchGame() {
-    const s = st(), g = s.game, d = s.gameDoc, pr = s.settings.profile; if (!g) return;
+    const s = st(), g = s.game, d = s.gameDoc, sp = SP.sportOf(s); if (!g) return;
     const clk = $("#clk"), run_ = g.running;
-    sig(clk, String(run_), () => put(clk, html`${icon(run_ ? "pause" : "play")}${run_ ? "Stop" : "Start"} <span class="kbd">${keyLabel(sc.clock ?? "")}</span>`));
-    $$("#per span").forEach((x) => { const p = +x.dataset.per; cls(x, "on", p === 5 ? g.period >= 5 : g.period === p); });
+    if (clk) sig(clk, String(run_), () => put(clk, html`${icon(run_ ? "pause" : "play")}${run_ ? "Stop" : "Start"} <span class="kbd">${keyLabel(sc.clock ?? "")}</span>`));
+    $$("#per span").forEach((x) => cls(x, "on", SP.periodOn(sp, +x.dataset.per - 1, g.period)));
+    text($("#plab"), g.periodLabel ?? SP.periodLabel(sp, g.period));
     for (const t of ["home", "away"]) {
-      const b = $(`[data-team="${t}"]`), tm = g[t];
+      const b = $(`[data-team="${t}"]`);
       text(b.querySelector(".tn"), d[t].name); b.querySelector(".nm i").style.background = d[t].color;
-      const fo = b.querySelector(".pips"); pips(fo, tm.fouls, Math.max(pr.bonusAt, tm.fouls), tm.bonus ? "bonus" : "");
-      cls(b.querySelector(".bn2"), "hidden", !tm.bonus);
-      b.querySelector("[data-foul]").title = `Add a foul to ${d[t].name}. ${tm.fouls} this period${tm.bonus ? ", in the bonus" : ""}.`;
-      b.querySelector("[data-foul]").setAttribute("aria-label", b.querySelector("[data-foul]").title);
-      text($(`[data-ta="${t}"]`), tm.abbr); pips($(`[data-to="${t}"] .pips`), tm.timeouts, pr.timeouts, "");
-      $(`[data-to="${t}"]`).title = `Use a timeout for ${d[t].name} (${tm.timeouts} left)`;
+      $$(`[data-ta="${t}"]`).forEach((x) => text(x, g[t].abbr));
+    }
+    SP.patchCtl($(".right"), sp, g, (t) => d[t].name);
+    if (sp.win && g.sets) {
+      text($("#sh"), g.sets.home); text($("#sa"), g.sets.away);
+      text($("#shist"), g.sets.history.length ? g.sets.history.map((x) => `${x.home}\u2013${x.away}`).join(", ") : "");
+      const w = g.sets.winner; cls($("#setsum"), "won", w); cls($("#swin"), "hidden", !w); if (w) text($("#swin"), `${d[w].name} win the match, ${g.sets[w]} sets to ${g.sets[w === "home" ? "away" : "home"]}.`);
     }
   }
-  const evGlyph = { score: ["score", "ball"], foul: ["foul", "whistle"], timeout: ["to", "timeout"], mark: ["mark", "mark"], "period.set": ["", "flag"] };
+  const evGlyph = { score: ["score", "ball"], foul: ["foul", "whistle"], timeout: ["to", "timeout"], counter: ["foul", "whistle"], mark: ["mark", "mark"], "period.set": ["", "flag"] };
   function patchEvents() {
-    const s = st(), d = s.gameDoc, un = undone();
+    const s = st(), d = s.gameDoc, un = undone(), sp = SP.sportOf(s);
     const list = s.events.filter((e) => evGlyph[e.type]).slice(-30).reverse();
     sig($("#evs"), list.map((e) => e.seq + (un.has(e.seq) ? "u" : "")).join() + s.game?.home.name, () => {
       const who = (e) => { const tm = e.team, p = e.player != null ? d[tm]?.roster.find((r) => String(r.number) === String(e.player)) : null; return p ? ` · #${p.number} ${p.name}` : e.player != null ? ` · #${e.player}` : ""; };
       put($("#evs"), list.length ? html`${list.map((e) => { const [c, ic] = evGlyph[e.type], u = un.has(e.seq), nm = e.team ? d[e.team].name : "";
         return html`<div class="ev ${c}" data-t="${e.t}" style="${u ? "opacity:.45" : ""}"><span class="t" style="width:auto;min-width:38px"></span><span class="g">${icon(ic)}</span>
-          <span style="${u ? "text-decoration:line-through" : ""}">${e.type === "score" ? html`<b>${nm}</b> ${PTS[e.points]}${who(e)}` : e.type === "foul" ? html`<b>${nm}</b> foul${who(e)}` : e.type === "timeout" ? html`<b>${nm}</b> timeout` : e.type === "mark" ? html`Marked moment${e.note ? " · " + e.note : ""}` : html`Period set to ${period(e.period)}`}</span>
+          <span style="${u ? "text-decoration:line-through" : ""}">${e.type === "score" ? html`<b>${nm}</b> ${SP.eventText(e, sp, teamName)[1]}${who(e)}` : e.type === "foul" ? html`<b>${nm}</b> foul${who(e)}` : e.type === "timeout" ? html`<b>${nm}</b> timeout` : e.type === "counter" ? html`<b>${nm}</b> ${SP.eventText(e, sp, teamName)[1]}` : e.type === "mark" ? html`Marked moment${e.note ? " · " + e.note : ""}` : html`Period set to ${SP.periodLabel(sp, e.period)}`}</span>
           ${u ? "" : html`<button class="btn sm ghost x" data-replay="${replaySeconds(Math.max(0, nowMs() - e.t))}" data-seq="${e.seq}" title="Replay this moment">${icon("replay", "sm")}Replay</button>`}</div>`; })}`
-        : html`<div class="empty" style="padding:20px">Scores, fouls and timeouts will show up here.</div>`);
+        : html`<div class="empty" style="padding:20px">${["Scores", ...SP.sportOf(s).counters.map((c) => c.label.toLowerCase())].join(", ").replace(/, ([^,]*)$/, " and $1")} will show up here.</div>`);
     });
+    const lu = [...s.events].reverse().find((e) => ["score", "foul", "timeout", "counter"].includes(e.type) && !un.has(e.seq)), ub = $("#undo");
+    if (ub) { ub.disabled = !lu; text(ub.querySelector(".ul"), lu ? "Undo " + SP.eventText(lu, sp, teamName).join(" ") : "Nothing to undo yet"); }
     $$("#evs [data-replay]").forEach((b) => { const e = s.events.find((x) => x.seq === +b.dataset.seq); if (e) b.dataset.replay = replaySeconds(Math.max(0, nowMs() - e.t)); });
     $$("#evs .ev").forEach((r) => text(r.querySelector(".t"), rel(Math.max(0, nowMs() - +r.dataset.t))));
   }
@@ -490,7 +528,8 @@ function bind(root, ctx) {
   function closeModal() { const m = modal(); m.onclick = m.onkeydown = m.oninput = null; m.innerHTML = ""; }
   function openKeys() {
     put(modal(), html`<div class="scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"><div class="row"><h2 class="t">Keyboard shortcuts</h2><span class="sp"></span><button class="btn ghost sm" data-close>${icon("x", "sm")}Close</button></div>
-      <div>${ACTIONS.filter(([a]) => sc[a]).map(([a, l]) => html`<div class="kr"><span>${l}</span><span class="kbd">${keyLabel(sc[a])}</span></div>`)}</div>
+      <div>${ACTIONS.filter(([a]) => sc[a] && !(a === "clock" && sp0.clockMode === "none")).map(([a, l]) => html`<div class="kr"><span>${l}</span><span class="kbd">${keyLabel(sc[a])}</span></div>`)}
+      ${scoreKeys.map(({ team, i, key }) => html`<div class="kr"><span>${team === "home" ? "Home" : "Away"} ${SP.plainScoring(sp0.scoring) ? "+" + sp0.scoring[i].points : sp0.scoring[i].label + " +" + sp0.scoring[i].points}</span><span class="kbd">${keyLabel(key)}</span></div>`)}</div>
       <div class="hint">Change keys in Settings. Shortcuts pause while you type in a box.</div></div></div>`);
     modal().querySelector("[data-close]").focus();
   }
@@ -527,7 +566,7 @@ function bind(root, ctx) {
     m.oninput = upd;
     upd();
   }
-  root.addEventListener("click", (e) => { if (!modal().onclick && (e.target.closest("[data-close]") || e.target.classList.contains("scrim"))) closeModal(); });
+  listen("click", (e) => { if (!modal().onclick && (e.target.closest("[data-close]") || e.target.classList.contains("scrim"))) closeModal(); });
   const keyBtn = document.createElement("button");
   keyBtn.className = "btn ghost sm"; keyBtn.id = "helpb"; keyBtn.title = "Keyboard shortcuts"; keyBtn.setAttribute("aria-label", "Keyboard shortcuts"); keyBtn.innerHTML = I("help");
   keyBtn.onclick = openKeys;
@@ -542,11 +581,31 @@ function bind(root, ctx) {
     el.innerHTML = ask ? `${icon("phone", "sm").s}${esc(ask.name)} wants to connect` : `${icon("phone", "sm").s}${n} phone${n === 1 ? "" : "s"}${r?.locked ? " (locked)" : ""}`;
     el.title = ask ? "Allow or deny this phone in Settings > Remote" : "Phone remote connected";
   }
+  // Layout presets (settings.ui.layouts, via customize.js): the default preset keeps the console's own arrangement; any other preset
+  // decides which panels show (a panel in no column is hidden), and puts the "right" column in the side panel, "left" + "center" in the main area.
+  const IDS = ["graphics", "audio", "game", "events", "sponsor", "macros"];
+  function applyLayout(state) {
+    const el = (id) => $(`[data-panel="${id}"]`);
+    const cols = CUS ? { left: CUS.consolePanels(state, "left"), center: CUS.consolePanels(state, "center"), right: CUS.consolePanels(state, "right") } : null;
+    const native = !CUS || CUS.activePreset?.(state)?.id === "default" || !CUS.activePreset;
+    const shown = cols ? new Set([...cols.left, ...cols.center, ...cols.right]) : new Set(IDS.filter((x) => x !== "macros"));
+    const hasMacros = (state.settings?.ui?.macroButtons?.length ?? 0) > 0;
+    for (const id of IDS) { const e = el(id); if (e) e.classList.toggle("hidden", !shown.has(id) || (id === "macros" && !hasMacros)); }
+    const main = $(".low"), side = $(".right");
+    if (native) { for (const id of ["graphics", "audio"]) if (el(id) && el(id).parentNode !== main) main.append(el(id)); for (const id of ["game", "events", "sponsor", "macros"]) if (el(id) && el(id).parentNode !== side) side.append(el(id)); [...document.querySelectorAll("[data-panel]")].forEach((e) => { e.style.order = ""; }); return; }
+    const order = [...cols.left, ...cols.center];
+    for (const id of IDS) { const e = el(id); if (!e) continue; const inSide = cols.right.includes(id); const box = inSide ? side : main; if (e.parentNode !== box) box.append(e); e.style.order = String((inSide ? cols.right : order).indexOf(id)); }
+  }
+  let layoutKey = "";
+  const patchLayout = (state) => { const k = JSON.stringify([state.settings?.ui?.layouts, state.settings?.ui?.macroButtons?.length]); if (k !== layoutKey) { layoutKey = k; applyLayout(state); } };
+  const sportSig = (state) => state.gameId + JSON.stringify(SP.sportOf(state));
+  const built = sportSig(st0);
   const onState = (state) => {
     skew = state.serverNow - Date.now();
-    if (!state.gameDoc) return ctx.rerender();
-    patchBanners(); patchMonitors(); patchTiles(); patchControls(); patchGfx(); patchMixer(); patchGame(); patchEvents(); patchSponsor(); patchTop(); patchCountdown(); patchPhones(state.remote);
+    if (!state.gameDoc || sportSig(state) !== built) return ctx.rerender(); // another game (or sport) became active: draw its buttons
+    patchLayout(state); patchBanners(); patchMonitors(); patchTiles(); patchControls(); patchGfx(); patchMixer(); patchGame(); patchEvents(); patchSponsor(); patchTop(); patchCountdown(); patchPhones(state.remote);
   };
+  if (CUS) cleanups.push(CUS.bindMacroBar(root, st0));
   buildTop();
   skew = st0.serverNow - Date.now();
   onState(st0);

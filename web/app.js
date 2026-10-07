@@ -15,7 +15,7 @@ export const fmtBytes = (n) => (n >= 1e12 ? (n / 1e12).toFixed(1) + " TB" : n >=
 export const fmtDate = (t, o = { month: "short", day: "numeric" }) => new Date(t).toLocaleDateString(undefined, o);
 export const fmtTime = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 export const fmtElapsed = (ms) => { const s = Math.floor(ms / 1000); return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map((n) => String(n).padStart(2, "0")).join(":"); };
-export const period = (p) => (p > 4 ? "OT" + (p - 4 > 1 ? p - 4 : "") : "Q" + p);
+export const period = (p) => { const g = S.state?.game; return g?.periodLabel && p === g.period ? g.periodLabel : p > 4 ? "OT" + (p - 4 > 1 ? p - 4 : "") : "Q" + p; }; // the active sport names its own periods (Q3, 2nd half, Set 2)
 
 // ---------------------------------------------------------------- api
 async function call(method, path, body) {
@@ -57,12 +57,13 @@ function connectWs() {
   ws.onopen = () => { S.connected = true; banner(); };
   ws.onmessage = (m) => {
     S.state = JSON.parse(m.data); S.recvAt = performance.now(); S.connected = true;
-    applyBindings(); renderRibbon(); banner(); showNotices(S.state.notices);
+    applyBindings(); renderRibbon(); banner(); showNotices(S.state.notices); look(S.state);
     for (const fn of listeners) try { fn(S.state); } catch (e) { console.error(e); }
   };
   ws.onclose = () => { S.connected = false; banner(); setTimeout(connectWs, 1000); };
 }
 setInterval(() => applyBindings(), 100);
+const look = (st) => import("./customize.js").then((m) => m.applyUi(st)).catch((e) => console.error(e)); // theme, density, custom CSS from settings.ui
 
 // ---------------------------------------------------------------- toasts + keys
 function toastBox() { // created at startup so screen readers already watch it when the first toast arrives
@@ -112,17 +113,17 @@ export const keys = (map) => (keyHandlers.add(map), () => keyHandlers.delete(map
 // ---------------------------------------------------------------- shells
 const $app = document.getElementById("app");
 const brandMark = `<span class="mark"><svg class="i"><use href="#i-ball"/></svg></span>`;
-const RAIL = [["home", "Home", "#/", "home"], ["sponsors", "Sponsors", "#/sponsors", "sponsor"], ["reports", "Reports", "#/reports", "chart"], ["settings", "Settings", "#/settings", "gear"]];
+const RAIL = [["home", "Home", "#/", "home"], ["sponsors", "Sponsors", "#/sponsors", "sponsor"], ["graphics", "Graphics", "#/graphics", "film"], ["reports", "Reports", "#/reports", "chart"], ["automation", "Automation", "#/automation", "bolt"], ["settings", "Settings", "#/settings", "gear"]];
 const STEPS = [["Setup", "#/game/new"], ["Check", "#/preflight"], ["Live", "#/live"], ["Wrap-up", "#/wrapup"]];
 const freeChip = `<a class="chip" href="#/settings/about" style="text-decoration:none"><svg class="i sm"><use href="#i-link"/></svg>Free and open source</a>`;
 
 export function ribbonHtml(g) {
   const t = (tm) => `<div class="team">${tm === "home" ? esc(g?.home.abbr ?? "HOME") + ` <span class="score" data-bind="game.home.score">${g?.home.score ?? 0}</span>` : `<span class="score" data-bind="game.away.score">${g?.away.score ?? 0}</span> ` + esc(g?.away.abbr ?? "AWAY")}</div>`;
-  return `<i class="cap" style="background:var(--home)"></i>${t("home")}<div class="mid"><span style="font:700 12px var(--ui);color:var(--text-2)" data-bind="game.period">${g ? period(g.period) : "Q1"}</span><span class="clk" data-clock>${mmss(g ? g.clockMs : 0)}</span>${S.state?.gameDoc?.status === "final" ? '<span class="tag">Final</span>' : ""}</div>${t("away")}<i class="cap" style="background:var(--away)"></i>`;
+  return `<i class="cap" style="background:var(--home)"></i>${t("home")}<div class="mid"><span style="font:700 12px var(--ui);color:var(--text-2)" data-bind="game.period">${g ? period(g.period) : "Q1"}</span><span class="clk" data-clock${g?.clockMode === "none" ? ' style="display:none"' : ""}>${mmss(g ? g.clockMs : 0)}</span>${S.state?.gameDoc?.status === "final" ? '<span class="tag">Final</span>' : ""}</div>${t("away")}<i class="cap" style="background:var(--away)"></i>`;
 }
 function renderRibbon() {
   const el = document.getElementById("ribbon"); if (!el) return;
-  const g = S.state?.game, prior = el.dataset.sig, sig = g ? g.home.abbr + g.away.abbr + S.state.gameDoc?.status : "";
+  const g = S.state?.game, prior = el.dataset.sig, sig = g ? g.home.abbr + g.away.abbr + S.state.gameDoc?.status + g.clockMode : "";
   if (prior === sig && el.childElementCount) return; // bindings keep the numbers live; rebuild only if teams change
   el.dataset.sig = sig; el.innerHTML = ribbonHtml(g);
 }
@@ -144,7 +145,7 @@ function nightShell(mod, ctx) {
 const ROUTES = [
   [/^\/$/, "home"], [/^\/welcome$/, "onboarding"], [/^\/game\/new$/, "new-game"], [/^\/game\/roster$/, "roster"], [/^\/sources$/, "sources"],
   [/^\/preflight$/, "preflight"], [/^\/live$/, "console"], [/^\/replay$/, "replay"], [/^\/wrapup$/, "postgame"],
-  [/^\/sponsors$/, "sponsors"], [/^\/reports$/, "proof"], [/^\/settings(?:\/([a-z-]+))?$/, "settings"],
+  [/^\/sponsors$/, "sponsors"], [/^\/graphics$/, "graphics"], [/^\/reports$/, "proof"], [/^\/automation(?:\/([a-z-]+))?$/, "automation"], [/^\/settings(?:\/([a-z-]+))?$/, "settings"],
 ];
 let cleanup = null, unsub = null, current = null, navSeq = 0;
 const styled = new Set();
@@ -176,7 +177,7 @@ async function navigate() {
   try {
     if (!name) throw new Error("That page does not exist.");
     // A screen must see the change the previous screen just made (activate a game, then open Roster): the websocket push is coalesced up to 100 ms late.
-    try { S.state = await api.get("/state"); S.recvAt = performance.now(); } catch {}
+    try { S.state = await api.get("/state"); S.recvAt = performance.now(); look(S.state); } catch {}
     if (!S.state) await new Promise((r) => { const u = subscribe(() => (u(), r())); setTimeout(r, 1500); });
     mod = (await import(`/screens/${name}.js`)).default;
     if (mod.css && !styled.has(name)) { styled.add(name); const st = document.createElement("style"); st.textContent = mod.css; document.head.append(st); }

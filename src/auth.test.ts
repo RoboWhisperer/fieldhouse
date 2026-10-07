@@ -133,7 +133,7 @@ test("the phone gets a trimmed state: no settings, destinations, recordings or p
   const { call, pair } = await rig();
   const p = await pair();
   const st = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).body;
-  expect(Object.keys(st).sort()).toEqual(["events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "profile", "role", "serverNow"]);
+  expect(Object.keys(st).sort()).toEqual(["events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "profile", "role", "serverNow", "sport"]);
   expect(st.gameDoc.home.roster.length).toBeGreaterThan(0);
   const text = JSON.stringify(st);
   for (const secret of ["WILD-4821", "demo-key", "storageDir", "destination", "recording", "tokenHash", "remote"]) expect(text).not.toContain(secret);
@@ -456,7 +456,7 @@ test("producer state carries no settings, destinations, pairing code, file paths
   expect(Object.keys(st.engine.record).sort()).toEqual(["active", "bytes"]);
   expect(Object.keys(st.engine.sources[0]).sort()).toEqual(["audio", "id", "kind", "label", "slot", "status"]);
   expect(st.engine.record.active).toBe(true); expect(st.engine.graphicsInProgram).toBe(false); expect(st.canBroadcast).toBe(true);
-  expect(Object.keys(st).sort()).toEqual(["canBroadcast", "engine", "events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "next", "profile", "role", "serverNow"]);
+  expect(Object.keys(st).sort()).toEqual(["canBroadcast", "engine", "events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "next", "profile", "role", "serverNow", "sport"]);
   void store;
 });
 
@@ -511,4 +511,26 @@ test("REAL network: a Producer on the LAN address gets pictures and can cut, but
   expect(app.state().engine.program).toBe("cam3"); expect(app.state().engine.program).not.toBe(before);
   for (const [m, path] of [["POST", "/api/settings"], ["GET", "/api/settings"], ["GET", "/rec/x.mp4"], ["GET", "/overlay"], ["POST", "/api/broadcast/start"]]) expect([path, (await fetch(base + path, { method: m, headers: { ...J, cookie }, body: m === "POST" ? "{}" : undefined })).status]).toEqual([path, 403]);
   void remote;
+});
+
+test("sport profiles at the gate: phones may send counter events, validated against the active game's sport", async () => {
+  const { call, pair, app } = await rig();
+  const p = await pair();
+  const ev = (b: unknown) => call(LAN, "POST", "/api/event", b, p.cookie);
+  const st = (await call(LAN, "GET", "/api/state", undefined, p.cookie)).body;
+  expect(st.sport).toMatchObject({ id: "basketball", clockMode: "down" });
+  expect(st.profile.timeouts).toBe(3); // the old five-field view is still there for old phones
+  const c = await ev({ type: "counter", team: "home", id: "fouls", delta: 1 });
+  expect(c.status).toBe(200);
+  expect((await ev({ type: "counter", team: "home", id: "cards", delta: 1 })).status).toBe(400); // not one of this sport's counters
+  expect((await ev({ type: "undo", target: c.body.seq })).status).toBe(200); // counter events are undoable like fouls
+  // a volleyball game: the same gate now validates against volleyball
+  const post = (path: string, b?: unknown) => app.handle(new Request("http://x/api" + path, { method: "POST", headers: { "content-type": "application/json" }, body: b ? JSON.stringify(b) : undefined }));
+  await post("/games", { id: "vb", startsAt: 1, profileId: "volleyball", home: { name: "H", abbr: "H" }, away: { name: "A", abbr: "A" } });
+  await post("/games/vb/activate");
+  expect((await ev({ type: "foul", team: "home" })).status).toBe(400);
+  expect((await ev({ type: "score", team: "home", points: 2 })).status).toBe(400);
+  expect((await ev({ type: "score", team: "home", points: 1 })).status).toBe(200);
+  expect((await ev({ type: "counter", team: "away", id: "timeouts", delta: -1 })).status).toBe(200);
+  expect((await ev({ type: "clock.start" })).status).toBe(400);
 });

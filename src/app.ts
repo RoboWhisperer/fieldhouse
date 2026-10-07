@@ -18,6 +18,17 @@ import { createDiskWatch, retentionPlan, runRetention } from "./retention";
 import { createUpdateChecker } from "./update";
 import { registerEngineRoutes, type EngineHooks } from "./engine-routes";
 import { registerEngineSettings } from "./engine-settings";
+import { registerWorkspaceSection } from "./automation/workspace";
+import { createGraphics } from "./graphics";
+import { graphicsSection, profilesSection } from "./graphics/workspace";
+import { registerGraphicsRoutes } from "./graphics-routes";
+import { paths } from "./config";
+import { createAutomation } from "./automation";
+import { registerAutomationRoutes } from "./automation/routes";
+import type { GraphicsControl } from "./custom-types";
+import { registerProfileRoutes } from "./profiles-routes";
+import { BASKETBALL } from "./profiles/builtins";
+import { breakTrigger, summary } from "./profiles/lib";
 import { checkDestination } from "./destination-check";
 import type { ObsLogWatcher } from "./obs-log";
 
@@ -26,14 +37,13 @@ const json = (x: unknown, status = 200) => Response.json(x, { status });
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 const bad = (msg: string, status = 400): never => { throw new HttpError(status, msg); };
 
-export function createApp(deps: { store: Store; engine: Engine; now?: () => number; fetch?: typeof fetch; demo?: boolean; checkDestination?: typeof checkDestination }) {
+export function createApp(deps: { store: Store; engine: Engine; now?: () => number; fetch?: typeof fetch; demo?: boolean; checkDestination?: typeof checkDestination; graphicsDir?: string }) {
   const { store, engine } = deps;
   const now = deps.now ?? Date.now;
   const listeners = new Set<() => void>();
   // server.ts plugs in the phone-remote summary (src/auth.ts), the video-engine supervisor/installer and the OBS log watcher
-  const hooks: { remote: () => unknown; logs?: ObsLogWatcher } & EngineHooks = { remote: () => null };
+  const hooks: { remote: () => unknown; logs?: ObsLogWatcher; graphics?: GraphicsControl } & EngineHooks = { remote: () => null };
   const changed = () => { for (const f of listeners) f(); };
-  let graphics: Graphics = { scorebug: true, lower: null, slate: null, sponsor: null };
   let log: Logged[] = [];
   let logGame = "";
   let recovered: { at: number } | null = null;
@@ -44,6 +54,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   const activeId = () => settings().activeGameId;
   const activeGame = (): GameDoc | undefined => { const id = activeId(); return id ? data.getGame(store, id) : undefined; };
   const need = () => activeId() ?? bad("No game is active. Start a game first.", 409);
+  const profileOf = (g?: GameDoc) => g?.profileSnapshot ?? BASKETBALL; // the sport rules the game was started with
   const gameLog = (): Logged[] => { const id = activeId() ?? ""; if (id !== logGame) { log = id ? store.load(id) : []; logGame = id; } return log; };
 
   // Crash recovery: a live game with a dangling recording means we died mid-broadcast.
@@ -88,16 +99,17 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   // ------------------------------------------------------------ derived state pushed to every client
   function nextBreak(g: GameDoc | undefined, v: ReturnType<typeof view> | null) {
     if (!g || !v) return null;
-    const trigger: Trigger = v.clockMs > 0 ? "timeout" : v.period === 2 ? "halftime" : v.period >= 4 ? "postgame" : "period_end";
+    const trigger: Trigger = breakTrigger(profileOf(g), v);
     const sp = sponsors.nextBreak(sponsors.listSponsors(store), store.list<AiringDoc>("airing"), { gameId: g.id, now: now(), trigger });
     return sp ? { sponsorId: sp.id, name: sp.name, abbr: sp.abbr, color: sp.color, seconds: sp.displaySeconds, trigger, assets: sp.assets } : null;
   }
+  function gameView() { const g = activeGame(), l = gameLog(); return g && l.length ? view(fold(l, profileOf(g)), now()) : null; }
   function state() {
     const g = activeGame();
     const l = gameLog();
-    const v = g && l.length ? view(fold(l), now()) : null;
+    const v = g && l.length ? view(fold(l, profileOf(g)), now()) : null;
     const rec = store.list<RecordingDoc>("recording").filter((r) => r.gameId === g?.id).at(-1) ?? null;
-    return { version: VERSION, serverNow: now(), gameId: g?.id ?? null, gameDoc: g ?? null, game: v, events: l.filter((e) => e.type !== "clock.start" && e.type !== "clock.stop" && e.type !== "clock.set").slice(-60), engine: engine.status(), graphics, next: nextBreak(g, v), settings: settings(), recording: rec, recovered, remote: hooks.remote(), notices };
+    return { version: VERSION, serverNow: now(), gameId: g?.id ?? null, gameDoc: g ?? null, game: v, sport: g ? summary(profileOf(g)) : null, custom: automation.custom.all(), events: l.filter((e) => e.type !== "clock.start" && e.type !== "clock.stop" && e.type !== "clock.set").slice(-60), engine: engine.status(), graphics: gfx.state(), next: nextBreak(g, v), settings: settings(), recording: rec, recovered, remote: hooks.remote(), notices };
   }
 
   // ------------------------------------------------------------ flows
@@ -108,19 +120,21 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
       if (!last) bad("Nothing to undo.", 409);
       body.target = last!.seq;
     }
-    const ev = parseEv(body);
+    const before = gameView();
+    const ev = parseEv(body, profileOf(activeGame()));
     if (typeof ev === "string") bad(ev);
     const logged = store.append(id, ev as any, now());
     gameLog().push(logged);
+    automation.onEvent(logged, before, gameView()); // rules, webhooks, event stream (never throws)
     return logged;
   }
   function activate(id: string) {
     const g = data.getGame(store, id) ?? bad("Game not found.", 404);
     data.saveSettings(store, { activeGameId: id });
     log = store.load(id); logGame = id;
-    if (!log.length) { const e = store.append(id, { type: "game.start", home: g!.home.abbr, away: g!.away.abbr, homeName: g!.home.name, awayName: g!.away.name }, now()); log.push(e); }
-    recovered = null; graphics = { scorebug: true, lower: null, slate: null, sponsor: null };
-    return g!;
+    if (!log.length) { data.snapshotProfile(store, id); const e = store.append(id, { type: "game.start", home: g!.home.abbr, away: g!.away.abbr, homeName: g!.home.name, awayName: g!.away.name }, now()); log.push(e); automation.onEvent(e, null, gameView()); }
+    recovered = null; gfx.newGame();
+    return data.getGame(store, id)!; // re-read: starting the game froze its sport profile into it
   }
   async function broadcastStart() {
     const g = activeGame() ?? bad("No game is active.", 409);
@@ -156,13 +170,32 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     const outcome = body.outcome ?? "aired";
     const a = sponsors.recordAiring(store, { gameId: st.gameId!, sponsorId: sp!.id, at: now(), period: st.game!.period, gameClockMs: st.game!.clockMs, trigger: (st.next?.trigger ?? "timeout") as Trigger, outcome, seconds: outcome === "aired" ? sp!.displaySeconds : 0 });
     if (outcome === "aired") {
-      clearTimeout(sponsorTimer);
-      graphics = { ...graphics, sponsor: { name: sp!.name, color: sp!.color, seconds: sp!.displaySeconds, until: now() + sp!.displaySeconds * 1000 } };
-      sponsorTimer = setTimeout(() => { graphics = { ...graphics, sponsor: null }; changed(); }, sp!.displaySeconds * 1000);
-      sponsorTimer.unref?.();
+      gfx.sponsor({ name: sp!.name, color: sp!.color, seconds: sp!.displaySeconds }); // the sponsor corner graphic shows itself, then hides itself
     }
+    automation.onSponsor({ sponsorId: sp!.id, name: sp!.name, outcome });
     return a;
   }
+
+  // ------------------------------------------------------------ automation: custom data, rules, macros, webhooks (src/automation/)
+  const automation = createAutomation({
+    store, engine, now, fetch: deps.fetch, graphics: () => hooks.graphics,
+    event: async (b) => { const e = appendEvent(b); changed(); return e; },
+    fireSponsor: async (b) => { const a = fire(b ?? {}); changed(); return a; },
+    notify: (level, message) => notify(level, message), changed: () => changed(),
+    view: gameView, gameId: () => activeId() ?? null,
+  });
+  engine.onChange(() => automation.onEngine(engine.status()));
+  const autoTick = setInterval(() => automation.tick(), 1000); autoTick.unref?.();
+
+  // ------------------------------------------------------------ graphics: designs, custom/imported graphics, remote connectors (src/graphics/)
+  const gfx = createGraphics({
+    store, engine, now, changed: () => changed(), fetch: deps.fetch, dir: deps.graphicsDir ?? join(paths().dataDir, "graphics"),
+    context: () => { const g = activeGame(); return { game: gameView(), doc: g, venue: g ? data.listVenues(store).find((x: any) => x.id === g.venueId)?.name : undefined, custom: automation.custom.all() }; },
+    notify: (level, message) => notify(level, message),
+  });
+  hooks.graphics = gfx.control;
+  registerWorkspaceSection("graphics", graphicsSection({ store, files: gfx.filesRoot, conns: gfx.conns, now, reloaded: gfx.reloaded }));
+  registerWorkspaceSection("profiles", profilesSection({ store, defaultId: () => data.getSettings(store).defaultProfileId ?? "basketball", changed: () => changed() }));
 
   // ------------------------------------------------------------ router
   type H = (a: { body: any; params: string[]; q: URLSearchParams; req: Request }) => unknown | Promise<unknown>;
@@ -183,7 +216,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("POST", "/games/:id/activate", ({ params }) => { const g = activate(params[0]); changed(); return g; });
   on("POST", "/games/:id/finish", async ({ params }) => {
     const g = data.getGame(store, params[0]) ?? bad("Game not found.", 404);
-    if (activeId() === g!.id) { const s = fold(gameLog()); await broadcastStop(); store.put("game", { ...g!, status: "final", finalScore: { home: s.home.score, away: s.away.score } }); }
+    if (activeId() === g!.id) { const s = fold(gameLog(), profileOf(g)); await broadcastStop(); store.put("game", { ...g!, status: "final", finalScore: { home: s.home.score, away: s.away.score } }); automation.onGameEnd(); }
     changed(); return data.getGame(store, g!.id);
   });
   on("POST", "/roster/parse", ({ body }) => data.parseRosterCsv(String(body?.text ?? ""), body?.mapping));
@@ -193,6 +226,9 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("GET", "/devices", async () => engine.detectDevices());
   registerEngineRoutes(on, { engine, store, bad, changed, hooks });
   registerEngineSettings(on, { engine, store, bad, changed });
+  registerProfileRoutes(on, { store, bad, changed });
+  registerAutomationRoutes(on, automation, { store, bad, changed });
+  registerGraphicsRoutes(on, { gfx, bad });
   on("POST", "/slots", async ({ body }) => { await engine.setSlot(Number(body.slot), body.deviceId ?? null, body.label); changed(); return engine.status().sources; });
   on("POST", "/venues/:id/apply", async ({ params }) => {
     const v = data.listVenues(store).find((x: any) => x.id === params[0]) ?? bad("Venue not found.", 404);
@@ -212,7 +248,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     return { ok: chk.ok, message: chk.message };
   });
 
-  on("POST", "/preflight", async () => runChecks({ engine: engine.status(), game: activeGame(), destinations: store.list<any>("destination"), settings: settings() }));
+  on("POST", "/preflight", async () => runChecks({ engine: engine.status(), game: activeGame(), destinations: store.list<any>("destination"), settings: settings(), profile: profileOf(activeGame()) }));
   on("POST", "/broadcast/start", async () => { await broadcastStart(); changed(); return { ok: true }; });
   on("POST", "/broadcast/stop", async () => { await broadcastStop(); changed(); return { ok: true }; });
 
@@ -224,22 +260,12 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("POST", "/replay", async ({ body }) => { await engine.replay({ secondsBack: Number(body?.secondsBack ?? 10), speed: Number(body?.speed ?? 1) }); return { ok: true }; });
   on("POST", "/replay/stop", async () => { await engine.stopReplay(); return { ok: true }; });
 
-  on("POST", "/graphics", ({ body }) => {
-    const b = body ?? {};
-    if ("scorebug" in b) graphics.scorebug = !!b.scorebug;
-    if ("slate" in b) graphics.slate = b.slate ? String(b.slate).slice(0, 120) : null;
-    if ("lower" in b) {
-      clearTimeout(lowerTimer);
-      graphics.lower = b.lower ? { title: String(b.lower.title).slice(0, 60), sub: String(b.lower.sub ?? "").slice(0, 80) } : null;
-      if (graphics.lower) { lowerTimer = setTimeout(() => { graphics.lower = null; changed(); }, 8000); lowerTimer.unref?.(); }
-    }
-    changed(); return graphics;
-  });
+  on("POST", "/graphics", ({ body }) => gfx.legacy(body ?? {})); // the original API: the four built-in graphics (see src/graphics/)
 
   on("GET", "/sponsors", () => { const air = store.list<AiringDoc>("airing"); return sponsors.listSponsors(store).map((s) => ({ ...s, usage: sponsors.seasonUsage(s, air) })); });
   on("POST", "/sponsors", ({ body }) => { const s = sponsors.saveSponsor(store, body); changed(); return s; });
   on("DELETE", "/sponsors/:id", ({ params }) => { sponsors.deleteSponsor(store, params[0]); changed(); return { ok: true }; });
-  on("GET", "/sponsors/plan", () => { const list = sponsors.listSponsors(store); return { plan: sponsors.planGame(list), conflicts: sponsors.conflicts(list) }; });
+  on("GET", "/sponsors/plan", () => { const list = sponsors.listSponsors(store); return { plan: sponsors.planGame(list, profileOf(activeGame())), conflicts: sponsors.conflicts(list) }; });
   on("POST", "/sponsors/fire", ({ body }) => { const a = fire(body ?? {}); changed(); return a; });
 
   on("GET", "/reports/airings", ({ q }) => { const rows = reports.airingRows(store, filterOf(q)); return { rows, summary: reports.summary(rows) }; });
@@ -251,11 +277,11 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("GET", "/highlights/:id", ({ params }) => {
     const rec = store.list<RecordingDoc>("recording").filter((r) => r.gameId === params[0]).at(-1);
     if (!rec) return { recording: null, clips: [] };
-    return { recording: rec, clips: clipsFromLog(store.load(params[0]), rec) };
+    return { recording: rec, clips: clipsFromLog(store.load(params[0]), rec, { profile: profileOf(data.getGame(store, params[0])) }) };
   });
   on("POST", "/highlights/:id/export", async ({ params, body }) => {
     const rec = store.list<RecordingDoc>("recording").filter((r) => r.gameId === params[0]).at(-1) ?? bad("There is no recording for this game.", 404);
-    let clips = clipsFromLog(store.load(params[0]), rec!);
+    let clips = clipsFromLog(store.load(params[0]), rec!, { profile: profileOf(data.getGame(store, params[0])) });
     if (Array.isArray(body?.indexes)) clips = body.indexes.map((i: number) => clips[i]).filter(Boolean); // keeps the order the operator chose
     if (!clips.length) bad("Pick at least one clip.");
     const out = await exportHighlights(rec!.file, clips, join(settings().storageDir, "highlights", `${params[0]}-highlights.mp4`));
@@ -289,12 +315,13 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
       // Local app on a trusted LAN: still refuse cross-site writes (a web page in another tab must not drive a live game).
       const origin = req.headers.get("origin");
       if (origin && new URL(origin).host !== url.host) bad("Cross-origin requests are not allowed.", 403);
-      if ((req.method === "POST" || req.method === "PUT") && !(req.headers.get("content-type") ?? "").includes("json") && (await req.clone().text())) bad("Send JSON with content-type: application/json.", 415);
+      const multipart = (req.headers.get("content-type") ?? "").startsWith("multipart/form-data") && path === "/graphics/import"; // file uploads (graphic import)
+      if (!multipart && (req.method === "POST" || req.method === "PUT") && !(req.headers.get("content-type") ?? "").includes("json") && (await req.clone().text())) bad("Send JSON with content-type: application/json.", 415);
       for (const [m, re, h] of routes) {
         const mt = re.exec(path);
         if (m !== req.method || !mt) continue;
         let body: any;
-        if (req.method === "POST" || req.method === "PUT") { const t = await req.text(); if (t) { try { body = JSON.parse(t); } catch { bad("That request was not valid JSON."); } } }
+        if (!multipart && (req.method === "POST" || req.method === "PUT")) { const t = await req.text(); if (t) { try { body = JSON.parse(t); } catch { bad("That request was not valid JSON."); } } }
         const out = await h({ body, params: mt.slice(1).map(decodeURIComponent), q: url.searchParams, req });
         return out instanceof Response ? out : json(out);
       }
@@ -309,11 +336,11 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   function rec(req: Request): Response {
     const u = new URL(req.url);
     if (req.method !== "GET" && req.method !== "HEAD") return new Response("method not allowed", { status: 405 });
-    const id = decodeURIComponent(u.pathname.replace(/^\/rec\//, ""));
+    let id: string; try { id = decodeURIComponent(u.pathname.replace(/^\/rec\//, "")); } catch { return new Response("bad path", { status: 400 }); }
     const file = resolveMedia(id, store.list<RecordingDoc>("recording"), settings().storageDir);
     return file ? serveFile(req, file, u.searchParams.get("download") === "1") : new Response("not found", { status: 404 });
   }
 
-  return { handle, rec, tick, retention, notify, endBroadcast: broadcastStop, stop: () => timers.forEach(clearInterval), hooks, state, onChange: (f: () => void) => (listeners.add(f), () => listeners.delete(f)), changed, engine, store, snapshot: (id: string) => engine.snapshot(id) };
+  return { handle, rec, graphics: gfx, profile: () => profileOf(activeGame()), tick, retention, notify, endBroadcast: broadcastStop, stop: () => { timers.forEach(clearInterval); clearInterval(autoTick); automation.stop(); gfx.close(); }, automation, hooks, state, onChange: (f: () => void) => (listeners.add(f), () => listeners.delete(f)), changed, engine, store, snapshot: (id: string) => engine.snapshot(id) };
 }
 export type App = ReturnType<typeof createApp>;

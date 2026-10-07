@@ -153,7 +153,7 @@ test("a v0 database (pre-versioning) is upgraded in place, data intact; newer da
   s.close();
   expect(openStore(path).version()).toBe(MIGRATIONS.length); // reopening is a no-op
   const fresh = openStore(":memory:");
-  expect(fresh.version()).toBe(1);
+  expect(fresh.version()).toBe(MIGRATIONS.length);
   const db = new Database(":memory:");
   db.run("PRAGMA user_version = 99");
   expect(() => migrate(db)).toThrow("newer version");

@@ -1,5 +1,7 @@
 import type { AiringDoc, SponsorDoc, Trigger } from "./types";
 import type { Store } from "./store";
+import { periodLabel } from "./profiles/lib";
+import type { ProfileDoc } from "./profiles/types";
 import { newId } from "./data";
 
 const TRIGGERS: Trigger[] = ["pregame", "timeout", "period_end", "halftime", "postgame"];
@@ -34,10 +36,18 @@ export function conflicts(sponsors: SponsorDoc[]): { trigger: Trigger; sponsorId
 
 const SLOTS: [string, Trigger][] = [["Pregame", "pregame"], ["Q1 timeout", "timeout"], ["Q2 timeout", "timeout"], ["Halftime", "halftime"], ["Q3 timeout", "timeout"], ["Q4 timeout", "timeout"], ["Postgame", "postgame"]];
 
+/** One slot per break of the game: pregame, a timeout after each period (halftime after the middle one), postgame. Basketball gives SLOTS. */
+const slotsFor = (p?: ProfileDoc): [string, Trigger][] => {
+  if (!p || p.id === "basketball") return SLOTS;
+  const n = p.periods.count, out: [string, Trigger][] = [["Pregame", "pregame"]];
+  for (let i = 1; i <= n; i++) { out.push([`${periodLabel(p, i)} timeout`, "timeout"]); if (n % 2 === 0 && i === n / 2) out.push(["Halftime", "halftime"]); }
+  return [...out, ["Postgame", "postgame"]];
+};
+
 // Repeated triggers rotate through eligible sponsors in priority order.
-export function planGame(sponsors: SponsorDoc[]) {
+export function planGame(sponsors: SponsorDoc[], profile?: ProfileDoc) {
   const turn = new Map<Trigger, number>();
-  return SLOTS.map(([slot, trigger]) => {
+  return slotsFor(profile).map(([slot, trigger]) => {
     const c = byTrigger(sponsors, trigger), k = turn.get(trigger) ?? 0;
     turn.set(trigger, k + 1);
     return { slot, trigger, sponsorId: c.length ? c[k % c.length].id : null, conflict: c.length > 1 && c[0].rules.priority === c[1].rules.priority };

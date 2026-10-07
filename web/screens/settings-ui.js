@@ -2,7 +2,7 @@
 import { html, icon, toast } from "../app.js";
 
 export const REPO = "https://github.com/RoboWhisperer/fieldhouse";
-export const NAV = [["engine", "Video engine", "video"], ["video", "Video and audio", "mic"], ["destinations", "Destinations", "link"], ["themes", "Graphics themes", "film"], ["sport", "Sport profile", "ball"], ["shortcuts", "Keyboard shortcuts", "sliders"], ["remote", "Remote access", "phone"], ["storage", "Storage", "disk"], ["diagnostics", "Diagnostics", "help"], ["about", "About and open source", "book"]];
+export const NAV = [["engine", "Video engine", "video"], ["video", "Video and audio", "mic"], ["destinations", "Destinations", "link"], ["themes", "Graphics themes", "film"], ["appearance", "Appearance and layout", "pip"], ["sport", "Sport profiles", "ball"], ["shortcuts", "Keyboard shortcuts", "sliders"], ["remote", "Remote access", "phone"], ["storage", "Storage", "disk"], ["diagnostics", "Diagnostics", "help"], ["about", "About and open source", "book"]];
 
 /** Delegated listener: elements with data-<attr>="name" call map[name](el, event). Returns a cleanup. */
 export function delegate(root, type, attr, map) {

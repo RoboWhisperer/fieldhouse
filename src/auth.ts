@@ -21,15 +21,17 @@ import * as diag from "./diagnostics";
 import { parseEv } from "./game";
 import type { Store } from "./store";
 
-export type Role = "score" | "score+marks" | "producer";
-export interface DeviceDoc { id: string; name: string; role: Role; createdAt: number; lastSeen: number; tokenHash: string }
+export type Role = "score" | "score+marks" | "producer" | "controller"; // controller = an external tool (Companion, Stream Deck, scripts): production actions and macros, no mixer, broadcast or administration
+export interface DeviceDoc { id: string; name: string; role: Role; createdAt: number; lastSeen: number; tokenHash: string; key?: boolean } // key: an API key (Authorization: Bearer fhk_...) instead of a paired phone
 export type WsData = { dev: string };
 
-const ROLES: Role[] = ["score", "score+marks", "producer"];
-const SCORE_EVENTS = ["clock.start", "clock.stop", "clock.set", "period.set", "score", "foul", "timeout", "undo"];
+const ROLES: Role[] = ["score", "score+marks", "producer", "controller"];
+const KEY_ROLES: Role[] = ["controller", "producer"];
+const KEY_PREFIX = "fhk_";
+const SCORE_EVENTS = ["clock.start", "clock.stop", "clock.set", "period.set", "score", "foul", "timeout", "counter", "undo"];
 export const allowedEvents = (role: Role) => (role === "score" ? SCORE_EVENTS : [...SCORE_EVENTS, "mark"]); // score+marks and producer
-const UNDOABLE = ["score", "foul", "timeout"];
-const MAX_BODY = 4096, MAX_DEVICES = 20, COOKIE = "fh_device", COOKIE_AGE = 90 * 86400;
+const UNDOABLE = ["score", "foul", "timeout", "counter"];
+const MAX_BODY = 4096, MAX_DEVICES = 20, MAX_KEYS = 20, COOKIE = "fh_device", COOKIE_AGE = 90 * 86400;
 
 // ---------------------------------------------------------------- address helpers
 const v4 = (s: string) => { const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s); const a = m ? m.slice(1).map(Number) : null; return a && a.every((n) => n <= 255) ? a : null; };
@@ -58,6 +60,7 @@ const sameSecret = (a: string, b: string) => timingSafeEqual(digest(a), digest(b
 const normCode = (c: string) => c.replace(/\s+/g, "").toUpperCase();
 const cleanName = (n: unknown) => (typeof n === "string" ? n.replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 40) : "");
 const cookieOf = (req: Request, name: string) => { for (const p of (req.headers.get("cookie") ?? "").split(";")) { const i = p.indexOf("="); if (i > 0 && p.slice(0, i).trim() === name) return p.slice(i + 1).trim(); } return ""; };
+const bearerOf = (req: Request) => { const m = /^Bearer\s+(\S{1,100})$/i.exec(req.headers.get("authorization") ?? ""); return m ? m[1] : ""; };
 const waitText = (s: number) => (s >= 60 ? `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ""}` : `${s} s`);
 
 class Http extends Error { constructor(public status: number, msg: string, public extra: Record<string, unknown> = {}) { super(msg); } }
@@ -81,11 +84,11 @@ class Limiter {
 
 async function readJson(req: Request, max = MAX_BODY): Promise<Record<string, any>> {
   if (Number(req.headers.get("content-length") ?? 0) > max) fail(413, "That request is too large.");
-  if (!(req.headers.get("content-type") ?? "").includes("json")) fail(415, "Send JSON with content-type: application/json.");
   const chunks: Uint8Array[] = []; let n = 0;
   if (req.body) for await (const c of req.body as any as AsyncIterable<Uint8Array>) { n += c.length; if (n > max) fail(413, "That request is too large."); chunks.push(c); }
   const text = Buffer.concat(chunks).toString("utf8");
-  if (!text) return {};
+  if (!text) return {}; // an empty body needs no content-type (a tool's "cut" button sends none)
+  if (!(req.headers.get("content-type") ?? "").includes("json")) fail(415, "Send JSON with content-type: application/json.");
   let b: any; try { b = JSON.parse(text); } catch { fail(400, "That request was not valid JSON."); }
   if (!b || typeof b !== "object" || Array.isArray(b)) fail(400, "That request was not valid JSON.");
   return b;
@@ -103,8 +106,24 @@ const errRes = (e: unknown) => {
 
 // ---------------------------------------------------------------- the remote
 export interface RemoteDeps { app: App; store: Store; now?: () => number; webDir?: string; avoidPorts?: number[] }
+export interface RemoteRoute { roles: Role[]; method: string; re: RegExp; keyOnly?: boolean; sanitize?: (b: Record<string, any>) => Record<string, unknown> }
+const PRO: Role[] = ["producer", "controller"];
+/** Routes a phone or API key may call besides the scoring/production basics. Allowlist: anything not listed answers 403. */
+export const REMOTE_ROUTES: RemoteRoute[] = [
+  { roles: PRO, method: "GET", re: /^\/api\/macros$/ },
+  { roles: PRO, method: "POST", re: /^\/api\/macros\/[\w-]{1,80}\/run$/, sanitize: (b) => ({ ...(b.data !== undefined ? { data: b.data } : {}) }) },
+  { roles: PRO, method: "POST", re: /^\/api\/automation\/trigger$/, sanitize: (b) => ({ name: b.name, ...(b.data !== undefined ? { data: b.data } : {}) }) },
+  { roles: PRO, method: "GET", re: /^\/api\/custom$/ },
+  { roles: PRO, method: "PUT", re: /^\/api\/custom$/, sanitize: (b) => ({ values: b.values }) }, // text values only; fields cannot be redefined from outside
+  { roles: PRO, method: "POST", re: /^\/api\/graphics\/(clear|[\w-]{1,80}\/(show|hide|toggle|update|next))$/, sanitize: (b) => ({ ...(b.fields && typeof b.fields === "object" ? { fields: b.fields } : {}) }) }, // put graphics on and off air
+  { roles: PRO, method: "GET", re: /^\/api\/stream$/, keyOnly: true }, // read-only event stream (SSE) for tools
+];
+/** Let another module (graphics routes) open one more route to API keys / producers. Call while createApp() runs. */
+export const allowRemote = (r: RemoteRoute) => { REMOTE_ROUTES.push(r); };
 export type HandleOpts = { lan?: boolean; upgrade?: (req: Request, data: WsData) => boolean };
 
+/** Phones get the four original on-air fields; producers also get a short list of graphics to put on and off air. No designs, variables or connector details. */
+const phoneGraphics = (g: any, role: Role) => ({ scorebug: g.scorebug, lower: g.lower, slate: g.slate, sponsor: g.sponsor, ...(role === "producer" ? { items: (g.items ?? []).map((i: any) => ({ id: i.id, name: i.name, role: i.role, visible: i.visible })) } : {}) });
 export function createRemote(deps: RemoteDeps) {
   const { app, store } = deps;
   const now = deps.now ?? Date.now;
@@ -116,7 +135,7 @@ export function createRemote(deps: RemoteDeps) {
   const byId = new Map<string, DeviceDoc>();
   const persistedAt = new Map<string, number>();
   for (const d of store.list<DeviceDoc>("device")) { byHash.set(d.tokenHash, d); byId.set(d.id, d); }
-  const publicDev = (d: DeviceDoc) => ({ id: d.id, name: d.name, role: d.role, createdAt: d.createdAt, lastSeen: d.lastSeen, connected: (sockets.get(d.id)?.size ?? 0) > 0 });
+  const publicDev = (d: DeviceDoc) => ({ id: d.id, name: d.name, role: d.role, key: !!d.key, createdAt: d.createdAt, lastSeen: d.lastSeen, connected: (sockets.get(d.id)?.size ?? 0) > 0 });
   const save = (d: DeviceDoc) => { store.put("device", d); persistedAt.set(d.id, now()); };
   const touch = (d: DeviceDoc) => { d.lastSeen = now(); if (now() - (persistedAt.get(d.id) ?? 0) > 30_000) save(d); };
 
@@ -124,6 +143,7 @@ export function createRemote(deps: RemoteDeps) {
   const connectedCount = () => [...sockets.values()].filter((s) => s.size).length;
   let locked = false;
 
+  const keyLimit = new Limiter(20, 300_000, 300_000, now); // 20 wrong API keys / 5 min per address -> 5 min lockout
   const ipLimit = new Limiter(5, 300_000, 300_000, now); // 5 wrong codes / 5 min per address -> 5 min lockout
   const allLimit = new Limiter(25, 300_000, 300_000, now); // the same for the whole network, so changing address does not help
   const buckets = new Map<string, { tokens: number; at: number }>();
@@ -143,8 +163,8 @@ export function createRemote(deps: RemoteDeps) {
   function stateFor(role: Role) {
     const st = app.state(), d = st.gameDoc;
     const tm = (t: { name: string; abbr: string; color: string; roster: unknown }) => ({ name: t.name, abbr: t.abbr, color: t.color, roster: t.roster });
-    const base = { kind: "state", role, serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, events: st.events, graphics: st.graphics, profile: st.settings.profile };
-    if (role !== "producer") return base;
+    const base = { kind: "state", role, serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, sport: st.sport, events: st.events, graphics: phoneGraphics(st.graphics, role), profile: st.settings.profile }; // `profile` is the old five-field view (kept for old phones); `sport` is the active game's profile summary
+    if (role !== "producer" && role !== "controller") return base;
     const e = st.engine, n = st.next;
     return {
       ...base, canBroadcast: !!st.settings.remote.producerCanBroadcast,
@@ -168,7 +188,9 @@ export function createRemote(deps: RemoteDeps) {
       for (const w of set) { if (!cache.has(role)) cache.set(role, JSON.stringify(stateFor(role))); send(w, cache.get(role)!); }
     }
   }
-  const closeDevice = (id: string, code: number, why: string) => { for (const ws of [...(sockets.get(id) ?? [])]) { try { ws.close(code, why); } catch {} } };
+  const streams = new Map<string, Set<AbortController>>(); // open /api/stream connections per device
+  const closeStreams = (id: string) => { for (const c of streams.get(id) ?? []) c.abort(); streams.delete(id); };
+  const closeDevice = (id: string, code: number, why: string) => { closeStreams(id); for (const ws of [...(sockets.get(id) ?? [])]) { try { ws.close(code, why); } catch {} } };
   const tick = setInterval(() => { // keepalive: the phone treats silence as a dropped connection
     if (!connectedCount()) return;
     for (const [id, set] of sockets) if (set.size) { const d = byId.get(id); if (d) touch(d); }
@@ -190,12 +212,23 @@ export function createRemote(deps: RemoteDeps) {
 
   // ---------------------------------------------------------------- pairing
   function mint(name: string, ip: string) {
-    if (byId.size >= MAX_DEVICES) fail(409, "Too many phones are paired. Remove one in Settings > Remote on the console.");
+    if ([...byId.values()].filter((x) => !x.key).length >= MAX_DEVICES) fail(409, "Too many phones are paired. Remove one in Settings > Remote on the console.");
     const token = randomBytes(32).toString("base64url");
     const d: DeviceDoc = { id: data.newId("dev"), name, role: "score", createdAt: now(), lastSeen: now(), tokenHash: hashToken(token) };
     save(d); byHash.set(d.tokenHash, d); byId.set(d.id, d);
     diag.log("INFO", `Phone paired: ${name} (${normIp(ip)})`); app.changed();
     return jsonRes({ ok: true, token, device: publicDev(d) }, 200, { "set-cookie": `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_AGE}` });
+  }
+  /** An API key for an outside tool: shown once, stored as a hash, revoked like a phone (DELETE /api/remote/devices/:id). */
+  async function mintKey(b: Record<string, any>) {
+    const name = cleanName(b.name); if (!name) fail(400, "Give the key a name so you know what uses it, for example Companion.");
+    const role: Role = b.role === undefined ? "controller" : KEY_ROLES.includes(b.role) ? b.role : fail(400, "A key's role is controller or producer.");
+    if ([...byId.values()].filter((x) => x.key).length >= MAX_KEYS) fail(409, `You can have at most ${MAX_KEYS} API keys. Revoke one you no longer use.`);
+    const key = KEY_PREFIX + randomBytes(32).toString("base64url");
+    const d: DeviceDoc = { id: data.newId("key"), name, role, createdAt: now(), lastSeen: 0, tokenHash: hashToken(key), key: true };
+    save(d); byHash.set(d.tokenHash, d); byId.set(d.id, d);
+    diag.log("INFO", `API key created: ${name} (${role})`); app.changed();
+    return jsonRes({ ok: true, key, device: publicDev(d), note: "Copy this key now. It is shown only once and cannot be recovered." });
   }
   const locks = (ip: string) => Math.max(ipLimit.wait(ip), allLimit.wait("*"));
   const tooMany = (s: number): never => fail(429, `Too many wrong tries. Try again in ${waitText(s)}.`, { retryAfterSec: s });
@@ -236,7 +269,7 @@ export function createRemote(deps: RemoteDeps) {
 
   // ---------------------------------------------------------------- device-facing routes
   function authenticate(req: Request, url: URL, allowQuery = false): DeviceDoc {
-    const t = cookieOf(req, COOKIE) || (allowQuery ? url.searchParams.get("t") ?? "" : "");
+    const t = bearerOf(req) || cookieOf(req, COOKIE) || (allowQuery ? url.searchParams.get("t") ?? "" : "");
     const d = t && t.length <= 64 ? byHash.get(hashToken(t)) : undefined;
     if (!d) return fail(401, "This phone is not paired. Enter the pairing code to connect.");
     touch(d); return d;
@@ -255,7 +288,7 @@ export function createRemote(deps: RemoteDeps) {
     let ev: Record<string, unknown>;
     if (b.type === "undo" && b.target === undefined) ev = { type: "undo" }; // the app picks the latest undoable event
     else {
-      const p = parseEv(b); if (typeof p === "string") return fail(400, p);
+      const p = parseEv(b, app.profile()); if (typeof p === "string") return fail(400, p);
       ev = p as any;
       if (p.type === "undo" && !app.state().events.some((e: any) => e.seq === p.target && UNDOABLE.includes(e.type))) fail(400, "That can no longer be undone.");
     }
@@ -286,8 +319,28 @@ export function createRemote(deps: RemoteDeps) {
     "POST /api/broadcast/start": () => ({}),
     "POST /api/broadcast/stop": () => ({}),
   };
+  // Role "controller" (API keys for Companion, Stream Deck, scripts) may do these production actions; mixer, broadcast start/stop and everything else stay with producers and the console.
+  const CONTROLLER_KEYS = new Set(["POST /api/engine/preview", "POST /api/engine/cut", "POST /api/engine/fade", "POST /api/replay", "POST /api/replay/stop", "POST /api/graphics", "POST /api/sponsors/fire"]);
+  /** Extra allowlisted routes (macros, automation triggers, custom text, event stream, graphics). The body is re-sent as JSON; `sanitize` may narrow it. */
+  async function extra(req: Request, url: URL, d: DeviceDoc, r: RemoteRoute) {
+    if (!r.roles.includes(d.role)) fail(403, "This device is not allowed to do that.");
+    if (r.keyOnly && !d.key) fail(403, "This is only available to API keys.");
+    if (locked) fail(423, "The console has locked the remote");
+    if (req.method !== "GET") sameOrigin(req, url);
+    if (!spend(d.id)) fail(429, "Slow down: too many requests at once.");
+    let signal = req.signal;
+    if (url.pathname === "/api/stream") { // tracked so that revoking or changing this device ends the stream
+      const ac = new AbortController(), set = streams.get(d.id) ?? streams.set(d.id, new Set()).get(d.id)!;
+      set.add(ac); req.signal.addEventListener("abort", () => set.delete(ac)); signal = AbortSignal.any([req.signal, ac.signal]);
+    }
+    let init: RequestInit = { method: req.method, headers: { "content-type": "application/json", "x-fieldhouse-remote": "1" }, signal };
+    if (req.method !== "GET") { const b = await readJson(req); init = { ...init, body: JSON.stringify(r.sanitize ? r.sanitize(b) : b) }; }
+    const res = await app.handle(new Request(url.origin + url.pathname + url.search, init));
+    if (req.method !== "GET") diag.log(res.ok ? "INFO" : "WARN", `remote ${d.name}: ${req.method} ${url.pathname} -> ${res.status}`);
+    return res;
+  }
   async function producer(req: Request, url: URL, key: string, d: DeviceDoc) {
-    if (d.role !== "producer") fail(403, "This device is not allowed to do that. Ask the person at the console for the Producer role.");
+    if (!(d.role === "producer" || (d.role === "controller" && CONTROLLER_KEYS.has(key)))) fail(403, "This device is not allowed to do that. Ask the person at the console for the Producer role.");
     if (key.includes("/broadcast/") && !settings().remote.producerCanBroadcast) fail(403, "Starting and stopping the broadcast is turned off for remote devices. Do it on the console, or allow it in Settings > Remote access.");
     if (locked) fail(423, "The console has locked the remote");
     sameOrigin(req, url);
@@ -313,8 +366,11 @@ export function createRemote(deps: RemoteDeps) {
     const p = url.pathname, m = req.method;
     const cfg = settings().remote;
     if (!cfg.enabled) return jsonRes({ error: "Phone remote is turned off on this computer." }, 403);
+    if (!/^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\]|[a-z0-9-]+|[a-z0-9-]+\.local)$/i.test(url.hostname)) return jsonRes({ error: "Open the remote at the address shown on the console (an IP address such as http://192.168.1.20:8081/remote)." }, 403); // a rebinding page uses its own domain name
     if (cfg.lockedToLan && !isPrivate(ip)) return jsonRes({ error: "This remote only works on the same Wi-Fi network as the console." }, 403);
     try {
+      const bt = bearerOf(req); // an API key: wrong guesses are rate limited per address, and a known key is never a reason to lock anyone out
+      if (bt && !byHash.has(hashToken(bt))) { const w = keyLimit.wait(ip); if (w) tooMany(w); keyLimit.fail(ip); fail(401, "That API key is not valid or was revoked."); }
       if (m === "GET" && FILES[p]) { const f = Bun.file(join(webDir, FILES[p])); return (await f.exists()) ? new Response(f) : jsonRes({ error: "Not found." }, 404); }
       if (m === "GET" && p === "/favicon.ico") return new Response(null, { status: 204 });
       if (m === "POST" && p === "/api/remote/pair") { sameOrigin(req, url); return await pair(req, ip); }
@@ -324,6 +380,8 @@ export function createRemote(deps: RemoteDeps) {
       const sm = m === "GET" ? /^\/snap\/([\w-]{1,40})$/.exec(p) : null;
       if (sm) return await snapshot(authenticate(req, url), sm[1]);
       if (PRODUCER[m + " " + p]) { const d = authenticate(req, url); return await producer(req, url, m + " " + p, d); }
+      const xr = REMOTE_ROUTES.find((r) => r.method === m && r.re.test(p));
+      if (xr) return await extra(req, url, authenticate(req, url), xr);
       if (m === "GET" && p === "/ws") {
         sameOrigin(req, url);
         const d = authenticate(req, url, true);
@@ -364,13 +422,15 @@ export function createRemote(deps: RemoteDeps) {
       if (m === "POST" && p === "/api/remote/code/rotate") { data.saveSettings(store, { remote: { code: data.newCode() } }); app.changed(); return jsonRes(await status()); }
       if (m === "POST" && p === "/api/remote/lock") {
         const b = await readJson(req); if (typeof b.locked !== "boolean") fail(400, "locked must be true or false.");
-        locked = b.locked; diag.log("INFO", locked ? "Remote locked by the console" : "Remote unlocked by the console"); app.changed(); broadcast(); return jsonRes({ locked });
+        locked = b.locked; if (locked) for (const id of [...streams.keys()]) closeStreams(id); diag.log("INFO", locked ? "Remote locked by the console" : "Remote unlocked by the console"); app.changed(); broadcast(); return jsonRes({ locked });
       }
+      if (p === "/api/remote/keys" && m === "GET") return jsonRes([...byId.values()].filter((x) => x.key).sort((a, b) => a.createdAt - b.createdAt).map(publicDev));
+      if (p === "/api/remote/keys" && m === "POST") return await mintKey(await readJson(req));
       let mt = /^\/api\/remote\/devices\/([\w-]+)$/.exec(p);
       if (mt && m === "PUT") {
         const b = await readJson(req), d = byId.get(mt[1]); if (!d) fail(404, "That phone is not paired.");
         if (!ROLES.includes(b.role)) fail(400, "Role must be score, score+marks or producer.");
-        d!.role = b.role; save(d!);
+        d!.role = b.role; save(d!); closeStreams(d!.id);
         for (const w of sockets.get(d!.id) ?? []) { send(w, JSON.stringify({ kind: "me", device: publicDev(d!) })); send(w, JSON.stringify(stateFor(d!.role))); } // takes effect on live sockets at once
         app.changed(); return jsonRes(publicDev(d!));
       }
@@ -392,6 +452,7 @@ export function createRemote(deps: RemoteDeps) {
   async function handle(req: Request, peerIp: string | undefined, o: HandleOpts = {}): Promise<Response | "upgraded" | null> {
     const url = new URL(req.url), ip = peerIp ?? "";
     if (!o.lan && isLoopback(ip)) {
+      if (req.headers.has("x-fieldhouse-outbound")) return secure(jsonRes({ error: "Fieldhouse's own rules, webhooks and connectors cannot call the console." }, 403));
       // DNS rebinding: a web page can point its own hostname at 127.0.0.1 and then talk to the console API as "same origin".
       // The console is only ever addressed as localhost / 127.0.0.1 / [::1], so refuse any other Host name.
       if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname.toLowerCase())) return secure(jsonRes({ error: "Open Fieldhouse at http://localhost or http://127.0.0.1." }, 403));

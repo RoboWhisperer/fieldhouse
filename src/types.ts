@@ -1,5 +1,7 @@
 // Shared contract between engine, domain modules, server and web UI. Change here first, then everywhere.
 import type { Team } from "./game";
+import type { ProfileDoc } from "./profiles/types";
+import type { UiSettings } from "./automation/ui-settings";
 export type { Team };
 
 // ---------------------------------------------------------------- engine
@@ -71,6 +73,8 @@ export interface Engine {
   snapshot(sourceId: string): Promise<{ type: string; body: Uint8Array } | null>; // still image for monitors/tiles; "program"/"preview" = what is on air / next, with graphics
   addNetworkSource?(url: string, label: string): Promise<DeviceInfo>; // srt/rtmp/rtsp/http(s) stream or local video file; use the returned id with setSlot
   provision?(): Promise<void>; // (re)create what the engine needs inside the media app (OBS scenes etc.)
+  /** Web pages the engine draws as their own layers above/below the overlay (OBS: browser inputs "FH Ext <id>"). z < 0 = under the overlay page. Replaces the previous list. */
+  setExternalLayers?(layers: { id: string; url: string; width: number; height: number; z: number; visible: boolean; css?: string }[]): Promise<void>;
   // Everything below is optional so a simple engine still works; SwitchableEngine forwards it, the routes say "not supported" when absent.
   videoInfo?(): Promise<{ applied: VideoApplied | null; encoders: EncoderOption[]; encoderInUse: string }>;
   applyVideo?(v: VideoSettings): Promise<VideoApplied>; // throws while a broadcast is running if it would drop it
@@ -91,7 +95,9 @@ export interface GameDoc {
   title: string;
   startsAt: number; // ms epoch
   venueId: string;
-  sport: "basketball";
+  sport: string; // the sport label of its profile ("Basketball")
+  profileId?: string; // chosen sport profile; empty = the default in settings
+  profileSnapshot?: ProfileDoc; // frozen copy taken when the game starts: editing the profile later never changes this game
   home: TeamDoc;
   away: TeamDoc;
   destinationIds: string[];
@@ -135,7 +141,8 @@ export interface SettingsDoc {
   theme: "hardwood" | "midnight" | "clean" | "contrast";
   showLogos: boolean;
   showSponsorCorner: boolean;
-  profile: { periods: number; periodMin: number; overtimeMin: number; bonusAt: number; timeouts: number };
+  profile: { periods: number; periodMin: number; overtimeMin: number; bonusAt: number; timeouts: number }; // legacy view of the built-in basketball profile
+  defaultProfileId?: string; // sport profile new games use (default "basketball")
   shortcuts: Record<string, string>; // action -> key
   storageDir: string;
   retention: "never" | "90d" | "season";
@@ -146,6 +153,7 @@ export interface SettingsDoc {
   autoFireSponsors: boolean;
   engine: { kind: "fake" | "obs"; obsUrl: string; obsPassword?: string; obsPasswordSet?: boolean }; // obsPassword is write-only: the API only ever returns obsPasswordSet
   video: VideoSettings;
+  ui: UiSettings; // how the console looks and which panels it shows (src/automation/ui-settings.ts)
 }
 
 // ---------------------------------------------------------------- preflight, reports, graphics

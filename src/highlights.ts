@@ -2,10 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } f
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { Logged } from "./game";
+import { BASKETBALL } from "./profiles/builtins";
+import type { ProfileDoc } from "./profiles/types";
 import type { Clip } from "./types";
 
-export function clipsFromLog(log: Logged[], rec: { startedAt: number }, opts: { preMs?: number; postMs?: number; includeMarks?: boolean } = {}): Clip[] {
-  const { preMs = 5000, postMs = 3000, includeMarks = false } = opts;
+export function clipsFromLog(log: Logged[], rec: { startedAt: number }, opts: { preMs?: number; postMs?: number; includeMarks?: boolean; profile?: ProfileDoc } = {}): Clip[] {
+  const { preMs = 5000, postMs = 3000, includeMarks = false, profile = BASKETBALL } = opts;
   const undone = new Set(log.filter((e) => e.type === "undo").map((e) => (e as { target: number }).target));
   const start = [...log].reverse().find((e) => e.type === "game.start");
   const names = start?.type === "game.start" ? { home: start.homeName ?? start.home, away: start.awayName ?? start.away } : undefined;
@@ -16,7 +18,9 @@ export function clipsFromLog(log: Logged[], rec: { startedAt: number }, opts: { 
     const at = Math.max(0, e.t - rec.startedAt);
     let label = "Score";
     if (e.type === "score") {
-      const shot = e.points === 3 ? "3-pointer" : e.points === 2 ? "basket" : "free throw";
+      // "Wildcats touchdown #12": the profile's own word for this score (lower-case so basketball keeps "3-pointer", "basket", "free throw")
+      const opt = profile.scoring.find((o) => o.id === e.kind && o.points === e.points) ?? profile.scoring.find((o) => o.points === e.points);
+      const shot = opt ? opt.label.toLowerCase() : `${e.points}-point score`;
       label = names ? `${names[e.team]} ${shot}${e.player !== undefined ? ` #${e.player}` : ""}` : "Score";
     } else label = e.note || "Marked moment";
     raw.push({ startMs: Math.max(0, at - preMs), endMs: at + postMs, label, eventSeq: [e.seq] });

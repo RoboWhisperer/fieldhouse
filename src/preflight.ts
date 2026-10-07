@@ -1,11 +1,12 @@
 // Go-live checks, grouped as in 10-ui-design-spec.md 5.6. Every non-ok check says what is wrong and names its fix.
 import { checkDestination } from "./destination-check";
+import type { ProfileDoc } from "./profiles/types";
 import type { Check, DestinationDoc, EngineStatus, GameDoc, SettingsDoc } from "./types";
 
 const GB = 1024 ** 3;
 const NEED_GB = 45; // 15 GB/hour x a 3-hour game
 
-export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; destinations: DestinationDoc[]; settings: SettingsDoc }): Promise<Check[]> {
+export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; destinations: DestinationDoc[]; settings: SettingsDoc; profile?: ProfileDoc }): Promise<Check[]> {
   const { engine, game } = ctx;
   const out: Check[] = [];
   const add = (c: Omit<Check, "result" | "fix"> & { result: string; fix?: string }) => out.push(c.status === "ok" ? { ...c, fix: undefined } : c);
@@ -57,8 +58,8 @@ export async function runChecks(ctx: { engine: EngineStatus; game?: GameDoc; des
     for (const side of ["home", "away"] as const) {
       const t = game[side];
       add({ id: `game.roster.${side}`, group: "Game", name: `${t.name} roster`, status: t.roster.length ? "ok" : "warn", result: t.roster.length ? `${t.roster.length} players loaded.` : `No players loaded for ${t.name}.`, fix: "Import roster" });
-      const n = t.roster.filter((p) => p.starter).length;
-      if (t.roster.length) add({ id: `game.starters.${side}`, group: "Game", name: `${t.name} starters`, status: n >= 5 ? "ok" : "warn", result: n >= 5 ? "Starting five marked." : `${n} of 5 starters marked for ${t.name}.`, fix: "Mark starters" });
+      const n = t.roster.filter((p) => p.starter).length, need = ctx.profile?.starters ?? 5, sport = ctx.profile?.sport ?? "Basketball"; // how many make a starting lineup depends on the sport
+      if (t.roster.length && need) add({ id: `game.starters.${side}`, group: "Game", name: `${t.name} starters`, status: n >= need ? "ok" : "warn", result: n >= need ? (need === 5 ? "Starting five marked." : `Starting ${need} marked.`) : `${n} of ${need} starters marked for ${t.name} (${sport}).`, fix: "Mark starters" });
     }
   }
   return out;

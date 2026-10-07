@@ -2,7 +2,7 @@
 
 Fieldhouse is a free, open-source broadcast app for school sports. It turns a laptop, one to four cameras and OBS Studio into a live stream and recording with a score bug, replay and sponsor messages, run by one volunteer.
 
-**Who it is for:** teachers, athletic directors, booster-club parents and student crews who stream home games without a TV crew, starting with high school basketball.
+**Who it is for:** teachers, athletic directors, booster-club parents and student crews who stream home games without a TV crew, with built-in rules for basketball, soccer, football, volleyball and hockey.
 
 **Status: beta (1.0.0-beta.1, the first public beta).** Verified so far, on one Linux machine with OBS Studio 32.2.2 (Flatpak): a scripted game night and a click-through of the packaged Linux desktop app, covering connecting to and setting up real OBS, switching, recording, streaming to a local test server, instant replay, sponsors, highlights and crash recovery. **Not verified:** Windows and macOS, code signing, automatic updates, native (non-Flatpak) Linux OBS, real USB cameras, real YouTube or Facebook streaming, physical phones, Safari and iOS. No public installers exist yet.
 
@@ -17,7 +17,11 @@ Built:
 - Sponsor library with rules, break planning and a proof-of-play CSV report
 - Marked moments and highlight export (needs `ffmpeg`)
 - Diagnostics bundle export
-- Basketball profile (periods, length, bonus, timeouts)
+- Sport profiles: basketball, soccer, football, volleyball and hockey built in, plus your own (periods, clock, scoring buttons, counters, set rules); each game keeps the profile it started with
+- Custom graphics: restyle the built-in ones, write your own HTML graphics, import CasparCG HTML templates, show any URL overlay as its own layer, and drive Singular/UNO, a CasparCG server or any HTTP system
+- Automation: rules, macros, custom data fields, webhooks and API keys (Companion, Stream Deck)
+- Appearance and layout: theme, accent, text size, console layouts and macro buttons
+- Workspace export and import: rules, macros, graphics (with files), sport profiles, looks and layouts as one file, with a dry run first; secrets are never written
 - Real OBS control (scenes, overlay, switching, recording, streaming, replay), plus a built-in demo engine for practice that records a test pattern
 
 Built, but verified less:
@@ -28,8 +32,9 @@ Built, but verified less:
 
 Planned:
 - Signed Windows and macOS installers and automatic updates
-- Other sports (football, volleyball)
 - Sign-in with YouTube or Facebook is not planned for v1: you paste a stream key
+
+**Verified vs not verified (customization):** a custom HTML graphic, the CasparCG example template and URL layers were verified on real OBS 32.2.2 (Flatpak). Singular/UNO was only tested against mocks, a CasparCG server only against a fake AMCP server, and Windows and macOS are untested.
 
 ## Requirements
 
@@ -45,7 +50,7 @@ bun run demo     # http://127.0.0.1:8080 with sample data
 
 ## Documentation
 
-- [User guide](docs/README.md): [Getting started](docs/getting-started.md), [Game night checklist](docs/game-night-checklist.md), [Troubleshooting](docs/troubleshooting.md), [Privacy](docs/privacy.md), [FAQ](docs/faq.md)
+- [User guide](docs/README.md): [Getting started](docs/getting-started.md), [Game night checklist](docs/game-night-checklist.md), [Troubleshooting](docs/troubleshooting.md), [Privacy](docs/privacy.md), [FAQ](docs/faq.md), [Automation](docs/automation-guide.md), [Sport profiles](docs/sport-profiles.md), [Graphics Studio](docs/graphics-studio.md), [Graphics authoring](docs/graphics-authoring.md)
 - Project planning: see below.
 
 ## Known limitations
@@ -55,7 +60,7 @@ bun run demo     # http://127.0.0.1:8080 with sample data
 - Automatic updates are not verified against a real feed; the update check has only seen the "no release" answer.
 - No OAuth sign-in: you paste a stream address and key.
 - Flatpak OBS cannot see system folders, so recording folders must be inside your home folder.
-- Basketball only.
+- Basketball is the most tested sport. The other built-in sports and custom profiles are checked by automated tests (a golden replay for basketball), not by running a real game.
 
 ## Free and open source
 

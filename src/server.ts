@@ -31,7 +31,7 @@ backup(); setInterval(backup, 6 * 3_600_000).unref();
 // Engine: env ENGINE / DEMO win, otherwise what Settings > Engine saved (packaged installs default to OBS). OBS draws the overlay by loading our own /overlay.
 const saved = getSettings(store).engine;
 const engine = new SwitchableEngine(process.env.ENGINE ? (process.env.ENGINE === "obs" ? "obs" : "fake") : process.env.DEMO === "1" ? "fake" : saved.kind,
-  { obsUrl: process.env.OBS_URL ?? saved.obsUrl, obsPassword: process.env.OBS_PASSWORD ?? saved.obsPassword, overlayUrl: () => `http://127.0.0.1:${server.port}/overlay`, video: () => getSettings(store).video, restartForVideo: () => supervisor.restartForSettings() });
+  { obsUrl: process.env.OBS_URL ?? saved.obsUrl, obsPassword: process.env.OBS_PASSWORD ?? saved.obsPassword, overlayUrl: () => `http://127.0.0.1:${server.port}/overlay${process.env.FIELDHOUSE_DEBUG === "1" ? "?debug" : ""}`, video: () => getSettings(store).video, restartForVideo: () => supervisor.restartForSettings() });
 if (process.env.DEMO === "1") seedDemo(store);
 const app = createApp({ store, engine });
 
@@ -92,9 +92,11 @@ const server = Bun.serve({
     const gate = await remote.handle(req, srv.requestIP(req)?.address, { upgrade: (r, data) => srv.upgrade(r, { data }) });
     if (gate === "upgraded") return;
     if (gate) return gate;
+    if (pathname === "/ws") { const o = req.headers.get("origin"); if (o) { let h = ""; try { h = new URL(o).host; } catch {} if (h !== new URL(req.url).host) return new Response("forbidden", { status: 403 }); } }
     if (pathname === "/ws") return srv.upgrade(req) ? undefined : new Response("expected websocket", { status: 400 });
     if (pathname.startsWith("/api/")) return app.handle(req);
     if (pathname === "/overlay") return new Response(Bun.file(P.overlay));
+    if (pathname.startsWith("/gfx/")) return app.graphics.serve(req); // custom graphics' files and the runtime script (loopback only: the remote gate never lets /gfx through)
     if (pathname.startsWith("/rec/")) return app.rec(req);
     const snap = /^\/snap\/([\w-]+)$/.exec(pathname);
     if (snap) {

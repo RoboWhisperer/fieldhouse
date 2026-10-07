@@ -19,8 +19,12 @@ Fieldhouse is free and open source. There is no account, no trial and no license
 | [OBS setup](obs-setup.md) | You are connecting Fieldhouse to OBS Studio |
 | [Streaming destinations](streaming-destinations.md) | You are sending the game to YouTube, Facebook or another site |
 | [Remote access: phones and computers](scorekeeper-phone-remote.md) | Someone else keeps the score from a phone, or runs the video from a second computer |
+| [Sport profiles](sport-profiles.md) | You keep score for a sport other than basketball, or want to change the rules (periods, clock, scoring, fouls, timeouts) |
 | [Replay and highlights](replay-and-highlights.md) | You want instant replay or a highlight reel |
+| [Automation: rules, macros and custom fields](automation-guide.md) | You want the app to do things for you, or connect Companion or a Stream Deck |
 | [Sponsors and proof of play](sponsors-and-proof-of-play.md) | You sell or show sponsor messages |
+| [Graphics Studio](graphics-studio.md) | You want to change how graphics look and move, import one, or link Singular or CasparCG |
+| [Graphics: templates, imports and connectors](graphics-authoring.md) | You want to restyle the graphics, bring your own (CasparCG, Singular, UNO, web overlays) or connect them |
 | [Troubleshooting](troubleshooting.md) | Something went wrong |
 | [Streaming rights](streaming-rights.md) | Before your first public stream |
 | [Privacy](privacy.md) | You need to know what is stored and where |
@@ -28,4 +32,4 @@ Fieldhouse is free and open source. There is no account, no trial and no license
 
 ## For contributors
 
-Screenshots to capture before release: [screenshots/README.md](screenshots/README.md). To help build Fieldhouse, see [CONTRIBUTING](../CONTRIBUTING.md).
+Screenshots to capture before release: [screenshots/README.md](screenshots/README.md). To help build Fieldhouse, see [CONTRIBUTING](../CONTRIBUTING.md). To add or change a sport in code, see [Sport profiles (developer guide)](dev/profiles.md), the [graphics API](dev/graphics-api.md) and the [automation API](dev/automation-api.md) and the [customization overview](dev/customization.md).

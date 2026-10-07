@@ -3,6 +3,10 @@ import { paths } from "./config";
 import type { DestinationDoc, DestinationView, GameDoc, Player, SettingsDoc, VenueDoc } from "./types";
 import type { Store } from "./store";
 import { DEFAULT_VIDEO, validateVideo } from "./video-settings";
+import { DEFAULT_UI, validateUi, withUiDefaults } from "./automation/ui-settings";
+import { BASKETBALL } from "./profiles/builtins";
+import { applyLegacy, legacyView } from "./profiles/lib";
+import { DEFAULT_PROFILE_ID, getProfile, saveProfile } from "./profiles/store";
 
 export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().slice(0, 8)}`;
 const isObj = (x: unknown): x is Record<string, any> => !!x && typeof x === "object" && !Array.isArray(x);
@@ -28,6 +32,7 @@ export function defaultSettings(): SettingsDoc {
     remote: { requireCode: true, code: newCode(), lockedToLan: true, enabled: false, port: 8081, producerCanBroadcast: false },
     telemetry: false, autoFireSponsors: false,
     video: { ...DEFAULT_VIDEO },
+    ui: DEFAULT_UI(),
     engine: { kind: paths().packaged && process.env.DEMO !== "1" && process.env.ENGINE !== "fake" ? "obs" : "fake", obsUrl: "ws://127.0.0.1:4455" },
   };
 }
@@ -35,7 +40,8 @@ export function defaultSettings(): SettingsDoc {
 export function getSettings(store: Store): SettingsDoc {
   const saved = store.get<SettingsDoc & { id: string }>("settings", "main");
   const d = defaultSettings();
-  const merged = { ...d, ...saved, profile: { ...d.profile, ...saved?.profile }, remote: { ...d.remote, ...saved?.remote }, engine: { ...d.engine, ...saved?.engine }, video: { ...d.video, ...saved?.video }, shortcuts: { ...d.shortcuts, ...saved?.shortcuts } };
+  // The old five-field "profile" is now a view of the built-in basketball profile, so old screens and new profile docs never disagree.
+  const merged = { ...d, ...saved, defaultProfileId: saved?.defaultProfileId ?? DEFAULT_PROFILE_ID, profile: legacyView(getProfile(store, "basketball") ?? BASKETBALL), remote: { ...d.remote, ...saved?.remote }, engine: { ...d.engine, ...saved?.engine }, video: { ...d.video, ...saved?.video }, ui: withUiDefaults(saved?.ui), shortcuts: { ...d.shortcuts, ...saved?.shortcuts } };
   if (!saved) store.put("settings", { id: "main", ...merged });
   const { id: _id, ...out } = merged as any;
   return out;
@@ -53,6 +59,7 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
   if (!isObj(patch)) throw new Error("Settings must be an object");
   const cur = getSettings(store);
   const next: any = { ...cur };
+  let legacy: Partial<SettingsDoc["profile"]> | undefined;
   for (const [k, v] of Object.entries(patch)) {
     switch (k) {
       case "theme": if (!["hardwood", "midnight", "clean", "contrast"].includes(v)) throw new Error("Unknown theme"); next.theme = v; break;
@@ -70,8 +77,10 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
           if (!intIn(pv, ...ranges[pk])) throw new Error(`${pk} must be a whole number from ${ranges[pk][0]} to ${ranges[pk][1]}`);
           next.profile[pk] = pv;
         }
+        legacy = Object.fromEntries(Object.keys(v).map((pk) => [pk, next.profile[pk]]));
         break;
       }
+      case "defaultProfileId": if (typeof v !== "string" || !getProfile(store, v)) throw new Error("Pick one of your sport profiles as the default."); next.defaultProfileId = v; break;
       case "shortcuts": {
         if (!isObj(v)) throw new Error("shortcuts must be an object");
         next.shortcuts = { ...cur.shortcuts };
@@ -94,6 +103,7 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
         }
         break;
       }
+      case "ui": next.ui = validateUi(v, cur.ui); break; // looks, layouts, macro buttons (src/automation/ui-settings.ts)
       case "video": next.video = validateVideo(v, cur.video); break; // quality, encoder, format, replay length (src/video-settings.ts)
       case "remote": {
         if (!isObj(v)) throw new Error("remote must be an object");
@@ -110,6 +120,7 @@ export function saveSettings(store: Store, patch: unknown): SettingsDoc {
       default: throw new Error(`Unknown setting: ${k}`);
     }
   }
+  if (legacy) saveProfile(store, applyLegacy(getProfile(store, "basketball") ?? BASKETBALL, legacy), "basketball"); // after every check passed
   store.put("settings", { id: "main", ...next });
   return next;
 }
@@ -244,10 +255,15 @@ export function saveGame(store: Store, input: any): GameDoc {
   const status = input.status ?? "scheduled";
   if (!["scheduled", "live", "final"].includes(status)) throw new Error("Unknown game status");
   const home = checkTeam(input.home, "Home"), away = checkTeam(input.away, "Away");
+  // Sport: a game that has started keeps its frozen profile; before that the operator may pick any profile (default = Settings).
+  const before = typeof input.id === "string" && input.id ? getGame(store, input.id) : undefined;
+  const wanted = typeof input.profileId === "string" && input.profileId ? input.profileId : before?.profileId ?? getSettings(store).defaultProfileId ?? DEFAULT_PROFILE_ID;
+  const prof = before?.profileSnapshot ?? getProfile(store, wanted) ?? (() => { throw new Error("That sport profile does not exist. Pick another sport."); })();
+  if (before?.profileSnapshot && wanted !== before.profileId && input.profileId) throw new Error("This game has already started, so its sport can't be changed.");
   const g: GameDoc = {
     id: typeof input.id === "string" && input.id ? input.id : newId("game"),
     title: typeof input.title === "string" && input.title.trim() ? input.title.trim().slice(0, 100) : `${home.name} vs ${away.name}`,
-    startsAt: input.startsAt, venueId: String(input.venueId ?? ""), sport: "basketball", home, away,
+    startsAt: input.startsAt, venueId: String(input.venueId ?? ""), sport: prof.sport, profileId: before?.profileSnapshot ? before.profileId : prof.id, ...(before?.profileSnapshot && { profileSnapshot: before.profileSnapshot }), home, away,
     destinationIds: Array.isArray(input.destinationIds) ? input.destinationIds.filter((x: unknown) => typeof x === "string") : [],
     status,
   };
@@ -306,4 +322,12 @@ export function seedDemo(store: Store) {
       store.put("airing", { id: `airing_demo_${i}_${min}_${sp}`, gameId: id, sponsorId: sponsors[sp][0], at: startsAt + min * 60_000, period, gameClockMs: 240_000, trigger, outcome, seconds });
     air(2, "pregame", -5, 1); air(0, "timeout", 12, 1); air(1, "halftime", 40, 2, i === 2 ? "skipped" : "aired"); air(0, "timeout", 62, 3, i === 3 ? "delayed" : "aired"); air(1, "postgame", 100, 4);
   });
+}
+
+/** Freeze the game's sport rules. Called when the game starts (first activation); a game that already has one keeps it. */
+export function snapshotProfile(store: Store, id: string): GameDoc {
+  const g = getGame(store, id)!;
+  if (g.profileSnapshot) return g;
+  const prof = getProfile(store, g.profileId || getSettings(store).defaultProfileId || DEFAULT_PROFILE_ID) ?? getProfile(store, DEFAULT_PROFILE_ID) ?? BASKETBALL;
+  return store.put("game", { ...g, sport: prof.sport, profileId: prof.id, profileSnapshot: structuredClone(prof) });
 }

@@ -1,7 +1,7 @@
-// Settings sections: destinations, graphics themes, sport profile.
+// Settings sections: destinations, graphics themes, sport profiles.
 import { html, raw, icon, api, S, toast, fail } from "../app.js";
-import { REPO, delegate, all, sw, dirtyBar, setDirty, setErr, copyText, lnk, panel } from "./settings-ui.js";
-import { contrast, rate, isHex, sportSummary } from "./settings-lib.js";
+import { delegate, all, sw, dirtyBar, setDirty, setErr, copyText, panel } from "./settings-ui.js";
+import { contrast, rate, isHex } from "./settings-lib.js";
 
 const tag = (r) => r.querySelector("[data-box]");
 const paint = (root, view) => { const b = tag(root); if (b) b.innerHTML = view().s; };
@@ -154,46 +154,6 @@ export const themes = {
   },
 };
 
-// ================================================================ sport profile
-const FIELDS = [["periods", "Periods", "Number of periods", 1, 8, ""], ["periodMin", "Period length", "Minutes per period", 1, 60, "min"], ["overtimeMin", "Overtime", "Length of each extra period", 1, 30, "min"], ["bonusAt", "Bonus at", "Team fouls in a period before the bonus", 1, 20, "fouls"], ["timeouts", "Timeouts per team", "Full game", 0, 20, ""]];
-const sportDirty = (d) => FIELDS.filter(([k]) => String(d.vals[k]) !== String(d.settings.profile[k])).map(([, l]) => l.toLowerCase());
-function sportView(data) {
-  const v = data.vals, g = data.game, pr = { ...data.settings.profile, ...Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Number(x)])) };
-  const n = sportDirty(data).length;
-  return html`<div class="g2" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)">
-    ${panel("Basketball rules", html`
-      ${FIELDS.map(([k, label, sub, lo, hi, unit]) => html`<div class="row2"><div><label for="pf-${k}"><b>${label}</b></label><div class="muted" style="font-size:12px">${sub} (${lo} to ${hi})</div></div><div class="row" style="gap:8px"><input id="pf-${k}" class="input mono" type="number" min="${lo}" max="${hi}" step="1" style="width:84px" data-in="${k}" value="${v[k]}">${unit && html`<span class="muted">${unit}</span>`}</div></div>`)}
-      <div class="row2"><div><b>Clock direction</b><div class="muted" style="font-size:12px">Basketball clocks count down</div></div><span class="chip">Counts down</span></div>`, html`<span class="chip warn" data-count style="visibility:${n ? "visible" : "hidden"}">${icon("alert", "sm")}${n} edited</span>`)}
-    <div class="col-g" style="gap:16px">
-      ${panel("Sport", html`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px">
-        <div class="card-btn" style="border:2px solid var(--action);background:var(--action-wash);display:flex;flex-direction:column;gap:8px"><div class="row">${icon("ball", "lg")}<b>Basketball</b></div>${pill("info", "Selected")}</div>
-        ${["Football", "Volleyball", "Soccer"].map((s) => html`<div class="card-btn" aria-disabled="true" style="opacity:.6;display:flex;flex-direction:column;gap:8px;min-width:0"><b>${s}</b>${pill("off noDot", "Coming later")}</div>`)}</div>
-        <div style="padding:0 12px 12px;display:grid;gap:10px"><span class="muted">Fieldhouse is open source. Add a sport by writing a profile.</span><div class="row">${lnk(`${REPO}/blob/main/CONTRIBUTING.md`, "Contribute a profile", "btn sm", "book")}${lnk(REPO, "View source", "btn sm ghost", "link")}</div><div class="hint">These links use a placeholder repository address.</div></div>`)}
-      ${panel("Preview on the Game Ribbon", html`<div class="pb" style="display:grid;gap:10px;flex:none"><div class="ribbon sm"><i class="cap" style="background:${clr(g?.home.color, "var(--home)")}"></i><div class="team">${g?.home.abbr ?? "HOME"} <span class="score">${g ? S.state?.game?.home.score ?? 0 : 0}</span></div><div class="mid"><span class="per"><small style="font:700 11px var(--ui);color:var(--text-2);margin-right:2px">Q</small>1</span><span class="clk" data-pclk>${String(Math.max(0, pr.periodMin) || 0).padStart(2, "0")}:00</span></div><div class="team"><span class="score">${g ? S.state?.game?.away.score ?? 0 : 0}</span> ${g?.away.abbr ?? "AWAY"}</div><i class="cap" style="background:${clr(g?.away.color, "var(--away)")}"></i></div><div class="hint" data-sum>${sportSummary(pr)}</div></div>`)}
-    </div></div>`;
-}
-export const sport = {
-  async load() { const settings = await api.get("/settings"); return { settings, vals: { ...settings.profile }, game: S.state?.gameDoc ?? null }; },
-  render: (ctx, data) => html`<div class="cp" data-box>${sportView(data)}</div>`,
-  bar: () => dirtyBar(""),
-  bind(root, ctx, data) {
-    const note = () => { const n = sportDirty(data); setDirty(root, n); const c = root.querySelector("[data-count]"); if (c) { c.style.visibility = n.length ? "visible" : "hidden"; c.lastChild.textContent = `${n.length} edited`; } };
-    const a = delegate(root, "click", "act", {
-      discard: () => { data.vals = { ...data.settings.profile }; setErr(root, ""); paint(root, () => sportView(data)); note(); },
-      save: async () => {
-        setErr(root, ""); root.querySelectorAll("[data-in]").forEach((x) => x.classList.remove("err"));
-        const profile = {}; for (const [k] of FIELDS) { const raw = String(data.vals[k]).trim(); profile[k] = raw === "" ? NaN : Number(raw); }
-        if (Object.values(profile).some((x) => Number.isNaN(x))) return setErr(root, "Fill in every rule with a whole number.");
-        try { data.settings = await api.put("/settings", { profile }); data.vals = { ...data.settings.profile }; toast("Sport profile saved."); paint(root, () => sportView(data)); note(); }
-        catch (e) { setErr(root, errOf(e)); const f = /^(\w+) must/.exec(errOf(e))?.[1]; root.querySelector(`#pf-${f}`)?.classList.add("err"); }
-      },
-    });
-    const i = delegate(root, "input", "in", { periods: upd, periodMin: upd, overtimeMin: upd, bonusAt: upd, timeouts: upd });
-    function upd(el) {
-      data.vals[el.dataset.in] = el.value; el.classList.remove("err");
-      const pr = { ...data.settings.profile, ...Object.fromEntries(Object.entries(data.vals).map(([k, x]) => [k, Number(x)])) };
-      root.querySelector("[data-sum]").textContent = sportSummary(pr); root.querySelector("[data-pclk]").textContent = `${String(Math.max(0, pr.periodMin) || 0).padStart(2, "0")}:00`; note();
-    }
-    return all(a, i);
-  },
-};
+// ================================================================ sport profiles
+// The list of sports and the profile editor live in profile-editor.js.
+export { sport } from "./profile-editor.js";

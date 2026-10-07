@@ -164,11 +164,26 @@
   const clockNow = () => { const g = game(); if (!g) return 0; return g.running ? Math.max(0, g.clockMs - (performance.now() - recvAt)) : g.clockMs; };
   const teamName = (t) => (doc() && doc()[t] && doc()[t].name) || (game() && game()[t].name) || (t === "home" ? "Home" : "Away");
   const undoneSet = () => new Set((S ? S.events : []).filter((e) => e.type === "undo").map((e) => e.target));
-  const lastUndoable = () => { const u = undoneSet(); return (S ? S.events : []).slice().reverse().find((e) => ["score", "foul", "timeout"].indexOf(e.type) >= 0 && !u.has(e.seq)); };
-  const lastFoul = (team) => { // latest live foul this period (fouls reset on period.set)
-    const u = undoneSet(), evs = S ? S.events : [];
-    for (let i = evs.length - 1; i >= 0; i--) { const e = evs[i]; if (u.has(e.seq)) continue; if (e.type === "period.set") return null; if (e.type === "foul" && e.team === team) return e; }
-    return null;
+  const UNDOABLE = ["score", "foul", "timeout", "counter"];
+  const lastUndoable = () => { const u = undoneSet(); return (S ? S.events : []).slice().reverse().find((e) => UNDOABLE.indexOf(e.type) >= 0 && !u.has(e.seq)); };
+
+  // ---- the sport (state.sport, the active game's profile summary). Same rules as web/sport.js, kept small here because the phone
+  // listener only serves an allowlist of files. A state from an older console has no sport: draw the classic basketball buttons.
+  const lc = (x) => String(x).toLowerCase();
+  function sport() {
+    if (S && S.sport) return S.sport;
+    const p = (S && S.profile) || { periods: 4, bonusAt: 5, timeouts: 3 };
+    return { name: "Basketball", clockMode: "down", overtime: true, periodCount: p.periods, win: null, periodLabels: Array.from({ length: p.periods }, (_, i) => "Q" + (i + 1)).concat(["OT"]),
+      scoring: [{ id: "ft", label: "Free throw", points: 1 }, { id: "fg2", label: "Basket", points: 2 }, { id: "fg3", label: "3-pointer", points: 3 }],
+      counters: [{ id: "fouls", label: "Team fouls", startValue: 0, showAs: "pips", thresholds: [{ at: p.bonusAt, label: "Bonus" }] }, { id: "timeouts", label: "Timeouts", startValue: p.timeouts, showAs: "pips" }] };
+  }
+  const total = (d) => d.limit || d.startValue || Math.max.apply(null, [0].concat((d.thresholds || []).map((t) => t.at)));
+  const countsDown = (d) => (d.startValue || 0) > 0;
+  const cval = (g, id, t) => (g.counters && g.counters[id] ? g.counters[id][t] : g[t][id]) || 0;
+  const plain = (sc) => sc.length === 3 && sc.every((x, i) => x.points === i + 1);
+  const perLabel = (p) => {
+    const sp = sport(), n = p - sp.periodCount;
+    return n <= 0 ? sp.periodLabels[p - 1] : sp.overtime ? (sp.periodLabels[sp.periodCount] || "OT").replace(/\d+$/, "") + (n > 1 ? n : "") : "Period " + p;
   };
   function describe(e) {
     const who = e.player != null ? " #" + e.player : "";
@@ -176,12 +191,12 @@
       case "score": return teamName(e.team) + " +" + e.points + who;
       case "foul": return teamName(e.team) + " foul" + who;
       case "timeout": return teamName(e.team) + " timeout";
+      case "counter": { const d = sport().counters.find((c) => c.id === e.id); return teamName(e.team) + " " + lc(d ? d.label : e.id) + (e.delta > 0 ? " +1" : " \u22121"); }
       case "mark": return "Marked moment" + (e.note ? ": " + e.note : "");
       case "period.set": return "Period set to " + perLabel(e.period);
       default: return e.type;
     }
   }
-  const perLabel = (p) => (p > 4 ? "OT" + (p - 4 > 1 ? p - 4 : "") : "Q" + p);
   const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 5 ? "now" : s < 60 ? s + " s ago" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; };
 
   // ------------------------------------------------------------------ sending events (never queued)
@@ -282,24 +297,24 @@
     // controls
     $$("[data-ctl]").forEach((b) => { b.disabled = !ok; });
     if (g) {
+      buildSport();
+      const sp = sport();
       for (const t of ["home", "away"]) {
         const tm = g[t], col = hex(d && d[t].color) || (t === "home" ? "#F5A524" : "#8B6CFF");
         const blk = $('.score-block[data-team="' + t + '"]'), tm2 = $('.tm2[data-team="' + t + '"]');
         text(blk.querySelector(".tn"), teamName(t)); text(blk.querySelector(".sc"), tm.score); blk.querySelector(".nm i").style.background = col;
-        $$("[data-pts]", blk).forEach((b) => b.setAttribute("aria-label", teamName(t) + " plus " + b.dataset.pts));
+        $$("[data-pts]", blk).forEach((b) => { const o = sp.scoring[+b.dataset.i]; b.setAttribute("aria-label", teamName(t) + " " + (o ? o.label + ", plus " + o.points : "")); });
         text(tm2.querySelector(".tn"), teamName(t)); tm2.querySelector(".h i").style.background = col;
-        text(tm2.querySelector(".fv"), tm.fouls); tm2.querySelector(".bn").hidden = !tm.bonus;
-        const total = Math.max((S.profile && S.profile.timeouts) || 3, tm.timeouts), pk = tm.timeouts + "/" + total, pips = tm2.querySelector(".pips");
-        if (pips.dataset.k !== pk) { pips.dataset.k = pk; pips.innerHTML = Array.from({ length: total }, (_, i) => '<i class="' + (i < tm.timeouts ? "on" : "") + '"></i>').join(""); pips.setAttribute("aria-label", tm.timeouts + " timeouts left"); }
-        tm2.querySelector("[data-foul='1']").disabled = !ok; tm2.querySelector("[data-foul='-1']").disabled = !ok || !lastFoul(t);
-        tm2.querySelector("[data-to]").disabled = !ok || tm.timeouts < 1;
-        tm2.querySelector("[data-foul='1']").setAttribute("aria-label", "Add foul to " + teamName(t)); tm2.querySelector("[data-foul='-1']").setAttribute("aria-label", "Remove foul from " + teamName(t));
+        $$(".cell", tm2).forEach((cell) => patchCell(cell, sp.counters.find((c) => c.id === cell.dataset.c), g, t, ok));
         const cap = $(t === "home" ? "#r-hc" : "#r-ac"); cap.style.background = col;
       }
       text($("#r-ha"), g.home.abbr); text($("#r-aa"), g.away.abbr); text($("#r-hs"), g.home.score); text($("#r-as"), g.away.score);
-      text($("#r-pre"), g.period > 4 ? "OT" : "Q"); text($("#r-per"), g.period > 4 ? (g.period - 4 > 1 ? g.period - 4 : "") : g.period);
+      const pl = g.periodLabel || perLabel(g.period), m = /^(.*?)\s*(\d+)$/.exec(pl);
+      text($("#r-pre"), m ? m[1] : pl); text($("#r-per"), m ? m[2] : "");
       text($("#clk-t"), g.running ? "Stop clock" : "Start clock"); text($("#clk-s"), g.running ? "Running" : "Stopped");
       $("#clk-i").setAttribute("href", g.running ? "#i-pause" : "#i-play");
+      const sl = $("#setsline"); sl.hidden = !(sp.win && g.sets);
+      if (!sl.hidden) text(sl, "Sets: " + teamName("home") + " " + g.sets.home + ", " + teamName("away") + " " + g.sets.away + (g.sets.history.length ? " (" + g.sets.history.map((x) => x.home + "\u2013" + x.away).join(", ") + ")" : "") + (g.sets.winner ? ". " + teamName(g.sets.winner) + " won the match." : ""));
     }
     tickClock();
     // undo row: the last undoable, unless a note is showing
@@ -309,25 +324,77 @@
     renderPeriod(); renderLog();
     hooks.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
   }
+  // Structural parts that depend on the sport (score buttons, counter cells, clock, tab names) are drawn once per sport, not per push.
+  let sportSig = "", keyMap = {};
+  const cell = (d) => {
+    const down = countsDown(d), k = 'data-ctl data-ctr="' + esc(d.id) + '"', pips = down && d.showAs === "pips" ? '<span class="pips" role="img"></span>' : "";
+    const body = down && d.showAs === "pips"
+      ? '<div class="to">' + pips + '<button type="button" class="btn" ' + k + ' data-d="-1">' + esc(d.id === "timeouts" ? "Timeout" : "Use one") + "</button></div>"
+      : '<div class="stp"><button type="button" class="btn" ' + k + ' data-d="-1">&minus;</button><span class="led fv">0</span><button type="button" class="btn" ' + k + ' data-d="1">+</button></div>'; // count-up counters show the number (and any threshold label); pips are for "left" counters
+    return '<div class="cell" data-c="' + esc(d.id) + '"><div class="cl"><span>' + esc(d.label) + '</span><span class="chip warn thr" hidden></span></div>' + body + "</div>";
+  };
+  function buildSport() {
+    const sp = sport(), sig = JSON.stringify([sp.scoring, sp.counters, sp.clockMode, sp.periodLabels, !!sp.win]);
+    if (sig === sportSig) return; sportSig = sig;
+    const none = sp.clockMode === "none";
+    $$(".score-block .plus").forEach((box) => {
+      box.className = "plus" + (sp.scoring.length > 3 ? " many" : sp.scoring.length === 1 ? " one" : "");
+      box.innerHTML = sp.scoring.map((o, i) => '<button type="button" class="btn' + (plain(sp.scoring) ? "" : " two") + '" data-ctl data-pts="' + o.points + '" data-i="' + i + '">' + (plain(sp.scoring) ? "+" + o.points : "<b>+" + o.points + "</b><small>" + esc(o.label) + "</small>") + "</button>").join("");
+    });
+    $$(".tm2 .cs").forEach((box) => { box.innerHTML = sp.counters.map(cell).join(""); });
+    const names = sp.counters.map((c) => c.label.replace(/^Team /, "")), tabName = names.length > 2 ? "Counts" : names.join(" & ");
+    const t = tabName.charAt(0).toUpperCase() + tabName.slice(1);
+    text($("#t-foul"), t || "Counts"); text($("#p-foul-h"), t || "Counts");
+    $("#t-foul").hidden = !sp.counters.length; $("#p-foul").classList.toggle("nocount", !sp.counters.length);
+    if (!sp.counters.length && tab === "foul") setTab("per");
+    ["#clk", "#r-clk", "#nudge-f"].forEach((q) => { $(q).hidden = none; });
+    $("#pbtns").dataset.k = "";
+    // keyboard: the +1/+2/+3 keys follow the points, an option's own hotkey (home) and Shift+hotkey (away) are added
+    keyMap = { c: "#clk", m: "#mark" }; const seen = {};
+    sp.scoring.forEach((o, i) => {
+      const first = !seen[o.points]; seen[o.points] = 1;
+      [["home", "qwe"], ["away", "iop"]].forEach((tm) => {
+        const hk = o.hotkey && o.hotkey.length === 1 ? (tm[0] === "home" ? lc(o.hotkey) : /[a-z]/i.test(o.hotkey) ? "Shift+" + lc(o.hotkey) : "") : "";
+        const key = hk || (first && o.points <= 3 ? tm[1][o.points - 1] : "");
+        if (key && !keyMap[key]) keyMap[key] = '.score-block[data-team="' + tm[0] + '"] [data-i="' + i + '"]';
+      });
+    });
+    if (none) delete keyMap.c;
+  }
+  function patchCell(c, d, g, t, ok) {
+    if (!d) return;
+    const v = cval(g, d.id, t), thr = g.thresholds && g.thresholds[d.id] ? g.thresholds[d.id][t] : "", nm = teamName(t), lab = lc(d.label);
+    text(c.querySelector(".fv"), v);
+    const chip = c.querySelector(".thr"); chip.hidden = !thr; text(chip, thr || "");
+    const pips = c.querySelector(".pips");
+    if (pips) { const tot = Math.max(total(d), v), pk = v + "/" + tot + "/" + (thr ? 1 : 0); if (pips.dataset.k !== pk) { pips.dataset.k = pk; pips.className = "pips" + (thr ? " bonus" : ""); pips.innerHTML = Array.from({ length: tot }, (_, i) => '<i class="' + (i < v ? "on" : "") + '"></i>').join(""); } pips.setAttribute("aria-label", countsDown(d) ? v + " " + lab + " left" : v + " " + lab); }
+    $$("[data-ctr]", c).forEach((b) => {
+      const dd = Number(b.dataset.d);
+      b.disabled = !ok || (dd < 0 ? v <= 0 : d.limit != null && v >= d.limit);
+      b.setAttribute("aria-label", b.classList.contains("btn") && countsDown(d) && d.showAs === "pips" ? "Use one " + lab + " for " + nm + ", " + v + " left" : (dd < 0 ? "Take one off " : "Add one to ") + lab + " for " + nm);
+    });
+  }
   function tickClock() { const t = mmss(clockNow()); $$("[data-clock]").forEach((el) => text(el, t)); }
   setInterval(() => { if (screen === "live") tickClock(); }, 100);
 
   function renderPeriod() {
     if (!showTab("per") || !S || !S.game) return;
-    const n = (S.profile && S.profile.periods) || 4, box = $("#pbtns"), cur = S.game.period, k = n + "/" + cur + "/" + armed + "/" + canAct();
+    const sp = sport(), labels = sp.periodLabels, box = $("#pbtns"), cur = S.game.period, k = labels.join("|") + "/" + cur + "/" + armed + "/" + canAct();
     if (box.dataset.k === k) return; box.dataset.k = k;
-    box.innerHTML = Array.from({ length: n + 1 }, (_, i) => { const p = i + 1, a = armed === p; return '<button type="button" class="btn' + (a ? " arm" : "") + '" data-per="' + p + '" aria-pressed="' + (p === cur) + '"' + (canAct() ? "" : " disabled") + ">" + esc(a ? "Tap again" : perLabel(p)) + "</button>"; }).join("");
-    text($("#p-hint"), armed ? "Tap " + perLabel(armed) + " again to start it. This resets the clock and team fouls." : "Changing the period resets the clock and team fouls.");
+    box.innerHTML = labels.map((l, i) => { const p = i + 1, a = armed === p, on = sp.overtime && i === sp.periodCount ? cur > sp.periodCount : cur === p; return '<button type="button" class="btn' + (a ? " arm" : "") + '" data-per="' + p + '" aria-pressed="' + on + '"' + (canAct() ? "" : " disabled") + ">" + esc(a ? "Tap again" : l) + "</button>"; }).join("");
+    const resets = sp.counters.filter((c) => c.resetEachPeriod || (c.resetAtPeriods && c.resetAtPeriods.length)).map((c) => lc(c.label)), what = (sp.clockMode === "none" ? [] : ["the clock"]).concat(resets);
+    const rule = "Changing the period " + (what.length ? "resets " + what.join(" and ") + "." : "does not reset anything.");
+    text($("#p-hint"), armed ? "Tap " + perLabel(armed) + " again to start it. " + (what.length ? "This resets " + what.join(" and ") + "." : "") : rule);
   }
   function renderLog() {
     if (!showTab("log") || !S) return;
-    const u = undoneSet(), list = S.events.filter((e) => ["score", "foul", "timeout", "mark", "period.set"].indexOf(e.type) >= 0).slice(-30).reverse();
+    const u = undoneSet(), list = S.events.filter((e) => UNDOABLE.concat(["mark", "period.set"]).indexOf(e.type) >= 0).slice(-30).reverse();
     const sig = list.map((e) => e.seq + (u.has(e.seq) ? "u" : "")).join() + canAct() + Math.floor(Date.now() / 10000);
     const box = $("#log"); if (box.dataset.k === sig) return; box.dataset.k = sig;
     box.innerHTML = list.length ? list.map((e) => {
-      const undone = u.has(e.seq), can = canAct() && !undone && ["score", "foul", "timeout"].indexOf(e.type) >= 0;
+      const undone = u.has(e.seq), can = canAct() && !undone && UNDOABLE.indexOf(e.type) >= 0;
       return '<div class="ev' + (undone ? " undone" : "") + '"><div class="tx"><b>' + esc(describe(e)) + '</b><div class="muted">' + esc(undone ? "Undone" : ago(e.t)) + "</div></div>" + (can ? '<button type="button" class="btn" data-undo="' + e.seq + '">Undo</button>' : "") + "</div>";
-    }).join("") : '<div class="empty muted">Scores, fouls and timeouts show up here.</div>';
+    }).join("") : '<div class="empty muted">' + esc(["Scores"].concat(sport().counters.map((c) => lc(c.label))).join(", ").replace(/, ([^,]*)$/, " and $1")) + " show up here.</div>";
   }
   setInterval(() => { if (screen === "live" && tab === "log") renderLog(); }, 5000);
 
@@ -337,10 +404,11 @@
     if (!b || b.disabled || screen !== "live") return;
     const team = b.closest("[data-team]") ? b.closest("[data-team]").dataset.team : "";
     if (b.id === "clk") { const g = game(); if (g) send({ type: g.running ? "clock.stop" : "clock.start" }); }
-    else if (b.dataset.pts) send({ type: "score", team, points: Number(b.dataset.pts) });
-    else if (b.dataset.foul === "1") send({ type: "foul", team });
-    else if (b.dataset.foul === "-1") { const f = lastFoul(team); if (f) send({ type: "undo", target: f.seq }); }
-    else if ("to" in b.dataset) send({ type: "timeout", team });
+    else if (b.dataset.pts) { const o = sport().scoring[Number(b.dataset.i)]; send({ type: "score", team, points: Number(b.dataset.pts), kind: o && o.id }); }
+    else if (b.dataset.ctr) {
+      const id = b.dataset.ctr, delta = Number(b.dataset.d); // fouls and timeouts keep their old event names so automation rules and logs stay the same
+      send(id === "fouls" && delta === 1 ? { type: "foul", team } : id === "timeouts" && delta === -1 ? { type: "timeout", team } : { type: "counter", team, id, delta });
+    }
     else if (b.id === "undo-last") send({ type: "undo" });
     else if (b.id === "mark") send({ type: "mark" });
     else if (b.dataset.undo) send({ type: "undo", target: Number(b.dataset.undo) });
@@ -379,14 +447,19 @@
   // ------------------------------------------------------------------ keyboard shortcuts + help (desktop)
   const typing = (t) => !!(t && t.closest && t.closest("input,textarea,select,[contenteditable]"));
   const extraKeys = {}; // key -> handler, added by the producer screen
-  const helpGroups = [["Scorekeeping", [["C", "Start or stop the clock"], ["Q  W  E", "Home +1, +2, +3"], ["I  O  P", "Away +1, +2, +3"], ["Ctrl+Z", "Undo the last change"], ["M", "Mark a moment (if allowed)"]]], ["Help", [["?", "Show or hide this list"], ["Esc", "Close it"]]]];
   const press = (sel) => { const b = $(sel); if (b && !b.disabled) { b.classList.add("kdown"); setTimeout(() => b.classList.remove("kdown"), 140); b.click(); } };
-  const KEYS = { c: "#clk", m: "#mark", q: '.score-block[data-team="home"] [data-pts="1"]', w: '.score-block[data-team="home"] [data-pts="2"]', e: '.score-block[data-team="home"] [data-pts="3"]', i: '.score-block[data-team="away"] [data-pts="1"]', o: '.score-block[data-team="away"] [data-pts="2"]', p: '.score-block[data-team="away"] [data-pts="3"]' };
-  const keyOf = (e) => (e.key.length === 1 ? e.key.toLowerCase() : (e.shiftKey ? "Shift+" : "") + e.key);
+  const keyOf = (e) => (e.key.length === 1 ? (e.shiftKey && /[a-z]/i.test(e.key) ? "Shift+" : "") + e.key.toLowerCase() : (e.shiftKey ? "Shift+" : "") + e.key);
+  const helpGroups = () => {
+    const sp = sport(), rows = [];
+    if (sp.clockMode !== "none") rows.push(["C", "Start or stop the clock"]);
+    Object.keys(keyMap).forEach((k) => { const m = /data-team="(\w+)"\] \[data-i="(\d+)"/.exec(keyMap[k]); if (m) { const o = sp.scoring[+m[2]]; rows.push([k.replace("Shift+", "Shift ").toUpperCase().replace("SHIFT ", "Shift+"), (m[1] === "home" ? "Home " : "Away ") + (plain(sp.scoring) ? "+" + o.points : o.label + " +" + o.points)]); } });
+    rows.push(["Ctrl+Z", "Undo the last change"], ["M", "Mark a moment (if allowed)"]);
+    return [["Scorekeeping", rows], ["Help", [["?", "Show or hide this list"], ["Esc", "Close it"]]]];
+  };
   let helpOpen = false, helpFrom = null;
   function openHelp() {
     const box = $("#help-rows"); box.innerHTML = "";
-    for (const [h, rows] of helpGroups.concat(window.FHR.extraHelp || [])) {
+    for (const [h, rows] of helpGroups().concat(window.FHR.extraHelp || [])) {
       const g = document.createElement("div"); g.className = "kg"; const t = document.createElement("h3"); t.textContent = h; g.append(t);
       for (const [k, d] of rows) { const r = document.createElement("div"); r.className = "kr"; const kk = document.createElement("span"); kk.className = "kbd"; kk.textContent = k; const dd = document.createElement("span"); dd.textContent = d; r.append(kk, dd); g.append(r); }
       box.append(g);
@@ -408,7 +481,7 @@
     if (e.key === "?") { e.preventDefault(); return openHelp(); }
     const k = keyOf(e);
     if (e.repeat) return;
-    if (KEYS[k]) { e.preventDefault(); return press(KEYS[k]); }
+    if (keyMap[k]) { e.preventDefault(); return press(keyMap[k]); }
     if (extraKeys[k]) { e.preventDefault(); extraKeys[k](e); }
   });
 
