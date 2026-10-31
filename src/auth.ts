@@ -165,7 +165,8 @@ export function createRemote(deps: RemoteDeps) {
   /** What a device may see, by role. Never settings, destinations, pairing code, file paths or stream keys. */
   function stateFor(role: Role) {
     const st = app.state(), d = st.gameDoc;
-    const tm = (t: { name: string; abbr: string; color: string; roster: unknown }) => ({ name: t.name, abbr: t.abbr, color: t.color, roster: t.roster });
+    const includeRoster = !["camera", "replay", "scoreboard"].includes(role);
+    const tm = (t: { name: string; abbr: string; color: string; roster: unknown }) => ({ name: t.name, abbr: t.abbr, color: t.color, ...(includeRoster ? { roster: t.roster } : {}) });
     const base = { kind: "state", role, serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, sport: st.sport, events: st.events, graphics: phoneGraphics(st.graphics, role), profile: st.settings.profile }; // `profile` is the old five-field view (kept for old phones); `sport` is the active game's profile summary
     if (role === "commentator") {
       const log = st.gameId ? store.load<any[]>(st.gameId) : [];

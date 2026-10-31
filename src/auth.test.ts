@@ -452,22 +452,27 @@ test("operator roles expose the right state and only their assigned controls ove
   await call(LAN, "POST", "/api/event", { type: "score", team: "home", points: 2, player: 1 }, guest.cookie);
   await admin("PUT", "/devices/" + guest.id, { role: "commentator" });
   let state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster.length).toBeGreaterThan(0);
   expect(state.playerPoints["home:1"]).toBe(2);
   expect((await call(LAN, "POST", "/api/event", { type: "score", team: "home", points: 1 }, guest.cookie)).status).toBe(403);
   expect((await call(LAN, "GET", "/snap/cam1", undefined, guest.cookie)).status).toBe(403);
 
   await admin("PUT", "/devices/" + guest.id, { role: "camera" });
   state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
   expect(state.engine.sources.length).toBeGreaterThan(0); expect(state.engine.mixer).toBeUndefined();
   expect((await call(LAN, "GET", "/snap/cam1", undefined, guest.cookie)).status).toBe(200);
   expect((await call(LAN, "POST", "/api/replay", {}, guest.cookie)).status).toBe(403);
 
   await admin("PUT", "/devices/" + guest.id, { role: "replay" });
+  state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
   expect((await call(LAN, "POST", "/api/replay", { secondsBack: 10 }, guest.cookie)).status).toBe(200);
   expect((await call(LAN, "POST", "/api/engine/cut", {}, guest.cookie)).status).toBe(403);
 
   await admin("PUT", "/devices/" + guest.id, { role: "scoreboard" });
   state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
   expect(state.engine.sources.length).toBeGreaterThan(0); expect(state.engine.mixer).toBeUndefined();
   expect((await call(LAN, "POST", "/api/event", { type: "score", team: "away", points: 1 }, guest.cookie)).status).toBe(200);
   expect((await call(LAN, "POST", "/api/engine/cut", {}, guest.cookie)).status).toBe(403);

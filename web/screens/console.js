@@ -408,11 +408,24 @@ function bind(root, ctx) {
       text(b.querySelector(".tn"), d[t].name); b.querySelector(".nm i").style.background = d[t].color;
       $$(`[data-ta="${t}"]`).forEach((x) => text(x, g[t].abbr));
     }
+    patchScorers();
     SP.patchCtl($(".right"), sp, g, (t) => d[t].name);
     if (sp.win && g.sets) {
       text($("#sh"), g.sets.home); text($("#sa"), g.sets.away);
       text($("#shist"), g.sets.history.length ? g.sets.history.map((x) => `${x.home}\u2013${x.away}`).join(", ") : "");
       const w = g.sets.winner; cls($("#setsum"), "won", w); cls($("#swin"), "hidden", !w); if (w) text($("#swin"), `${d[w].name} win the match, ${g.sets[w]} sets to ${g.sets[w === "home" ? "away" : "home"]}.`);
+    }
+  }
+  /** Refresh scorer choices after cross-window roster edits, keeping only a still-valid selection. */
+  function patchScorers() {
+    for (const t of ["home", "away"]) {
+      const select = $(`[data-player-pick="${t}"]`), roster = st().gameDoc[t].roster;
+      const key = JSON.stringify(roster.map((p) => [p.number, p.name]));
+      if (select.dataset.roster === key) continue;
+      const selected = select.value;
+      put(select, html`<option value="">No player (optional)</option>${roster.map((p) => html`<option value="${p.number}">#${p.number} ${p.name}</option>`)}`);
+      select.dataset.roster = key;
+      select.value = roster.some((p) => String(p.number) === selected) ? selected : "";
     }
   }
   const evGlyph = { score: ["score", "ball"], foul: ["foul", "whistle"], timeout: ["to", "timeout"], counter: ["foul", "whistle"], mark: ["mark", "mark"], "period.set": ["", "flag"] };

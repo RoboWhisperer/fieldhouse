@@ -257,7 +257,7 @@
   const wide = window.matchMedia ? window.matchMedia("(min-width: 900px)") : { matches: false };
   const isProd = () => !!me && (me.role === "producer" || me.role === "admin");
   const roleView = () => !!me && ["commentator", "camera", "replay"].includes(me.role);
-  const isScoreboard = () => !!me && ["score", "score+marks", "scoreboard"].includes(me.role);
+  const isScoreboard = () => !!me && me.role === "scoreboard";
   const desk = () => wide.matches && !isProd() && !roleView(); // desktop scorekeeper layout: every panel visible, no tabs
   const showTab = (t) => desk() || tab === t;
   if (wide.addEventListener) wide.addEventListener("change", () => { $("#pbtns").dataset.k = ""; $("#log").dataset.k = ""; render(); });
@@ -340,23 +340,24 @@
   function renderOperatorView() {
     if (!me || !S) return;
     const root = $("#role-view"), feeds = $("#score-feeds"), role = me.role, e = S.engine;
-    const teamTitle = (side) => S.gameDoc ? S.gameDoc[side].name : side;
-    const sourceCards = (interactive) => `<div class="operator-feeds">${(e?.sources || []).map((s) => `<article class="operator-feed"><img data-role-snap="${esc(s.id)}" alt="${esc(s.label)} live source"><div><b>${esc(s.slot)} · ${esc(s.label)}</b><span>${esc(s.status)}${s.id === e.program ? " · ON AIR" : s.id === e.preview ? " · NEXT" : ""}</span>${interactive ? `<button class="btn" type="button" data-role-replay="${esc(s.id)}">Replay 10 seconds</button>` : ""}</div></article>`).join("") || "<p class=muted>No sources are available.</p>"}</div>`;
+    const sourceCards = () => `<div class="operator-feeds">${(e?.sources || []).map((s) => `<article class="operator-feed"><img data-role-snap="${esc(s.id)}" alt="${esc(s.label)} live source"><div><b>${esc(s.slot)} · ${esc(s.label)}</b><span>${esc(s.status)}${s.id === e.program ? " · ON AIR" : s.id === e.preview ? " · NEXT" : ""}</span></div></article>`).join("") || "<p class=muted>No sources are available.</p>"}</div>`;
     if (role === "commentator") {
       const points = S.playerPoints || {};
       setRoleHtml(root, `<header class="operator-head"><h1>Commentator</h1><p>Roster and player scoring</p></header><div class="operator-rosters">${["home", "away"].map((side) => { const tm = S.gameDoc?.[side]; return `<section class="operator-panel"><h2>${esc(teamTitle(side))} · ${esc(S.game?.[side]?.score ?? 0)}</h2><div class="operator-list">${(tm?.roster || []).map((p) => `<div class="operator-row"><b>#${esc(p.number)} ${esc(p.name)}</b><span>${esc(points[side + ":" + p.number] || 0)} pts</span><small>${esc(p.position || "")}</small></div>`).join("") || "<p class=muted>No roster loaded.</p>"}</div></section>`; }).join("")}</div>`);
     } else if (role === "camera") {
-      setRoleHtml(root, `<header class="operator-head"><h1>Camera feeds</h1><p>Raw sources from the Fieldhouse and OBS computer</p></header>${sourceCards(false)}`);
+      setRoleHtml(root, `<header class="operator-head"><h1>Camera feeds</h1><p>Raw sources from the Fieldhouse and OBS computer</p></header>${sourceCards()}`);
     } else if (role === "replay") {
       const plays = S.keyPlays || [];
-      setRoleHtml(root, `<header class="operator-head"><h1>Replay operator</h1><p>Choose a source to replay, or review a key play</p></header><div class="operator-actions"><button class="btn pri" type="button" data-role-replay="">Replay last 10 seconds</button><button class="btn" type="button" data-role-stop>Stop replay</button></div>${sourceCards(true)}<section class="operator-panel"><h2>Key plays</h2><div class="operator-list">${plays.slice().reverse().map((p) => `<div class="operator-row"><b>${p.type === "mark" ? esc(p.note || "Marked moment") : `${esc(teamTitle(p.team))} +${esc(p.points)}${p.player == null ? "" : " · #" + esc(p.player)}`}</b><span>${new Date(p.t).toLocaleTimeString()}</span><button class="btn" data-play-seq="${esc(p.seq)}" type="button">Replay play</button></div>`).join("") || "<p class=muted>No key plays yet. Scores and marked moments appear here.</p>"}</div></section>`);
+      setRoleHtml(root, `<header class="operator-head"><h1>Replay operator</h1><p>Review available source feeds and key plays</p></header><div class="operator-actions"><button class="btn pri" type="button" data-replay-now>Replay last 10 seconds</button><button class="btn" type="button" data-role-stop>Stop replay</button></div>${sourceCards()}<section class="operator-panel"><h2>Key plays</h2><div class="operator-list">${plays.slice().reverse().map((p) => { const back = replayBack(p); return `<div class="operator-row"><b>${p.type === "mark" ? esc(p.note || "Marked moment") : `${esc(teamName(p.team))} +${esc(p.points)}${p.player == null ? "" : " · #" + esc(p.player)}`}</b><span>${new Date(p.t).toLocaleTimeString()}</span>${back <= 60 ? `<button class="btn" data-play-seq="${esc(p.seq)}" type="button">Replay play</button>` : `<span>Outside replay window</span>`}</div>`; }).join("") || "<p class=muted>No key plays yet. Scores and marked moments appear here.</p>"}</div></section>`);
     }
-    if (isScoreboard()) setRoleHtml(feeds, `<header class="operator-head"><h2>Source feeds</h2></header>${sourceCards(false)}`);
-    $$('[data-role-replay], [data-role-stop], [data-play-seq]', root).forEach((b) => { b.disabled = !connected() || locked; });
+    if (isScoreboard()) setRoleHtml(feeds, `<header class="operator-head"><h2>Source feeds</h2></header>${sourceCards()}`);
+    $$('[data-replay-now], [data-role-stop], [data-play-seq]', root).forEach((b) => { b.disabled = !connected() || locked; });
     const snapImages = $$("img[data-role-snap]");
     for (const img of snapImages) loadRoleSnap(img);
   }
   function setRoleHtml(node, html) { if (node.dataset.draw !== html) { node.dataset.draw = html; node.innerHTML = html; } }
+  /** Replay duration at click time, including the two-second lead-in, using the server clock to avoid client clock skew. */
+  function replayBack(play) { return Math.ceil(Math.max(0, S.serverNow + performance.now() - recvAt - play.t) / 1000) + 2; }
   function loadRoleSnap(img) {
     const id = img.dataset.roleSnap;
     if (!id || img._busy || !connected()) return;
@@ -369,8 +370,8 @@
     const b = ev.target.closest("button"); if (!b || b.disabled) return;
     try {
       if (b.hasAttribute("data-role-stop")) await call("POST", "/api/replay/stop", {});
-      else if (b.hasAttribute("data-role-replay")) await call("POST", "/api/replay", { secondsBack: 10, speed: 1 });
-      else if (b.hasAttribute("data-play-seq")) { const p = (S.keyPlays || []).find((x) => String(x.seq) === b.dataset.playSeq); if (p) await call("POST", "/api/replay", { secondsBack: Math.max(1, Math.min(60, Math.ceil((S.serverNow - p.t) / 1000) + 2)), speed: 1 }); }
+      else if (b.hasAttribute("data-replay-now")) await call("POST", "/api/replay", { secondsBack: 10, speed: 1 });
+      else if (b.hasAttribute("data-play-seq")) { const p = (S.keyPlays || []).find((x) => String(x.seq) === b.dataset.playSeq); if (p) { const secondsBack = replayBack(p); if (secondsBack <= 60) await call("POST", "/api/replay", { secondsBack, speed: 1 }); else note("info", "Replay unavailable", "This play is outside the 60-second replay window."); } }
     } catch (e) { fail(e); }
   });
   setInterval(() => { if (!document.hidden) $$("img[data-role-snap]").forEach(loadRoleSnap); }, 1000);
