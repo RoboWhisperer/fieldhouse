@@ -49,6 +49,7 @@ test("address classification: loopback and private ranges", () => {
   for (const ip of ["192.168.1.5", "10.1.2.3", "172.16.0.1", "172.31.255.1", "169.254.3.4", "fd12:3456::1", "fe80::1", "::ffff:192.168.0.9", "::1"]) expect(isPrivate(ip)).toBe(true);
   for (const ip of ["8.8.8.8", "172.32.0.1", "172.15.0.1", "192.169.0.1", "2001:4860::1", "", "999.1.1.1", "not-an-ip"]) expect(isPrivate(ip)).toBe(false);
   for (const ip of ["192.168.1.5", "8.8.8.8", "", undefined]) expect(isLoopback(ip)).toBe(false);
+  expect(lanAddresses({ enp3s0: [{ family: "IPv4", internal: false, address: "192.168.1.4", netmask: "255.255.255.0", mac: "" }], wlan0: [{ family: "IPv4", internal: false, address: "192.168.1.8", netmask: "255.255.255.0", mac: "" }] } as any)).toEqual(["192.168.1.8", "192.168.1.4"]);
 });
 
 test("pairing: success sets an HttpOnly SameSite=Strict cookie and stores only the token hash", async () => {
@@ -443,6 +444,42 @@ test("producer: snapshots are producer-only, rate limited, and still work while 
   expect(codes.slice(0, 14).every((c) => c === 200)).toBe(true);
   t.now += 1000;
   expect((await call(LAN, "GET", "/snap/cam1", undefined, p.cookie)).status).toBe(200);
+});
+
+test("operator roles expose the right state and only their assigned controls over a private LAN", async () => {
+  const { call, pair, admin } = await rig();
+  const guest = await pair("Guest commentator");
+  await call(LAN, "POST", "/api/event", { type: "score", team: "home", points: 2, player: 1 }, guest.cookie);
+  await admin("PUT", "/devices/" + guest.id, { role: "commentator" });
+  let state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster.length).toBeGreaterThan(0);
+  expect(state.playerPoints["home:1"]).toBe(2);
+  expect((await call(LAN, "POST", "/api/event", { type: "score", team: "home", points: 1 }, guest.cookie)).status).toBe(403);
+  expect((await call(LAN, "GET", "/snap/cam1", undefined, guest.cookie)).status).toBe(403);
+
+  await admin("PUT", "/devices/" + guest.id, { role: "camera" });
+  state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
+  expect(state.engine.sources.length).toBeGreaterThan(0); expect(state.engine.mixer).toBeUndefined();
+  expect((await call(LAN, "GET", "/snap/cam1", undefined, guest.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", "/api/replay", {}, guest.cookie)).status).toBe(403);
+
+  await admin("PUT", "/devices/" + guest.id, { role: "replay" });
+  state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
+  expect((await call(LAN, "POST", "/api/replay", { secondsBack: 10 }, guest.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", "/api/engine/cut", {}, guest.cookie)).status).toBe(403);
+
+  await admin("PUT", "/devices/" + guest.id, { role: "scoreboard" });
+  state = (await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body;
+  expect(state.gameDoc.home.roster).toBeUndefined();
+  expect(state.engine.sources.length).toBeGreaterThan(0); expect(state.engine.mixer).toBeUndefined();
+  expect((await call(LAN, "POST", "/api/event", { type: "score", team: "away", points: 1 }, guest.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", "/api/engine/cut", {}, guest.cookie)).status).toBe(403);
+
+  await admin("PUT", "/devices/" + guest.id, { role: "admin" });
+  expect((await call(LAN, "POST", "/api/engine/cut", {}, guest.cookie)).status).toBe(200);
+  expect((await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body.engine.mixer).toBeDefined();
 });
 
 test("producer state carries no settings, destinations, pairing code, file paths or stream keys", async () => {

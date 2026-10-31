@@ -1,6 +1,10 @@
 // Post-game wrap-up (route /wrapup). Spec: 10-ui-design-spec.md 5.12, frame design/screens/12-post-game.html
-import { html, raw, esc, icon, api, S, toast, fail, go, fmtBytes, fmtDate, period, mmss } from "../app.js";
+import { html, raw, esc, icon, api, S, toast, fail, go, fmtBytes, fmtDate, mmss } from "../app.js";
+import "../sport.js";
 import { clockAtEvent, loadHighlightSeqs } from "./replay.js";
+
+const SP = globalThis.FHSport;
+const periodName = (p) => SP.periodLabel(SP.sportOf(S.state), p);
 
 const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : `${m}:${String(s % 60).padStart(2, "0")}`; };
 const base = (p) => String(p || "").split(/[\\/]/).pop();
@@ -48,6 +52,16 @@ export default {
 .pg .tl .tr i[data-seek]:hover,.pg .tl .tr i[data-seek]:focus-visible{outline:2px solid var(--text);outline-offset:2px}
 .pg .tl .tr input[type=range]{position:absolute;inset:0;width:100%;margin:0}
 .pg a.lnk{display:inline-flex;align-items:center;gap:6px;color:var(--action-hi);font-weight:600;text-decoration:none}
+.pg .stats{padding:12px 14px;border-bottom:1px solid var(--line)}
+.pg .left>.panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pg .stats{flex:0 1 42%;min-height:0;overflow:auto}
+.pg .tl.scroll{flex:1;min-height:0;overflow:auto}
+.pg .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.pg .stat{padding:9px 10px;border:1px solid var(--line);border-radius:8px;min-width:0}
+.pg .stat b{display:block;font:600 18px var(--mono)}.pg .stat span{display:block;color:var(--text-2);font-size:12px;margin-top:3px}
+.pg .stats-tables{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pg .stats-table{width:100%;border-collapse:collapse;font-size:12.5px}.pg .stats-table th,.pg .stats-table td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}.pg .stats-table th:last-child,.pg .stats-table td:last-child{text-align:right;font-family:var(--mono)}
+@media(max-width:900px){.pg .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pg .stats-tables{grid-template-columns:1fr}}
 `,
 
   async load() {
@@ -57,6 +71,7 @@ export default {
     return { id, hl, log, air };
   },
 
+  /** Build wrap-up summaries from the active event log, excluding undone plays. */
   render(ctx, d) {
     if (!d.id) return html`<div class="empty" style="height:100%;align-content:center">${icon("film", "xl")}<h2 class="t">No game to wrap up</h2><span>Pick or start a game and this screen will show its recording and highlights.</span><a class="btn pri" href="#/">Back to Home</a></div>`;
     const gd = S.state.gameDoc, g = S.state.game;
@@ -78,6 +93,38 @@ export default {
     // timeline from the log, positioned in recording time
     const undone = new Set(d.log.filter((e) => e.type === "undo").map((e) => e.target));
     const evs = d.log.filter((e) => PLAYED.has(e.type) && !undone.has(e.seq));
+    const activeEvents = d.log.filter((e) => !undone.has(e.seq));
+    const scoring = activeEvents.filter((e) => e.type === "score");
+    const playerPoints = new Map();
+    for (const e of scoring) if (e.player !== undefined) {
+      const key = `${e.team}:${e.player}`;
+      const old = playerPoints.get(key) ?? { team: e.team, player: e.player, points: 0 };
+      old.points += e.points; playerPoints.set(key, old);
+    }
+    const periods = new Map(), sport = SP.sportOf(S.state), win = sport.win;
+    // Set wins advance periods during the game fold without an explicit period.set event.
+    let currentPeriod = 1, setsWon = { home: 0, away: 0 }, setScore = { home: 0, away: 0 }, matchOver = false;
+    for (const e of activeEvents) {
+      if (e.type === "period.set") { currentPeriod = e.period; if (win) setScore = { home: 0, away: 0 }; }
+      if (e.type === "score") {
+        const row = periods.get(currentPeriod) ?? { home: 0, away: 0 };
+        row[e.team] += e.points; periods.set(currentPeriod, row);
+        if (win && !matchOver) {
+          setScore[e.team] += e.points;
+          const decider = setsWon.home === win.setsToWin - 1 && setsWon.away === win.setsToWin - 1;
+          const target = decider && win.decidingPoints ? win.decidingPoints : win.points;
+          const winner = ["home", "away"].find((team) => (setScore[team] >= target && setScore[team] - setScore[team === "home" ? "away" : "home"] >= win.winBy) || (win.cap !== undefined && setScore[team] >= win.cap));
+          if (winner) { setsWon[winner]++; matchOver = setsWon[winner] >= win.setsToWin; if (!matchOver) { currentPeriod++; setScore = { home: 0, away: 0 }; } }
+        }
+      }
+    }
+    const foulDef = sport.counters.find((c) => c.id === "fouls"), foulByTeam = { home: foulDef?.startValue ?? 0, away: foulDef?.startValue ?? 0 };
+    for (const e of activeEvents) if (e.type === "foul" || e.type === "counter" && e.id === "fouls") {
+      const delta = e.type === "foul" ? 1 : e.delta;
+      foulByTeam[e.team] = Math.min(foulDef?.limit ?? Infinity, Math.max(0, foulByTeam[e.team] + delta));
+    }
+    const foulCount = foulByTeam.home + foulByTeam.away;
+    const playerRows = [...playerPoints.values()].sort((a, b) => b.points - a.points || String(a.player).localeCompare(String(b.player)));
     const pos = (t) => (len > 0 ? Math.max(0, Math.min(100, ((t - rec.startedAt) / len) * 100)) : 0);
     const inRec = (e) => rec && e.t >= rec.startedAt - 1000 && (!rec.endedAt || e.t <= rec.endedAt + 1000);
     const at = (e) => Math.max(0, Math.round((e.t - rec.startedAt) / 1000));
@@ -113,11 +160,34 @@ export default {
         </div>
 
         <div class="panel">
+          <div class="ph"><h3>Game statistics</h3><span class="sp"></span><span class="faint" style="font-size:12px">From recorded scoring events</span></div>
+          <div class="stats">
+            <div class="stats-grid">
+              <div class="stat"><b>${g?.home.score ?? 0}–${g?.away.score ?? 0}</b><span>Score at wrap-up</span></div>
+              <div class="stat"><b>${scoring.length}</b><span>Scoring plays</span></div>
+              <div class="stat"><b>${scoring.reduce((n, e) => n + e.points, 0)}</b><span>Points recorded</span></div>
+              <div class="stat"><b>${foulCount}</b><span>Fouls recorded</span></div>
+            </div>
+            <div class="stats-tables">
+              <div><div class="lbl" style="margin-bottom:4px">Scoring by period</div>
+                <table class="stats-table"><thead><tr><th>Period</th><th>${name("home")}</th><th>${name("away")}</th></tr></thead><tbody>
+                  ${[...periods.entries()].sort((a, b) => a[0] - b[0]).map(([p, row]) => html`<tr><td>${periodName(p)}</td><td>${row.home}</td><td>${row.away}</td></tr>`)}
+                  ${!periods.size ? html`<tr><td colspan="3" class="faint">No scoring plays recorded</td></tr>` : ""}
+                </tbody></table>
+              </div>
+              <div><div class="lbl" style="margin-bottom:4px">Player points</div>
+                <table class="stats-table"><thead><tr><th>Player</th><th>Team</th><th>Pts</th></tr></thead><tbody>
+                  ${playerRows.map((r) => { const p = gd?.[r.team]?.roster.find((x) => String(x.number) === String(r.player)); return html`<tr><td>#${r.player}${p ? ` ${p.name}` : ""}</td><td>${name(r.team)}</td><td>${r.points}</td></tr>`; })}
+                  ${!playerRows.length ? html`<tr><td colspan="3" class="faint">No player numbers were attached to scoring plays</td></tr>` : ""}
+                </tbody></table>
+              </div>
+            </div>
+          </div>
           <div class="ph"><h3>Event timeline</h3><span class="sp"></span>
             <span class="row faint" style="gap:12px;font-size:12px"><span class="row" style="gap:6px"><i class="swatch" style="background:var(--home)"></i>${name("home")}</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--away)"></i>${name("away")}</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--caution)"></i>Foul</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--action-hi)"></i>Timeout</span><span class="row" style="gap:6px"><i class="swatch" style="background:#B7A4FF"></i>Marked</span></span></div>
           ${!rec || !len ? html`<div class="empty">${icon("clock", "xl")}<b>No timeline yet</b><span>The timeline appears once the game has been recorded.</span></div>` : html`
           <div class="tl scroll">
-            <span></span><div class="tr ax"><span style="left:0;transform:none">0:00</span>${axis.map((e) => html`<span style="left:${pos(e.t)}%">${period(e.period)}</span>`)}<span style="left:99%;transform:translateX(-100%)">${dur(len)}</span></div>
+            <span></span><div class="tr ax"><span style="left:0;transform:none">0:00</span>${axis.map((e) => html`<span style="left:${pos(e.t)}%">${periodName(e.period)}</span>`)}<span style="left:99%;transform:translateX(-100%)">${dur(len)}</span></div>
             ${canPlay && html`<div class="ln">${icon("play", "sm")}Playback</div><div class="tr"><input type="range" id="pg-scrub" min="0" max="${Math.round(len / 1000)}" step="1" value="0" aria-label="Playback position"></div>`}
             ${lanes.map(([ic, label, c, arr], i) => html`<div class="ln">${icon(ic, "sm")}${label}</div><div class="tr" ${i === lanes.length - 1 ? raw('style="border-bottom:0"') : ""}>${ticks(arr, c)}</div>`)}
           </div>`}
@@ -133,7 +203,7 @@ export default {
         <div class="scroll" style="flex:1">
           ${!clips.length ? html`<div class="empty">${icon("film", "xl")}<b>${rec ? "No highlights yet" : "Nothing to cut"}</b><span>${rec ? "Clips are made from baskets scored during the recording." : "Highlights need a recording."}</span></div>` :
             P.order.map((i, pos2) => { const c = clips[i], on = P.on.has(i), cl = clockAtEvent(d.log, c.eventSeq[0], pr);
-              return html`<div class="hl ${on ? "" : "off"}"><span class="tm">${cl ? period(cl.period) + " " + mmss(cl.clockMs) : "—"}</span><span class="check ${on ? "on" : ""}" data-tog="${i}" role="checkbox" aria-checked="${on}" aria-label="Include ${c.label}" tabindex="0">${on ? icon("check") : ""}</span><span class="ds">${c.label}</span><span class="du">${dur(c.endMs - c.startMs)}</span>
+              return html`<div class="hl ${on ? "" : "off"}"><span class="tm">${cl ? periodName(cl.period) + " " + mmss(cl.clockMs) : "—"}</span><span class="check ${on ? "on" : ""}" data-tog="${i}" role="checkbox" aria-checked="${on}" aria-label="Include ${c.label}" tabindex="0">${on ? icon("check") : ""}</span><span class="ds">${c.label}</span><span class="du">${dur(c.endMs - c.startMs)}</span>
               <span class="mv"><button class="btn sm ghost" data-up="${pos2}" aria-label="Move up" ${pos2 === 0 ? "disabled" : ""}><svg class="i" style="transform:rotate(180deg)"><use href="#i-down"/></svg></button><button class="btn sm ghost" data-dn="${pos2}" aria-label="Move down" ${pos2 === P.order.length - 1 ? "disabled" : ""}>${icon("down")}</button></span></div>`; })}
         </div>
         ${P.exp ? html`<div style="padding:10px 14px;border-top:1px solid var(--line)">${P.exp.err ? html`<div class="banner err">${icon("alert")}<div><b>Highlights could not be made.</b> <span class="muted">${P.exp.err}</span></div></div>` : P.exp.out ? html`<div class="banner ok">${icon("check")}<div style="min-width:0"><b>Highlights ready</b> · ${dur(P.exp.seconds * 1000)}<div class="fn mono" style="font-size:12px;color:var(--text-2);word-break:break-all" id="pg-out">${P.exp.out}</div></div><span class="sp"></span><a class="btn sm" href="/rec/highlights-${encodeURIComponent(d.id)}" target="_blank" rel="noopener">${icon("play", "sm")}Watch</a><a class="btn sm" href="/rec/highlights-${encodeURIComponent(d.id)}?download=1">${icon("down2", "sm")}Download</a><button class="btn sm" id="pg-copyout">Copy path</button></div>` : html`<div class="banner info"><span style="width:18px;height:18px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--action);animation:spin 1s linear infinite;flex:none"></span><div><b>Making your highlights…</b> <span class="muted">This can take a minute. Keep this page open.</span></div></div>`}</div>` : ""}
@@ -165,7 +235,7 @@ export default {
     const pr = S.state.settings?.profile ? { periods: S.state.settings.profile.periods, periodMs: S.state.settings.profile.periodMin * 60000, overtimeMs: S.state.settings.profile.overtimeMin * 60000 } : undefined;
     const rows = [["seq", "time", "recording_offset_s", "period", "game_clock", "type", "team", "points", "player", "note"]].concat(evs.map((e) => {
       const c = clockAtEvent(d.log, e.seq, pr);
-      return [e.seq, new Date(e.t).toISOString(), rec ? Math.round((e.t - rec.startedAt) / 1000) : "", c ? period(c.period) : "", c ? Math.ceil(c.clockMs / 1000) : "", e.type, e.team ?? "", e.points ?? "", e.player ?? "", e.note ?? ""];
+      return [e.seq, new Date(e.t).toISOString(), rec ? Math.round((e.t - rec.startedAt) / 1000) : "", c ? periodName(c.period) : "", c ? Math.ceil(c.clockMs / 1000) : "", e.type, e.team ?? "", e.points ?? "", e.player ?? "", e.note ?? ""];
     }));
     const mk = (sel, text, type) => { const a = root.querySelector(sel); if (!a) return; const u = URL.createObjectURL(new Blob([text], { type })); urls.push(u); a.href = u; };
     mk("#pg-csv", rows.map((r) => r.map(csvCell).join(",")).join("\n"), "text/csv");

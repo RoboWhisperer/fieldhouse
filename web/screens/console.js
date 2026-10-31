@@ -60,6 +60,7 @@ const css = SP.CSS + `
 .clockbox .led{font-size:52px}.score-block .led{font-size:52px}
 .score-block .nm .tn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .score-block{position:relative}.bn2{position:absolute;left:12px;top:44px;font-size:11px;font-weight:800;letter-spacing:.07em;color:var(--caution)}
+.score-block .scorer{width:100%;height:30px;margin-top:6px;font-size:12px}
 .bug .cl{display:flex;align-items:center}
 .ctrs{display:grid;gap:6px}.ctcell{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 6px 12px;background:var(--inset);border:1px solid var(--line);border-radius:8px;min-height:44px}
 .ctcell .ab{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
@@ -125,7 +126,7 @@ function render(ctx) {
   const sp = SP.sportOf(st), keyOf = SP.scoreKeys(sp, sc);
   const hintOf = (t, i) => { const k = keyOf.find((x) => x.team === t && x.i === i); return sp.scoring[i].label + (k ? " (" + keyLabel(k.key) + ")" : ""); };
   const nameCtr = sp.counters.find((c) => c.id === "fouls" && c.showAs === "pips"), rows = sp.counters.filter((c) => c !== nameCtr);
-  const blk = (t) => html`<div class="score-block" data-team="${t}"><div class="nm"><i></i><span class="tn"></span><span class="sp"></span>${nameCtr && raw(SP.ctl(nameCtr, t, { inName: true }))}</div><div class="led" data-bind="game.${t}.score"></div>${raw(SP.plusRow(sp, t, hintOf))}</div>`;
+  const blk = (t) => html`<div class="score-block" data-team="${t}"><div class="nm"><i></i><span class="tn"></span><span class="sp"></span>${nameCtr && raw(SP.ctl(nameCtr, t, { inName: true }))}</div><div class="led" data-bind="game.${t}.score"></div>${raw(SP.plusRow(sp, t, hintOf))}<select class="select scorer" data-player-pick="${t}" aria-label="Scorer for ${t === "home" ? "home" : "away"} team"><option value="">No player (optional)</option>${st.gameDoc[t].roster.map((p) => html`<option value="${p.number}">#${p.number} ${p.name}</option>`)}</select></div>`;
   const noClock = sp.clockMode === "none", longSeg = sp.periodLabels.join("").length > 20;
   const perSeg = html`<span class="seg" id="per" role="group" aria-label="Period">${sp.periodLabels.map((l, i) => html`<span tabindex="0" data-per="${i + 1}">${l}</span>`)}</span>`;
   return html`<div class="cons"><div class="bns" id="bns"></div>
@@ -208,7 +209,7 @@ function bind(root, ctx) {
   const undo = () => run(async () => { await api.post("/event", { type: "undo" }); toast("Undone"); });
   const teamName = (t) => st().game?.[t]?.name ?? t;
   const sport = () => SP.sportOf(st());
-  const score = (team, i) => { const o = sport().scoring[i]; if (o) return evt({ type: "score", team, points: o.points, kind: o.id }, `${teamName(team)} +${o.points}`, true); };
+  const score = (team, i) => { const o = sport().scoring[i]; if (o) { const player = $(`[data-player-pick="${team}"]`)?.value; return evt({ type: "score", team, points: o.points, kind: o.id, ...(player ? { player: Number(player) } : {}) }, `${teamName(team)} +${o.points}`, true); } };
   const counter = (id, team, delta) => {
     const d = sport().counters.find((c) => c.id === id); if (!d) return;
     const msg = d.id === "fouls" && delta === 1 ? `Foul on ${teamName(team)}` : d.id === "timeouts" && delta === -1 ? `Timeout: ${teamName(team)}` : `${teamName(team)}: ${d.label.toLowerCase()} ${delta > 0 ? "+1" : "−1"}`;
@@ -407,11 +408,24 @@ function bind(root, ctx) {
       text(b.querySelector(".tn"), d[t].name); b.querySelector(".nm i").style.background = d[t].color;
       $$(`[data-ta="${t}"]`).forEach((x) => text(x, g[t].abbr));
     }
+    patchScorers();
     SP.patchCtl($(".right"), sp, g, (t) => d[t].name);
     if (sp.win && g.sets) {
       text($("#sh"), g.sets.home); text($("#sa"), g.sets.away);
       text($("#shist"), g.sets.history.length ? g.sets.history.map((x) => `${x.home}\u2013${x.away}`).join(", ") : "");
       const w = g.sets.winner; cls($("#setsum"), "won", w); cls($("#swin"), "hidden", !w); if (w) text($("#swin"), `${d[w].name} win the match, ${g.sets[w]} sets to ${g.sets[w === "home" ? "away" : "home"]}.`);
+    }
+  }
+  /** Refresh scorer choices after cross-window roster edits, keeping only a still-valid selection. */
+  function patchScorers() {
+    for (const t of ["home", "away"]) {
+      const select = $(`[data-player-pick="${t}"]`), roster = st().gameDoc[t].roster;
+      const key = JSON.stringify(roster.map((p) => [p.number, p.name]));
+      if (select.dataset.roster === key) continue;
+      const selected = select.value;
+      put(select, html`<option value="">No player (optional)</option>${roster.map((p) => html`<option value="${p.number}">#${p.number} ${p.name}</option>`)}`);
+      select.dataset.roster = key;
+      select.value = roster.some((p) => String(p.number) === selected) ? selected : "";
     }
   }
   const evGlyph = { score: ["score", "ball"], foul: ["foul", "whistle"], timeout: ["to", "timeout"], counter: ["foul", "whistle"], mark: ["mark", "mark"], "period.set": ["", "flag"] };
