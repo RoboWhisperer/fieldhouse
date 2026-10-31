@@ -12,7 +12,7 @@
   <div class="gate-in">
     <div class="brand-row"><span class="mark"><svg class="i"><use href="#i-ball"/></svg></span><b>Fieldhouse Remote</b></div>
     <h1>Connect to the console</h1>
-    <p class="muted">Run the clock and score from this phone or computer. It works on the gym Wi-Fi with no internet and no account.</p>
+    <p class="muted">Connect to the Fieldhouse computer on the same Wi-Fi/WLAN or Ethernet network. No internet or account is needed.</p>
     <form id="pf" autocomplete="off" novalidate>
       <div class="field"><label for="code">Pairing code</label>
         <input class="input big mono" id="code" name="code" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="WILD-4821" maxlength="24" autofocus aria-describedby="code-h">
@@ -55,6 +55,7 @@
     <span class="chip" id="conn" role="status"><span class="dot"></span><span id="conn-t">Connecting</span></span>
     <button class="btn ghost help-btn" id="helpbtn" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
   </div>
+  <section id="role-view" class="role-view" hidden aria-live="polite"></section>
   <div class="main">
     <div class="banner warn" id="banner" role="status" hidden><svg class="i"><use href="#i-alert"/></svg><div><b id="banner-h"></b><div class="muted" id="banner-p"></div></div></div>
     <div class="ribbon sm" aria-label="Game">
@@ -70,8 +71,8 @@
     <div class="setsline" id="setsline" role="status" hidden></div>
     <div class="scores">
       <!-- the score buttons (.plus) are drawn by remote.js from the sport profile: state.sport.scoring -->
-      <div class="score-block" data-team="home"><div class="nm"><i></i><span class="tn">Home</span></div><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
-      <div class="score-block" data-team="away"><div class="nm"><i></i><span class="tn">Away</span></div><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
+      <div class="score-block" data-team="home"><div class="nm"><i></i><span class="tn">Home</span></div><select class="select scorer" data-player-pick="home" aria-label="Home scorer"><option value="">No player (optional)</option></select><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
+      <div class="score-block" data-team="away"><div class="nm"><i></i><span class="tn">Away</span></div><select class="select scorer" data-player-pick="away" aria-label="Away scorer"><option value="">No player (optional)</option></select><div class="led sc" aria-live="off">0</div><div class="plus"></div></div>
     </div>
     <div class="under">
       <div class="toast" id="note" role="status" aria-live="polite" hidden><svg class="i"><use id="note-i" href="#i-info"/></svg>
@@ -88,23 +89,24 @@
       <button role="tab" id="t-log" aria-controls="p-log" aria-selected="false" data-tab="log" tabindex="-1">Undo log</button>
     </div>
     <div class="body" id="p-foul" role="tabpanel" aria-labelledby="t-foul">
-      <h3 class="pt" id="p-foul-h">Fouls &amp; timeouts</h3>
+      <h2 class="pt" id="p-foul-h">Fouls &amp; timeouts</h2>
       <!-- the counters (.cs) are drawn by remote.js from state.sport.counters -->
       <div class="tm2" data-team="home"><div class="h"><i></i><span class="tn">Home</span></div><div class="cs"></div></div>
       <div class="tm2" data-team="away"><div class="h"><i></i><span class="tn">Away</span></div><div class="cs"></div></div>
     </div>
     <div class="body" id="p-per" role="tabpanel" aria-labelledby="t-per" hidden>
-      <h3 class="pt">Period &amp; clock</h3>
+      <h2 class="pt">Period &amp; clock</h2>
       <div class="field"><span class="fl">Period</span><div class="pbtns" id="pbtns"></div><span class="hint" id="p-hint">Changing the period resets the clock and team fouls.</span></div>
       <div class="field" id="nudge-f"><span class="fl">Fix the clock</span>
         <div class="nudge"><button class="btn" data-ctl data-nudge="-10000">&minus;10 s</button><button class="btn" data-ctl data-nudge="-1000">&minus;1 s</button><button class="btn" data-ctl data-nudge="1000">+1 s</button><button class="btn" data-ctl data-nudge="10000">+10 s</button></div></div>
     </div>
     <div class="body" id="p-log" role="tabpanel" aria-labelledby="t-log" hidden>
-      <h3 class="pt">Events &amp; undo log</h3>
+      <h2 class="pt">Events &amp; undo log</h2>
       <button class="btn lg" id="mark" type="button" data-ctl hidden><svg class="i"><use href="#i-flag"/></svg>Mark moment</button>
       <div class="log" id="log"></div>
     </div>
   </div>
+  <section id="score-feeds" class="role-view feeds" hidden aria-label="Camera source feeds"></section>
 </div>
 <!-- Producer layout: its panels are built by /remote/producer.js; the scoring panel (#s-live) is moved into #pside -->
 <div class="prod" id="s-prod" hidden><div class="pgrid"><div class="pmain" id="pmain"></div><aside class="pside" id="pside"></aside></div></div>

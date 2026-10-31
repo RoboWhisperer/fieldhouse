@@ -20,7 +20,7 @@
   async function call(method, path, body) {
     let r;
     try { r = await fetch(path, { method, cache: "no-store", headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined }); }
-    catch (e) { const err = new Error("Could not reach the console. Check that you are on the gym Wi-Fi."); err.status = 0; throw err; }
+    catch (e) { const err = new Error("Could not reach the console. Check that both computers are on the same Wi-Fi/WLAN or Ethernet network."); err.status = 0; throw err; }
     let data = null; try { data = await r.json(); } catch (e) {}
     if (!r.ok) { const err = new Error((data && data.error) || "Request failed (" + r.status + ")"); err.status = r.status; err.data = data || {}; throw err; }
     return data;
@@ -255,8 +255,10 @@
   let tab = "foul", armed = 0, armT = 0, logSig = "";
   const hooks = [];
   const wide = window.matchMedia ? window.matchMedia("(min-width: 900px)") : { matches: false };
-  const isProd = () => !!me && me.role === "producer";
-  const desk = () => wide.matches && !isProd(); // desktop scorekeeper layout: every panel visible, no tabs
+  const isProd = () => !!me && (me.role === "producer" || me.role === "admin");
+  const roleView = () => !!me && ["commentator", "camera", "replay"].includes(me.role);
+  const isScoreboard = () => !!me && ["score", "score+marks", "scoreboard"].includes(me.role);
+  const desk = () => wide.matches && !isProd() && !roleView(); // desktop scorekeeper layout: every panel visible, no tabs
   const showTab = (t) => desk() || tab === t;
   if (wide.addEventListener) wide.addEventListener("change", () => { $("#pbtns").dataset.k = ""; $("#log").dataset.k = ""; render(); });
 
@@ -267,7 +269,11 @@
     if (prod && live.parentNode !== $("#pside")) $("#pside").append(live);
     if (!prod && live.parentNode !== document.body) document.body.insertBefore(live, box);
     box.hidden = !(prod && screen === "live");
-    $("#mark").hidden = !me || me.role === "score";
+    document.body.classList.toggle("is-role-view", roleView());
+    $("#role-view").hidden = !(roleView() && screen === "live");
+    $("#s-live .main").hidden = roleView(); $("#s-live .sheet").hidden = roleView();
+    $("#score-feeds").hidden = !isScoreboard();
+    $("#mark").hidden = !me || !["score+marks", "producer", "admin"].includes(me.role);
     if (prod) loadProducer(); else if (window.FHR.producer) window.FHR.producer.unmount();
     $("#pbtns").dataset.k = ""; $("#log").dataset.k = "";
     render();
@@ -294,6 +300,7 @@
       : d && d.status === "final" ? ["This game is final", "Scoring is closed."] : null;
     bn.hidden = !msg; if (msg) { text($("#banner-h"), msg[0]); text($("#banner-p"), msg[1]); bn.classList.toggle("warn", true); }
     text($("#title"), d ? d.title || (d.home.name + " vs " + d.away.name) : "Fieldhouse");
+    renderOperatorView();
     // controls
     $$("[data-ctl]").forEach((b) => { b.disabled = !ok; });
     if (g) {
@@ -303,6 +310,12 @@
         const tm = g[t], col = hex(d && d[t].color) || (t === "home" ? "#F5A524" : "#8B6CFF");
         const blk = $('.score-block[data-team="' + t + '"]'), tm2 = $('.tm2[data-team="' + t + '"]');
         text(blk.querySelector(".tn"), teamName(t)); text(blk.querySelector(".sc"), tm.score); blk.querySelector(".nm i").style.background = col;
+        const picker = blk.querySelector("[data-player-pick]"), roster = d && d[t] && d[t].roster || [], rosterKey = roster.map((p) => `${p.number}:${p.name}`).join("|");
+        if (picker && picker.dataset.roster !== rosterKey) {
+          const selected = picker.value; picker.dataset.roster = rosterKey;
+          picker.innerHTML = '<option value="">No player (optional)</option>' + roster.map((p) => '<option value="' + esc(p.number) + '">#' + esc(p.number) + ' ' + esc(p.name) + '</option>').join("");
+          if (roster.some((p) => String(p.number) === selected)) picker.value = selected;
+        }
         $$("[data-pts]", blk).forEach((b) => { const o = sp.scoring[+b.dataset.i]; b.setAttribute("aria-label", teamName(t) + " " + (o ? o.label + ", plus " + o.points : "")); });
         text(tm2.querySelector(".tn"), teamName(t)); tm2.querySelector(".h i").style.background = col;
         $$(".cell", tm2).forEach((cell) => patchCell(cell, sp.counters.find((c) => c.id === cell.dataset.c), g, t, ok));
@@ -324,6 +337,43 @@
     renderPeriod(); renderLog();
     hooks.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
   }
+  function renderOperatorView() {
+    if (!me || !S) return;
+    const root = $("#role-view"), feeds = $("#score-feeds"), role = me.role, e = S.engine;
+    const teamTitle = (side) => S.gameDoc ? S.gameDoc[side].name : side;
+    const sourceCards = (interactive) => `<div class="operator-feeds">${(e?.sources || []).map((s) => `<article class="operator-feed"><img data-role-snap="${esc(s.id)}" alt="${esc(s.label)} live source"><div><b>${esc(s.slot)} · ${esc(s.label)}</b><span>${esc(s.status)}${s.id === e.program ? " · ON AIR" : s.id === e.preview ? " · NEXT" : ""}</span>${interactive ? `<button class="btn" type="button" data-role-replay="${esc(s.id)}">Replay 10 seconds</button>` : ""}</div></article>`).join("") || "<p class=muted>No sources are available.</p>"}</div>`;
+    if (role === "commentator") {
+      const points = S.playerPoints || {};
+      setRoleHtml(root, `<header class="operator-head"><h1>Commentator</h1><p>Roster and player scoring</p></header><div class="operator-rosters">${["home", "away"].map((side) => { const tm = S.gameDoc?.[side]; return `<section class="operator-panel"><h2>${esc(teamTitle(side))} · ${esc(S.game?.[side]?.score ?? 0)}</h2><div class="operator-list">${(tm?.roster || []).map((p) => `<div class="operator-row"><b>#${esc(p.number)} ${esc(p.name)}</b><span>${esc(points[side + ":" + p.number] || 0)} pts</span><small>${esc(p.position || "")}</small></div>`).join("") || "<p class=muted>No roster loaded.</p>"}</div></section>`; }).join("")}</div>`);
+    } else if (role === "camera") {
+      setRoleHtml(root, `<header class="operator-head"><h1>Camera feeds</h1><p>Raw sources from the Fieldhouse and OBS computer</p></header>${sourceCards(false)}`);
+    } else if (role === "replay") {
+      const plays = S.keyPlays || [];
+      setRoleHtml(root, `<header class="operator-head"><h1>Replay operator</h1><p>Choose a source to replay, or review a key play</p></header><div class="operator-actions"><button class="btn pri" type="button" data-role-replay="">Replay last 10 seconds</button><button class="btn" type="button" data-role-stop>Stop replay</button></div>${sourceCards(true)}<section class="operator-panel"><h2>Key plays</h2><div class="operator-list">${plays.slice().reverse().map((p) => `<div class="operator-row"><b>${p.type === "mark" ? esc(p.note || "Marked moment") : `${esc(teamTitle(p.team))} +${esc(p.points)}${p.player == null ? "" : " · #" + esc(p.player)}`}</b><span>${new Date(p.t).toLocaleTimeString()}</span><button class="btn" data-play-seq="${esc(p.seq)}" type="button">Replay play</button></div>`).join("") || "<p class=muted>No key plays yet. Scores and marked moments appear here.</p>"}</div></section>`);
+    }
+    if (isScoreboard()) setRoleHtml(feeds, `<header class="operator-head"><h2>Source feeds</h2></header>${sourceCards(false)}`);
+    $$('[data-role-replay], [data-role-stop], [data-play-seq]', root).forEach((b) => { b.disabled = !connected() || locked; });
+    const snapImages = $$("img[data-role-snap]");
+    for (const img of snapImages) loadRoleSnap(img);
+  }
+  function setRoleHtml(node, html) { if (node.dataset.draw !== html) { node.dataset.draw = html; node.innerHTML = html; } }
+  function loadRoleSnap(img) {
+    const id = img.dataset.roleSnap;
+    if (!id || img._busy || !connected()) return;
+    img._busy = true; const next = new Image();
+    next.onload = () => { img.src = next.src; img._busy = false; };
+    next.onerror = () => { img._busy = false; };
+    next.src = "/snap/" + encodeURIComponent(id) + "?t=" + Date.now();
+  }
+  $("#role-view").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button"); if (!b || b.disabled) return;
+    try {
+      if (b.hasAttribute("data-role-stop")) await call("POST", "/api/replay/stop", {});
+      else if (b.hasAttribute("data-role-replay")) await call("POST", "/api/replay", { secondsBack: 10, speed: 1 });
+      else if (b.hasAttribute("data-play-seq")) { const p = (S.keyPlays || []).find((x) => String(x.seq) === b.dataset.playSeq); if (p) await call("POST", "/api/replay", { secondsBack: Math.max(1, Math.min(60, Math.ceil((S.serverNow - p.t) / 1000) + 2)), speed: 1 }); }
+    } catch (e) { fail(e); }
+  });
+  setInterval(() => { if (!document.hidden) $$("img[data-role-snap]").forEach(loadRoleSnap); }, 1000);
   // Structural parts that depend on the sport (score buttons, counter cells, clock, tab names) are drawn once per sport, not per push.
   let sportSig = "", keyMap = {};
   const cell = (d) => {
@@ -404,7 +454,7 @@
     if (!b || b.disabled || screen !== "live") return;
     const team = b.closest("[data-team]") ? b.closest("[data-team]").dataset.team : "";
     if (b.id === "clk") { const g = game(); if (g) send({ type: g.running ? "clock.stop" : "clock.start" }); }
-    else if (b.dataset.pts) { const o = sport().scoring[Number(b.dataset.i)]; send({ type: "score", team, points: Number(b.dataset.pts), kind: o && o.id }); }
+    else if (b.dataset.pts) { const o = sport().scoring[Number(b.dataset.i)], player = $('[data-player-pick="' + team + '"]')?.value; send({ type: "score", team, points: Number(b.dataset.pts), kind: o && o.id, ...(player ? { player: Number(player) } : {}) }); }
     else if (b.dataset.ctr) {
       const id = b.dataset.ctr, delta = Number(b.dataset.d); // fouls and timeouts keep their old event names so automation rules and logs stay the same
       send(id === "fouls" && delta === 1 ? { type: "foul", team } : id === "timeouts" && delta === -1 ? { type: "timeout", team } : { type: "counter", team, id, delta });

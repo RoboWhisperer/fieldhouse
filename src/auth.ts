@@ -21,15 +21,18 @@ import * as diag from "./diagnostics";
 import { parseEv } from "./game";
 import type { Store } from "./store";
 
-export type Role = "score" | "score+marks" | "producer" | "controller"; // controller = an external tool (Companion, Stream Deck, scripts): production actions and macros, no mixer, broadcast or administration
+export type Role = "score" | "score+marks" | "producer" | "controller" | "commentator" | "camera" | "replay" | "scoreboard" | "admin"; // legacy roles remain valid for paired devices and API keys
 export interface DeviceDoc { id: string; name: string; role: Role; createdAt: number; lastSeen: number; tokenHash: string; key?: boolean } // key: an API key (Authorization: Bearer fhk_...) instead of a paired phone
 export type WsData = { dev: string };
 
-const ROLES: Role[] = ["score", "score+marks", "producer", "controller"];
+const ROLES: Role[] = ["score", "score+marks", "producer", "controller", "commentator", "camera", "replay", "scoreboard", "admin"];
 const KEY_ROLES: Role[] = ["controller", "producer"];
 const KEY_PREFIX = "fhk_";
 const SCORE_EVENTS = ["clock.start", "clock.stop", "clock.set", "period.set", "score", "foul", "timeout", "counter", "undo"];
-export const allowedEvents = (role: Role) => (role === "score" ? SCORE_EVENTS : [...SCORE_EVENTS, "mark"]); // score+marks and producer
+const SCORE_ROLES: Role[] = ["score", "score+marks", "scoreboard", "producer", "admin", "controller"];
+const FULL_PRO: Role[] = ["producer", "admin"];
+const VIDEO_READ: Role[] = ["producer", "admin", "camera", "replay", "scoreboard"];
+export const allowedEvents = (role: Role) => SCORE_ROLES.includes(role) && ["score+marks", "producer", "admin", "controller"].includes(role) ? [...SCORE_EVENTS, "mark"] : SCORE_ROLES.includes(role) ? SCORE_EVENTS : [];
 const UNDOABLE = ["score", "foul", "timeout", "counter"];
 const MAX_BODY = 4096, MAX_DEVICES = 20, MAX_KEYS = 20, COOKIE = "fh_device", COOKIE_AGE = 90 * 86400;
 
@@ -46,11 +49,11 @@ export function isPrivate(ip?: string) {
   const h = parseInt(s.split(":")[0] || "0", 16) || 0;
   return (h & 0xfe00) === 0xfc00 || (h & 0xffc0) === 0xfe80;
 }
-/** Private IPv4 addresses of this machine, i.e. what a phone on the same Wi-Fi could use. */
-export function lanAddresses(): string[] {
-  const out: string[] = [];
-  for (const list of Object.values(networkInterfaces())) for (const i of list ?? []) if (i.family === "IPv4" && !i.internal && isPrivate(i.address) && !i.address.startsWith("169.254.")) out.push(i.address);
-  return out;
+/** Private IPv4 addresses this machine exposes on local Wi-Fi/WLAN or Ethernet interfaces. */
+export function lanAddresses(interfaces = networkInterfaces()): string[] {
+  const out: { address: string; wifi: boolean }[] = [];
+  for (const [name, list] of Object.entries(interfaces)) for (const i of list ?? []) if (i.family === "IPv4" && !i.internal && isPrivate(i.address) && !i.address.startsWith("169.254.")) out.push({ address: i.address, wifi: /^(wlan|wlp|wl|wifi|wi-fi|wireless)/i.test(name) });
+  return out.sort((a, b) => Number(b.wifi) - Number(a.wifi)).map((i) => i.address);
 }
 
 // ---------------------------------------------------------------- small utilities
@@ -107,7 +110,7 @@ const errRes = (e: unknown) => {
 // ---------------------------------------------------------------- the remote
 export interface RemoteDeps { app: App; store: Store; now?: () => number; webDir?: string; avoidPorts?: number[] }
 export interface RemoteRoute { roles: Role[]; method: string; re: RegExp; keyOnly?: boolean; sanitize?: (b: Record<string, any>) => Record<string, unknown> }
-const PRO: Role[] = ["producer", "controller"];
+const PRO: Role[] = ["producer", "controller", "admin"];
 /** Routes a phone or API key may call besides the scoring/production basics. Allowlist: anything not listed answers 403. */
 export const REMOTE_ROUTES: RemoteRoute[] = [
   { roles: PRO, method: "GET", re: /^\/api\/macros$/ },
@@ -123,7 +126,7 @@ export const allowRemote = (r: RemoteRoute) => { REMOTE_ROUTES.push(r); };
 export type HandleOpts = { lan?: boolean; upgrade?: (req: Request, data: WsData) => boolean };
 
 /** Phones get the four original on-air fields; producers also get a short list of graphics to put on and off air. No designs, variables or connector details. */
-const phoneGraphics = (g: any, role: Role) => ({ scorebug: g.scorebug, lower: g.lower, slate: g.slate, sponsor: g.sponsor, ...(role === "producer" ? { items: (g.items ?? []).map((i: any) => ({ id: i.id, name: i.name, role: i.role, visible: i.visible })) } : {}) });
+  const phoneGraphics = (g: any, role: Role) => ({ scorebug: g.scorebug, lower: g.lower, slate: g.slate, sponsor: g.sponsor, ...(FULL_PRO.includes(role) ? { items: (g.items ?? []).map((i: any) => ({ id: i.id, name: i.name, role: i.role, visible: i.visible })) } : {}) });
 export function createRemote(deps: RemoteDeps) {
   const { app, store } = deps;
   const now = deps.now ?? Date.now;
@@ -164,7 +167,23 @@ export function createRemote(deps: RemoteDeps) {
     const st = app.state(), d = st.gameDoc;
     const tm = (t: { name: string; abbr: string; color: string; roster: unknown }) => ({ name: t.name, abbr: t.abbr, color: t.color, roster: t.roster });
     const base = { kind: "state", role, serverNow: st.serverNow, locked, gameId: st.gameId, gameDoc: d && { id: d.id, title: d.title, status: d.status, home: tm(d.home), away: tm(d.away) }, game: st.game, sport: st.sport, events: st.events, graphics: phoneGraphics(st.graphics, role), profile: st.settings.profile }; // `profile` is the old five-field view (kept for old phones); `sport` is the active game's profile summary
-    if (role !== "producer" && role !== "controller") return base;
+    if (role === "commentator") {
+      const log = st.gameId ? store.load<any[]>(st.gameId) : [];
+      const undone = new Set(log.filter((e) => e.type === "undo").map((e) => e.target));
+      const scores: Record<string, number> = {};
+      for (const e of log) if (e.type === "score" && !undone.has(e.seq) && e.player != null) { const key = `${e.team}:${e.player}`; scores[key] = (scores[key] ?? 0) + e.points; }
+      return { ...base, playerPoints: scores };
+    }
+    if (role === "replay") {
+      const log = st.gameId ? store.load<any[]>(st.gameId) : [];
+      const undone = new Set(log.filter((e) => e.type === "undo").map((e) => e.target));
+      return { ...base, keyPlays: log.filter((e) => !undone.has(e.seq) && (e.type === "mark" || e.type === "score")).slice(-40).map((e) => ({ type: e.type, team: e.team, points: e.points, player: e.player, note: e.note, seq: e.seq, t: e.t })) };
+    }
+    if (["camera", "replay", "scoreboard"].includes(role)) {
+      const e = st.engine;
+      return { ...base, engine: { connected: e.connected, program: e.program, preview: e.preview, replay: { active: !!e.replay?.active }, sources: e.sources.map((x) => ({ id: x.id, slot: x.slot, label: x.label, kind: x.kind, status: x.status })) } };
+    }
+    if (!FULL_PRO.includes(role) && role !== "controller") return base;
     const e = st.engine, n = st.next;
     return {
       ...base, canBroadcast: !!st.settings.remote.producerCanBroadcast,
@@ -340,7 +359,7 @@ export function createRemote(deps: RemoteDeps) {
     return res;
   }
   async function producer(req: Request, url: URL, key: string, d: DeviceDoc) {
-    if (!(d.role === "producer" || (d.role === "controller" && CONTROLLER_KEYS.has(key)))) fail(403, "This device is not allowed to do that. Ask the person at the console for the Producer role.");
+    if (!(FULL_PRO.includes(d.role) || (d.role === "replay" && ["POST /api/replay", "POST /api/replay/stop"].includes(key)) || (d.role === "controller" && CONTROLLER_KEYS.has(key)))) fail(403, "This device is not allowed to do that. Ask the person at the console for the appropriate role.");
     if (key.includes("/broadcast/") && !settings().remote.producerCanBroadcast) fail(403, "Starting and stopping the broadcast is turned off for remote devices. Do it on the console, or allow it in Settings > Remote access.");
     if (locked) fail(423, "The console has locked the remote");
     sameOrigin(req, url);
@@ -351,7 +370,7 @@ export function createRemote(deps: RemoteDeps) {
     return res;
   }
   async function snapshot(d: DeviceDoc, id: string) {
-    if (d.role !== "producer") fail(403, "This device cannot view video. Ask the person at the console for the Producer role.");
+    if (!VIDEO_READ.includes(d.role)) fail(403, "This device cannot view video. Ask the person at the console for a video role.");
     if (!spend(d.id + ":snap", 15)) fail(429, "Slow down: too many picture requests.");
     const img = await app.snapshot(id);
     return img ? new Response(img.body as any, { headers: { "content-type": img.type } }) : jsonRes({ error: "No picture." }, 404);
@@ -367,7 +386,7 @@ export function createRemote(deps: RemoteDeps) {
     const cfg = settings().remote;
     if (!cfg.enabled) return jsonRes({ error: "Phone remote is turned off on this computer." }, 403);
     if (!/^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\]|[a-z0-9-]+|[a-z0-9-]+\.local)$/i.test(url.hostname)) return jsonRes({ error: "Open the remote at the address shown on the console (an IP address such as http://192.168.1.20:8081/remote)." }, 403); // a rebinding page uses its own domain name
-    if (cfg.lockedToLan && !isPrivate(ip)) return jsonRes({ error: "This remote only works on the same Wi-Fi network as the console." }, 403);
+    if (cfg.lockedToLan && !isPrivate(ip)) return jsonRes({ error: "This remote only works on the same local network as the console." }, 403);
     try {
       const bt = bearerOf(req); // an API key: wrong guesses are rate limited per address, and a known key is never a reason to lock anyone out
       if (bt && !byHash.has(hashToken(bt))) { const w = keyLimit.wait(ip); if (w) tooMany(w); keyLimit.fail(ip); fail(401, "That API key is not valid or was revoked."); }
@@ -429,7 +448,7 @@ export function createRemote(deps: RemoteDeps) {
       let mt = /^\/api\/remote\/devices\/([\w-]+)$/.exec(p);
       if (mt && m === "PUT") {
         const b = await readJson(req), d = byId.get(mt[1]); if (!d) fail(404, "That phone is not paired.");
-        if (!ROLES.includes(b.role)) fail(400, "Role must be score, score+marks or producer.");
+        if (!ROLES.includes(b.role)) fail(400, "Choose a valid remote role.");
         d!.role = b.role; save(d!); closeStreams(d!.id);
         for (const w of sockets.get(d!.id) ?? []) { send(w, JSON.stringify({ kind: "me", device: publicDev(d!) })); send(w, JSON.stringify(stateFor(d!.role))); } // takes effect on live sockets at once
         app.changed(); return jsonRes(publicDev(d!));

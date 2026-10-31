@@ -48,6 +48,13 @@ export default {
 .pg .tl .tr i[data-seek]:hover,.pg .tl .tr i[data-seek]:focus-visible{outline:2px solid var(--text);outline-offset:2px}
 .pg .tl .tr input[type=range]{position:absolute;inset:0;width:100%;margin:0}
 .pg a.lnk{display:inline-flex;align-items:center;gap:6px;color:var(--action-hi);font-weight:600;text-decoration:none}
+.pg .stats{padding:12px 14px;border-bottom:1px solid var(--line)}
+.pg .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.pg .stat{padding:9px 10px;border:1px solid var(--line);border-radius:8px;min-width:0}
+.pg .stat b{display:block;font:600 18px var(--mono)}.pg .stat span{display:block;color:var(--text-2);font-size:12px;margin-top:3px}
+.pg .stats-tables{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pg .stats-table{width:100%;border-collapse:collapse;font-size:12.5px}.pg .stats-table th,.pg .stats-table td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}.pg .stats-table th:last-child,.pg .stats-table td:last-child{text-align:right;font-family:var(--mono)}
+@media(max-width:900px){.pg .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pg .stats-tables{grid-template-columns:1fr}}
 `,
 
   async load() {
@@ -78,6 +85,24 @@ export default {
     // timeline from the log, positioned in recording time
     const undone = new Set(d.log.filter((e) => e.type === "undo").map((e) => e.target));
     const evs = d.log.filter((e) => PLAYED.has(e.type) && !undone.has(e.seq));
+    const activeEvents = d.log.filter((e) => !undone.has(e.seq));
+    const scoring = activeEvents.filter((e) => e.type === "score");
+    const playerPoints = new Map();
+    for (const e of scoring) if (e.player !== undefined) {
+      const key = `${e.team}:${e.player}`;
+      const old = playerPoints.get(key) ?? { team: e.team, player: e.player, points: 0 };
+      old.points += e.points; playerPoints.set(key, old);
+    }
+    const periods = new Map(); let currentPeriod = 1;
+    for (const e of activeEvents) {
+      if (e.type === "period.set") currentPeriod = e.period;
+      if (e.type === "score") {
+        const row = periods.get(currentPeriod) ?? { home: 0, away: 0 };
+        row[e.team] += e.points; periods.set(currentPeriod, row);
+      }
+    }
+    const foulCount = activeEvents.filter((e) => e.type === "foul").length;
+    const playerRows = [...playerPoints.values()].sort((a, b) => b.points - a.points || String(a.player).localeCompare(String(b.player)));
     const pos = (t) => (len > 0 ? Math.max(0, Math.min(100, ((t - rec.startedAt) / len) * 100)) : 0);
     const inRec = (e) => rec && e.t >= rec.startedAt - 1000 && (!rec.endedAt || e.t <= rec.endedAt + 1000);
     const at = (e) => Math.max(0, Math.round((e.t - rec.startedAt) / 1000));
@@ -113,6 +138,29 @@ export default {
         </div>
 
         <div class="panel">
+          <div class="ph"><h3>Game statistics</h3><span class="sp"></span><span class="faint" style="font-size:12px">From recorded scoring events</span></div>
+          <div class="stats">
+            <div class="stats-grid">
+              <div class="stat"><b>${g?.home.score ?? 0}–${g?.away.score ?? 0}</b><span>Score at wrap-up</span></div>
+              <div class="stat"><b>${scoring.length}</b><span>Scoring plays</span></div>
+              <div class="stat"><b>${scoring.reduce((n, e) => n + e.points, 0)}</b><span>Points recorded</span></div>
+              <div class="stat"><b>${foulCount}</b><span>Fouls recorded</span></div>
+            </div>
+            <div class="stats-tables">
+              <div><div class="lbl" style="margin-bottom:4px">Scoring by period</div>
+                <table class="stats-table"><thead><tr><th>Period</th><th>${name("home")}</th><th>${name("away")}</th></tr></thead><tbody>
+                  ${[...periods.entries()].sort((a, b) => a[0] - b[0]).map(([p, row]) => html`<tr><td>${period(p)}</td><td>${row.home}</td><td>${row.away}</td></tr>`)}
+                  ${!periods.size ? html`<tr><td colspan="3" class="faint">No scoring plays recorded</td></tr>` : ""}
+                </tbody></table>
+              </div>
+              <div><div class="lbl" style="margin-bottom:4px">Player points</div>
+                <table class="stats-table"><thead><tr><th>Player</th><th>Team</th><th>Pts</th></tr></thead><tbody>
+                  ${playerRows.map((r) => { const p = gd?.[r.team]?.roster.find((x) => String(x.number) === String(r.player)); return html`<tr><td>#${r.player}${p ? ` ${p.name}` : ""}</td><td>${name(r.team)}</td><td>${r.points}</td></tr>`; })}
+                  ${!playerRows.length ? html`<tr><td colspan="3" class="faint">No player numbers were attached to scoring plays</td></tr>` : ""}
+                </tbody></table>
+              </div>
+            </div>
+          </div>
           <div class="ph"><h3>Event timeline</h3><span class="sp"></span>
             <span class="row faint" style="gap:12px;font-size:12px"><span class="row" style="gap:6px"><i class="swatch" style="background:var(--home)"></i>${name("home")}</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--away)"></i>${name("away")}</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--caution)"></i>Foul</span><span class="row" style="gap:6px"><i class="swatch" style="background:var(--action-hi)"></i>Timeout</span><span class="row" style="gap:6px"><i class="swatch" style="background:#B7A4FF"></i>Marked</span></span></div>
           ${!rec || !len ? html`<div class="empty">${icon("clock", "xl")}<b>No timeline yet</b><span>The timeline appears once the game has been recorded.</span></div>` : html`
