@@ -392,7 +392,7 @@ test("the basketball game is unchanged through the API (old screens keep working
 
 test("the JSON examples in docs/dev/profiles.md are valid profiles and play", async () => {
   const md = await Bun.file(`${import.meta.dir}/../docs/dev/profiles.md`).text();
-  const blocks = [...md.matchAll(/```json profile\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]));
+  const blocks = [...md.matchAll(/```json profile\r?\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]));
   expect(blocks.map((b) => b.name)).toEqual(["Rugby sevens", "Badminton", "Skyball"]);
   const [rugby, badminton, sky] = blocks.map((b, i) => validateProfile(b, "ex" + i, false));
   expect(fold(log({ type: "score", team: "home", points: 5, kind: "try" }, { type: "score", team: "home", points: 2, kind: "conversion" }), rugby).home.score).toBe(7);
