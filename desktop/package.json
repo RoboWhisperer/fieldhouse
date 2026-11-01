@@ -1,7 +1,7 @@
 {
   "name": "fieldhouse-desktop",
   "productName": "Fieldhouse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Fieldhouse: free, open-source sports broadcast production",
   "author": "Fieldhouse contributors",
   "license": "GPL-3.0-or-later",
@@ -21,10 +21,10 @@
     "dist:dir": "electron-builder --dir"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
   }
 }

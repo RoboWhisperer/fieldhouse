@@ -155,3 +155,75 @@ test("go-live with the real engine refuses an unreachable destination BEFORE rec
   expect((await r("POST", `/destinations/${d.id}/test`)).body).toMatchObject({ ok: false, message: "Nothing answered." });
   e4.close(); a4.stop();
 });
+
+test("reset wipes every game, venue, sponsor, setting and recording", async () => {
+  // a reset is refused while a broadcast is active: clear any active game left by earlier tests
+  store.put("settings", { id: "main" });
+  expect((await req("GET", "/state")).body.gameId).toBeNull();
+
+  const res = await req("POST", "/reset");
+  expect(res.status).toBe(200);
+  expect(res.body.ok).toBe(true);
+  expect(typeof res.body.removed).toBe("number");
+
+  // everything is gone, settings fall back to defaults
+  expect((await req("GET", "/games")).body).toEqual([]);
+  expect((await req("GET", "/venues")).body).toEqual([]);
+  expect((await req("GET", "/sponsors")).body).toEqual([]);
+  expect((await req("GET", "/destinations")).body).toEqual([]);
+  const s = (await req("GET", "/settings")).body;
+  expect(s.theme).toBe("hardwood");
+  expect(s.activeGameId).toBeUndefined();
+
+  // the setup wizard would now run: no games and nothing seen yet
+  expect((await req("GET", "/games")).body).toHaveLength(0);
+});
+
+test("auto-highlights assembles scored events into an exported file", async () => {
+  const st = openStore(":memory:"), e5 = new FakeEngine(); seedDemo(st);
+  const a5 = createApp({ store: st, engine: e5 });
+  const rr = async (m: string, p: string, b?: unknown) => {
+    const x = await a5.handle(new Request("http://localhost:8080/api" + p, { method: m, body: b ? JSON.stringify(b) : undefined, headers: b ? { "content-type": "application/json" } : {} }));
+    return { status: x.status, body: x.headers.get("content-type")?.includes("json") ? await x.json() : await x.text() } as { status: number; body: any };
+  };
+  await rr("PUT", "/settings", { storageDir: dir });
+  const g = (await rr("GET", "/games/game_demo_tonight")).body;
+  await rr("PUT", "/games/game_demo_tonight", { ...g, destinationIds: ["dest_local"] });
+  await rr("POST", "/games/game_demo_tonight/activate");
+  expect((await rr("POST", "/broadcast/start")).status).toBe(200);
+  await new Promise((r) => setTimeout(r, 500)); // let the recording grow a little
+  await rr("POST", "/event", { type: "score", team: "home", points: 2, player: 12 });
+  await rr("POST", "/event", { type: "score", team: "away", points: 3 });
+  await rr("POST", "/event", { type: "mark", note: "Great save" });
+  expect((await rr("POST", "/broadcast/stop")).status).toBe(200);
+  const ah = await rr("POST", "/games/game_demo_tonight/auto-highlights");
+  expect(ah.status).toBe(200);
+  expect(ah.body.clips).toBeGreaterThanOrEqual(1);
+  expect(ah.body.bytes).toBeGreaterThan(0);
+  expect(String(ah.body.out)).toContain("highlights");
+  e5.close(); a5.stop();
+});
+
+test("stat ingest appends play-by-play CSV rows as game events", async () => {
+  const st = openStore(":memory:"), e6 = new FakeEngine(); seedDemo(st);
+  const a6 = createApp({ store: st, engine: e6 });
+  const rr = async (m: string, p: string, b?: unknown) => {
+    const x = await a6.handle(new Request("http://localhost:8080/api" + p, { method: m, body: b ? JSON.stringify(b) : undefined, headers: b ? { "content-type": "application/json" } : {} }));
+    return { status: x.status, body: x.headers.get("content-type")?.includes("json") ? await x.json() : await x.text() } as { status: number; body: any };
+  };
+  await rr("POST", "/games/game_demo_tonight/activate");
+  const csv = `type,team,points,player,note
+score,home,2,12,
+score,away,3,5,
+foul,home,,,
+timeout,away,,,
+mark,,,,"Great play"`;
+  const stt = await rr("POST", "/games/game_demo_tonight/stats", { text: csv });
+  expect(stt.status).toBe(200);
+  expect(stt.body.count).toBe(5);
+  const log = (await rr("GET", "/log")).body;
+  expect(log.filter((e: any) => e.type === "score")).toHaveLength(2);
+  expect(log.some((e: any) => e.type === "foul" && e.team === "home")).toBe(true);
+  expect(log.some((e: any) => e.type === "mark" && e.note === "Great play")).toBe(true);
+  e6.close(); a6.stop();
+});

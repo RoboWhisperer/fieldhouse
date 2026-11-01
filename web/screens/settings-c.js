@@ -1,6 +1,7 @@
 // Settings sections: diagnostics, about.
-import { html, icon, api, S, toast, fail, fmtBytes } from "../app.js";
+import { html, icon, api, S, toast, fail, go, fmtBytes } from "../app.js";
 import { REPO, delegate, all, sw, copyText, lnk, panel } from "./settings-ui.js";
+import { SEEN_KEY } from "../screens/onboarding.js";
 
 const paint = (root, view) => { const b = root.querySelector("[data-box]"); if (b) b.innerHTML = view().s; const l = root.querySelector(".stlog"); if (l) l.scrollTop = l.scrollHeight; };
 const pill = (cls, text) => html`<span class="pill ${cls}">${text}</span>`;
@@ -102,6 +103,10 @@ export const about = {
         <div class="row" style="flex-wrap:wrap;gap:8px">${lnk(REPO, "View source on GitHub", "btn pri")}${lnk(`${REPO}/blob/main/LICENSE`, "View license text", "btn", "book")}</div>
         <div class="hint"><span class="mono">github.com/RoboWhisperer/fieldhouse</span></div></div></div>
       ${panel("Ways to help", helpList(HELP))}
+      ${panel("Reset", html`<div class="pb col-g" style="gap:10px">
+        <div class="row"><span class="muted">Clears every game, venue, sponsor, destination, setting and recording on this computer, then runs the setup wizard again. This cannot be undone.</span></div>
+        <div class="row"><button class="btn" data-act="reset">${icon("alert")}Clear all data and start over</button></div>
+      </div>`)}
     </div>
     <div class="col-g" style="gap:16px">
       ${panel("Built on open source", html`<table class="tbl"><thead><tr><th>Component</th><th>License</th></tr></thead><tbody>${NOTICES.map(([n, l]) => html`<tr><td>${n}</td><td class="m">${l}</td></tr>`)}</tbody></table><div class="row" style="padding:12px 14px">${lnk(`${REPO}/blob/main/NOTICE`, "View all notices", "btn", "book")}</div>`)}
@@ -118,6 +123,16 @@ export const about = {
         else out().textContent = r.reason === "no-release" ? "No published release was found yet, so there is nothing to compare with." : "Could not check for updates. Check the internet connection and try again. Fieldhouse works fully offline.";
       } catch { out().textContent = "Could not check for updates. Try again in a moment."; }
       btn.disabled = false;
+    } },
+    reset: async (btn) => {
+      const sure = confirm("Clear all data and rerun the setup wizard?\n\nThis deletes every game, venue, sponsor, destination, setting and recording on this computer. It cannot be undone.");
+      if (!sure) return;
+      btn.disabled = true;
+      try {
+        await api.post("/reset");
+        localStorage.removeItem(SEEN_KEY);
+        go("/welcome");
+      } catch (e) { fail(e); } finally { btn.disabled = false; }
     } });
   },
 };

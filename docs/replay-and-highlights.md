@@ -20,6 +20,18 @@ After the game, **Wrap-up** lists clips: every score and mark, with a little tim
 
 You can also export the events as CSV.
 
+## Auto-highlights
+
+After the game, Fieldhouse can assemble every scored and marked moment into a single highlights file automatically:
+
+```
+POST /api/games/:id/auto-highlights
+```
+
+It builds one clip per score or mark (with a short pre-roll and post-roll), merges overlapping clips, and exports them to `<storageDir>/highlights/<game-id>-auto-highlights.mp4` using `ffmpeg`. The source recording is marked as exported. If there are no scored or marked moments, or no program recording exists, the request is refused with a plain error.
+
+> **Note:** auto-highlights need the program recording and `ffmpeg` installed on the laptop. Clips that overlap (because events are close together) are merged into one continuous clip.
+
 ## Recording safety
 
 Fieldhouse records the program to the laptop while streaming, so a failed stream does not lose the game. Check disk space on the **Check** screen: a game recording can take several gigabytes per hour. Highlights are exported as H.264/AAC MP4 files.

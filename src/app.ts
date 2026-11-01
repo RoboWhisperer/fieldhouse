@@ -1,6 +1,6 @@
 // Application layer: every route and flow, as a plain fetch handler (no port) so tests drive it directly.
 // server.ts only adds the HTTP/WebSocket plumbing and static files.
-import { statSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fold, lastUndoable, parseEv, view, type Logged } from "./game";
 import type { Store } from "./store";
@@ -32,7 +32,7 @@ import { breakTrigger, summary } from "./profiles/lib";
 import { checkDestination } from "./destination-check";
 import type { ObsLogWatcher } from "./obs-log";
 
-export const VERSION = "1.0.0-beta.1";
+export const VERSION = "1.1.0";
 const json = (x: unknown, status = 200) => Response.json(x, { status });
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 const bad = (msg: string, status = 400): never => { throw new HttpError(status, msg); };
@@ -43,7 +43,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   const listeners = new Set<() => void>();
   // server.ts plugs in the phone-remote summary (src/auth.ts), the video-engine supervisor/installer and the OBS log watcher
   const hooks: { remote: () => unknown; logs?: ObsLogWatcher; graphics?: GraphicsControl } & EngineHooks = { remote: () => null };
-  const changed = () => { for (const f of listeners) f(); };
+  const changed = () => { logGame = ""; for (const f of listeners) f(); };
   let log: Logged[] = [];
   let logGame = "";
   let recovered: { at: number } | null = null;
@@ -162,6 +162,53 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
     if (rec) { let bytes = 0; try { bytes = statSync(rec.file).size; } catch {} store.put("recording", { ...rec, endedAt: now(), bytes }); }
     void engine.applyVideo?.(settings().video).catch(() => {}); // quality choices saved during the broadcast take effect now
   }
+
+  /** Auto-assemble highlights from every scored or marked moment in the game and export them as one file. */
+  async function autoHighlights(id: string) {
+    const g = data.getGame(store, id) ?? bad("Game not found.", 404);
+    const recs = store.list<RecordingDoc>("recording").filter((r) => r.gameId === id);
+    const rec = recs.at(-1);
+    if (!rec) bad("This game has no recording to build highlights from.", 409);
+    if (!existsSync(rec.file)) bad("The recording file is missing on disk.", 409);
+    const log = store.load(id);
+    const clips = clipsFromLog(log, rec, { includeMarks: true, profile: profileOf(g) });
+    if (!clips.length) bad("There are no scored or marked moments in this game to turn into highlights.", 409);
+    const outDir = join(settings().storageDir, "highlights");
+    mkdirSync(outDir, { recursive: true });
+    const out = join(outDir, `${id}-auto-highlights.mp4`);
+    const result = await exportHighlights(rec.file, clips, out);
+    store.put("recording", { ...rec, exported: true });
+    changed();
+    diag.log("INFO", `Auto-highlights for ${id}: ${clips.length} clips -> ${out}`);
+    return { ...result, gameId: id, clips: clips.length };
+  }
+
+  // ---------------------------------------------------------------- stat / play-by-play ingest
+  const PLAY_TYPES = new Set(["score", "foul", "timeout", "mark", "period.set", "clock.start", "clock.stop", "undo"]);
+
+  /** Parse a coach/scorekeeper CSV: type,team,points,player,note (header row optional). Quoted fields are unquoted. */
+  function parsePlayByPlay(text: string): { type: string; team?: string; points?: number; player?: number; note?: string }[] {
+    const clean = (s: string) => s.replace(/^"(.*)"$/, "$1").trim();
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length && !l.startsWith("#"));
+    if (!lines.length) return [];
+    const header = lines[0].split(",").map((c) => clean(c).toLowerCase());
+    const start = header.includes("type") ? 1 : 0;
+    const out: any[] = [];
+    for (let i = start; i < lines.length; i++) {
+      const c = lines[i].split(",").map((x) => clean(x));
+      const type = (c[0] ?? "").toLowerCase();
+      if (!type || !PLAY_TYPES.has(type)) continue;
+      const ev: any = { type };
+      if (c[1]) ev.team = c[1];
+      const pts = Number(c[2]);
+      if (Number.isFinite(pts)) ev.points = pts;
+      const pl = Number(c[3]);
+      if (Number.isFinite(pl)) ev.player = pl;
+      if (c[4]) ev.note = c[4];
+      out.push(ev);
+    }
+    return out;
+  }
   function fire(body: { sponsorId?: string; outcome?: AiringDoc["outcome"] }) {
     const st = state();
     if (!st.gameId || !st.game) bad("No game is active.", 409);
@@ -251,6 +298,17 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("POST", "/preflight", async () => runChecks({ engine: engine.status(), game: activeGame(), destinations: store.list<any>("destination"), settings: settings(), profile: profileOf(activeGame()) }));
   on("POST", "/broadcast/start", async () => { await broadcastStart(); changed(); return { ok: true }; });
   on("POST", "/broadcast/stop", async () => { await broadcastStop(); changed(); return { ok: true }; });
+  on("POST", "/games/:id/auto-highlights", async ({ params }) => { const out = await autoHighlights(params[0]); changed(); return out; });
+  on("POST", "/games/:id/stats", ({ body, params }) => {
+    const g = data.getGame(store, params[0]) ?? bad("Game not found.", 404);
+    if (!body || typeof body !== "object" || Array.isArray(body) || typeof (body as any).text !== "string") bad("Send { text: \"csv rows\" }.", 400);
+    const rows = parsePlayByPlay((body as any).text);
+    if (!rows.length) bad("No play rows found in the CSV.", 400);
+    const t = now();
+    for (const [i, row] of rows.entries()) store.append(params[0], { ...row, t: t + i * 1000 } as any);
+    changed();
+    return { ok: true, count: rows.length, game: g.id };
+  });
 
   on("POST", "/engine/preview", async ({ body }) => { await engine.setPreview(String(body.sourceId)); return { ok: true }; });
   on("POST", "/engine/cut", async () => { await engine.cut(); return { ok: true }; });
@@ -301,6 +359,14 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
 
   // Dev/demo only: reachable when DEMO=1 (server.ts decides). Lets the recovery states be shown on demand.
   on("POST", "/demo", () => { if (!(deps.demo ?? process.env.DEMO === "1") && data.listGames(store).length) bad("Demo data is only available on an empty install.", 403); data.seedDemo(store); changed(); return { ok: true }; });
+  /** Clear every game, venue, sponsor, destination, setting and recording, so the setup wizard runs again. Refused while a game is active. */
+  on("POST", "/reset", () => {
+    if (activeId()) bad("Finish the active game before resetting Fieldhouse.", 409);
+    const removed = data.resetAllData(store);
+    changed();
+    diag.log("INFO", `Reset: cleared ${removed} documents and recording files`);
+    return { ok: true, removed };
+  });
   on("POST", "/dev/simulate", ({ body }) => { const f = (engine as any).simulate; if (!f) bad("This engine cannot simulate failures."); f.call(engine, body.what, body.arg); changed(); return { ok: true }; });
 
   function filterOf(q: URLSearchParams) {

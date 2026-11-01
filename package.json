@@ -2,6 +2,7 @@
   "name": "fieldhouse",
   "private": true,
   "type": "module",
+  "version": "1.1.0",
   "scripts": {
     "start": "bun src/server.ts",
     "demo": "DEMO=1 bun src/server.ts",

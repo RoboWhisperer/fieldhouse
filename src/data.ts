@@ -1,6 +1,7 @@
 // Domain documents on top of the generic docs table: settings, destinations, games, venues, roster import, demo data.
 import { paths } from "./config";
-import type { DestinationDoc, DestinationView, GameDoc, Player, SettingsDoc, VenueDoc } from "./types";
+import { rmSync } from "node:fs";
+import type { DestinationDoc, DestinationView, GameDoc, Player, RecordingDoc, SettingsDoc, VenueDoc } from "./types";
 import type { Store } from "./store";
 import { DEFAULT_VIDEO, validateVideo } from "./video-settings";
 import { DEFAULT_UI, validateUi, withUiDefaults } from "./automation/ui-settings";
@@ -330,4 +331,22 @@ export function snapshotProfile(store: Store, id: string): GameDoc {
   if (g.profileSnapshot) return g;
   const prof = getProfile(store, g.profileId || getSettings(store).defaultProfileId || DEFAULT_PROFILE_ID) ?? getProfile(store, DEFAULT_PROFILE_ID) ?? BASKETBALL;
   return store.put("game", { ...g, sport: prof.sport, profileId: prof.id, profileSnapshot: structuredClone(prof) });
+}
+
+// ---------------------------------------------------------------- reset
+/** Delete every document and recording file so the setup wizard runs again as if this were a fresh install. Returns how many docs were removed. */
+export function resetAllData(store: Store): number {
+  let removed = 0;
+  for (const r of store.list<RecordingDoc>("recording")) {
+    try { rmSync(r.file, { force: true }); } catch {}
+    store.del("recording", r.id);
+    removed++;
+  }
+  for (const kind of ["settings", "game", "venue", "destination", "sponsor", "airing", "profile"] as const) {
+    for (const d of store.list<{ id: string }>(kind)) {
+      store.del(kind, d.id);
+      removed++;
+    }
+  }
+  return removed;
 }
