@@ -264,7 +264,8 @@ test("games freeze their sport at game.start: editing the profile afterwards cha
 });
 
 test("migration v2: games that already have events are frozen as basketball, unstarted games are left alone", () => {
-  const path = `${process.env.TMPDIR ?? "/tmp"}/fieldhouse-mig-${Date.now()}.db`;
+  const tmp = process.env.TMPDIR ?? process.env.TEMP ?? process.env.TMP ?? "/tmp";
+  const path = `${tmp}/fieldhouse-mig-${Date.now()}-${Math.random().toString(36).slice(2)}.db`;
   const db = new Database(path);
   db.run("CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, game TEXT NOT NULL, t INTEGER NOT NULL, body TEXT NOT NULL)");
   db.run("CREATE INDEX events_game ON events (game, seq)");
