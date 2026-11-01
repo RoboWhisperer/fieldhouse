@@ -118,12 +118,12 @@ export const about = {
       btn.disabled = true; out().textContent = "Checking…";
       try {
         const r = await api.get("/update?force=1");
-        if (r.status === "available") out().innerHTML = html`<b>Version ${r.latest} is available.</b> You have ${r.current}. <a href="${r.url}" target="_blank" rel="noopener noreferrer">Read the release notes and download</a>.`.s;
+        if (r.status === "available") out().innerHTML = html`<b>Version ${r.latest} is available.</b> You have ${r.current}. <a href="${r.url}" target="_blank" rel="noopener noreferrer">Read the release notes and download</a>`.s;
         else if (r.status === "current") out().textContent = `You are up to date (version ${r.current}).`;
         else out().textContent = r.reason === "no-release" ? "No published release was found yet, so there is nothing to compare with." : "Could not check for updates. Check the internet connection and try again. Fieldhouse works fully offline.";
       } catch { out().textContent = "Could not check for updates. Try again in a moment."; }
       btn.disabled = false;
-    } },
+    },
     reset: async (btn) => {
       const sure = confirm("Clear all data and rerun the setup wizard?\n\nThis deletes every game, venue, sponsor, destination, setting and recording on this computer. It cannot be undone.");
       if (!sure) return;
