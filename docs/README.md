@@ -25,6 +25,7 @@ Fieldhouse is free and open source. There is no account, no trial and no license
 | [Sponsors and proof of play](sponsors-and-proof-of-play.md) | You sell or show sponsor messages |
 | [Graphics Studio](graphics-studio.md) | You want to change how graphics look and move, import one, or link Singular or CasparCG |
 | [Graphics: templates, imports and connectors](graphics-authoring.md) | You want to restyle the graphics, bring your own (CasparCG, Singular, UNO, web overlays) or connect them |
+| [Game deletion, audit and data export](data-and-audit.md) | You are cleaning up old games, checking what changed, or exporting your records |
 | [Troubleshooting](troubleshooting.md) | Something went wrong |
 | [Streaming rights](streaming-rights.md) | Before your first public stream |
 | [Privacy](privacy.md) | You need to know what is stored and where |

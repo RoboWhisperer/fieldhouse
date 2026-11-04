@@ -143,7 +143,7 @@ function nightShell(mod, ctx) {
 
 // ---------------------------------------------------------------- router
 const ROUTES = [
-  [/^\/$/, "home"], [/^\/welcome$/, "onboarding"], [/^\/game\/new$/, "new-game"], [/^\/game\/roster$/, "roster"], [/^\/sources$/, "sources"],
+  [/^\/$/, "home"], [/^\/welcome$/, "onboarding"], [/^\/games$/, "games"], [/^\/game\/new$/, "new-game"], [/^\/game\/roster$/, "roster"], [/^\/sources$/, "sources"],
   [/^\/preflight$/, "preflight"], [/^\/live$/, "console"], [/^\/replay$/, "replay"], [/^\/wrapup$/, "postgame"],
   [/^\/sponsors$/, "sponsors"], [/^\/graphics$/, "graphics"], [/^\/reports$/, "proof"], [/^\/automation(?:\/([a-z-]+))?$/, "automation"], [/^\/settings(?:\/([a-z-]+))?$/, "settings"],
 ];

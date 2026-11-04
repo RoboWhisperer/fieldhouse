@@ -1,4 +1,4 @@
-import { html, icon, api, S, fail, go, fmtDate, fmtTime, fmtBytes } from "../app.js";
+import { html, icon, api, S, fail, go, toast, fmtDate, fmtTime, fmtBytes } from "../app.js";
 
 const chip = (cls, ic, text) => html`<span class="chip ${cls}">${icon(ic, "sm")}${text}</span>`;
 const logo = (t) => html`<span class="logo-ph" style="background:${t.color};color:var(--action-ink)">${(t.abbr || "").slice(0, 2)}</span>`;
@@ -13,7 +13,7 @@ export default {
 .hm-l{display:grid;gap:16px;min-width:0;align-content:start}.hm-r{display:grid;gap:16px;align-content:start;min-width:0}
 .hm-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;padding:20px 24px;flex-direction:row}
 .hm-vs{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.hm-vs .tm{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:650}.hm-vs .at{color:var(--text-3);font-weight:600}
-.sp-c{color:var(--text-2)}.ok-t{display:inline-flex;align-items:center;gap:6px;color:var(--ready);font-weight:550}.hm .tbl td:first-child,.hm .tbl th:first-child{padding-left:14px}.hm-stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}.hm-stat:last-child{border-bottom:0}.hm-stat b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}`,
+.sp-c{color:var(--text-2)}.ok-t{display:inline-flex;align-items:center;gap:6px;color:var(--ready);font-weight:550}.hm .tbl td:first-child,.hm .tbl th:first-child{padding-left:14px}.hm .tbl td.n .btn+.btn{margin-left:6px}.hm-stat{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}.hm-stat:last-child{border-bottom:0}.hm-stat b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}`,
   async load(ctx) {
     const games = await api.get("/games");
     if (!games.length && !seen()) { go("/welcome"); return { games, redirect: true }; }
@@ -50,9 +50,9 @@ export default {
           <button class="btn pri xl" style="width:240px" data-start="${next.id}">${icon("play", "lg")}Start game night</button>`
         : html`<div><h2 class="t">No upcoming games</h2><div class="muted" style="margin-top:8px">Create the next game to get set up.</div></div><button class="btn pri xl" data-go="/game/new?fresh=1">${icon("plus", "lg")}New game</button>`}</section>
       <section class="panel"><div class="ph"><h3>Upcoming games</h3><span class="sp"></span><button class="btn sm ghost" data-go="/game/new?fresh=1">${icon("plus", "sm")}New game</button></div>
-        ${sched.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th>Setup</th><th></th></tr></thead><tbody>${sched.map((g) => html`<tr><td class="m">${fmtDate(g.startsAt)}, ${fmtTime(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td>${hasRoster(g) ? html`<span class="ok-t">${icon("check", "sm")}Rosters ready</span>` : chip("warn", "alert", "Roster missing")}</td><td class="n"><button class="btn sm ghost" data-open="${g.id}">Open</button></td></tr>`)}</tbody></table>` : html`<div class="empty">Nothing scheduled.</div>`}</section>
-      <section class="panel"><div class="ph"><h3>Recent games</h3></div>
-        ${done.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th class="n">Score</th><th>Recording</th><th>Highlights</th></tr></thead><tbody>${done.slice(0, 5).map((g) => { const r = recOf(g); return html`<tr><td class="m">${fmtDate(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td class="n">${g.finalScore ? `${g.finalScore.home} – ${g.finalScore.away}` : "-"}</td><td>${r ? chip("ok", "check", `Saved · ${fmtBytes(r.bytes)}`) : html`<span class="faint">No recording</span>`}</td><td>${r ? (r.exported ? chip("ok", "check", "Exported") : chip("warn", "alert", "Not exported")) : ""}</td></tr>`; })}</tbody></table>` : html`<div class="empty">Finished games appear here.</div>`}</section>`}
+        ${sched.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th>Setup</th><th></th></tr></thead><tbody>${sched.map((g) => html`<tr><td class="m">${fmtDate(g.startsAt)}, ${fmtTime(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td>${hasRoster(g) ? html`<span class="ok-t">${icon("check", "sm")}Rosters ready</span>` : chip("warn", "alert", "Roster missing")}</td><td class="n"><button class="btn sm ghost" data-open="${g.id}">Open</button><button class="btn sm ghost del" data-del="${g.id}">Delete</button></td></tr>`)}</tbody></table>` : html`<div class="empty">Nothing scheduled.</div>`}</section>
+      <section class="panel"><div class="ph"><h3>Recent games</h3><span class="sp"></span><a class="btn sm ghost" href="#/games">All games</a></div>
+        ${done.length ? html`<table class="tbl"><thead><tr><th>Date</th><th>Matchup</th><th>Sport</th><th class="n">Score</th><th>Recording</th><th>Highlights</th><th></th></tr></thead><tbody>${done.slice(0, 5).map((g) => { const r = recOf(g); return html`<tr><td class="m">${fmtDate(g.startsAt)}</td><td>${g.title}</td><td class="sp-c">${sportName(g.sport)}</td><td class="n">${g.finalScore ? `${g.finalScore.home} – ${g.finalScore.away}` : "-"}</td><td>${r ? chip("ok", "check", `Saved · ${fmtBytes(r.bytes)}`) : html`<span class="faint">No recording</span>`}</td><td>${r ? (r.exported ? chip("ok", "check", "Exported") : chip("warn", "alert", "Not exported")) : ""}</td><td class="n"><button class="btn sm ghost del" data-del="${g.id}">Delete</button></td></tr>`; })}</tbody></table>` : html`<div class="empty">Finished games appear here.</div>`}</section>`}
     </div><aside class="hm-r">
       <section class="panel"><div class="ph"><h3>Season</h3></div><div class="pb" style="padding:4px 14px">
         <div class="hm-stat"><span class="muted">Games streamed</span><b>${done.length}</b></div>
@@ -73,6 +73,13 @@ export default {
       const t = e.target.closest("button"); if (!t) return;
       try {
         if (t.dataset.go) go(t.dataset.go);
+        else if (t.dataset.del) {
+          const g = d.games.find((x) => x.id === t.dataset.del);
+          if (!g || !confirm(`Delete "${g.title}"?\n\nThis removes the game, its event log and sponsor airings. The recording file stays on this computer, and the audit log keeps a record of the deletion. This cannot be undone.`)) return;
+          await api.del(`/games/${encodeURIComponent(g.id)}`);
+          toast(`Deleted "${g.title}".`);
+          ctx.rerender();
+        }
         else if (t.dataset.start || t.dataset.open) { await api.post(`/games/${t.dataset.start || t.dataset.open}/activate`); go("/game/new"); }
         else if (t.dataset.act === "demo") { await api.post("/demo"); ctx.rerender(); }
       } catch (err) { fail(err); }

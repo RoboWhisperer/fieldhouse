@@ -47,6 +47,7 @@ export function openStore(path = "data/fieldhouse.db") {
 
   const ins = db.query("INSERT INTO events (game, t, body) VALUES (?, ?, ?) RETURNING seq");
   const sel = db.query("SELECT seq, t, body FROM events WHERE game = ? ORDER BY seq");
+  const delEvents = db.query("DELETE FROM events WHERE game = ?");
   const put = db.query("INSERT INTO docs (kind, id, body) VALUES (?, ?, ?) ON CONFLICT (kind, id) DO UPDATE SET body = excluded.body");
   const get = db.query("SELECT body FROM docs WHERE kind = ? AND id = ?");
   const list = db.query("SELECT body FROM docs WHERE kind = ? ORDER BY rowid");
@@ -60,6 +61,8 @@ export function openStore(path = "data/fieldhouse.db") {
     load(game: string): Logged[] {
       return (sel.all(game) as { seq: number; t: number; body: string }[]).map((r) => ({ ...JSON.parse(r.body), seq: r.seq, t: r.t }));
     },
+    /** Remove the whole event log for one game. Returns how many rows went. */
+    deleteEvents(game: string): number { return delEvents.run(game).changes; },
     put<T extends { id: string }>(kind: string, doc: T): T { put.run(kind, doc.id, JSON.stringify(doc)); return doc; },
     get<T>(kind: string, id: string): T | undefined { const r = get.get(kind, id) as { body: string } | null; return r ? JSON.parse(r.body) : undefined; },
     list<T>(kind: string): T[] { return (list.all(kind) as { body: string }[]).map((r) => JSON.parse(r.body)); },

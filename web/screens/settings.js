@@ -5,11 +5,12 @@ import * as A from "./settings-a.js";
 import * as B from "./settings-b.js";
 import * as C from "./settings-c.js";
 import * as O from "./settings-obs.js";
+import { compliance } from "./settings-compliance.js";
 import { video } from "./settings-video.js";
 import { appearance } from "./settings-appearance.js";
 import { CSS as PE_CSS } from "./profile-editor.js";
 
-const SECTIONS = { engine: O.engine, video, destinations: A.destinations, themes: A.themes, appearance, sport: A.sport, shortcuts: B.shortcuts, remote: B.remote, storage: B.storage, diagnostics: C.diagnostics, about: C.about };
+const SECTIONS = { engine: O.engine, video, destinations: A.destinations, themes: A.themes, appearance, sport: A.sport, shortcuts: B.shortcuts, remote: B.remote, storage: B.storage, compliance, diagnostics: C.diagnostics, about: C.about };
 const sec = (ctx) => SECTIONS[ctx.params[0] || "destinations"];
 
 export default {

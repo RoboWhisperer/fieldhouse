@@ -18,6 +18,7 @@ import type { App } from "./app";
 import { paths } from "./config";
 import * as data from "./data";
 import * as diag from "./diagnostics";
+import { addAudit } from "./audit";
 import { parseEv } from "./game";
 import type { Store } from "./store";
 
@@ -236,6 +237,7 @@ export function createRemote(deps: RemoteDeps) {
     const token = randomBytes(32).toString("base64url");
     const d: DeviceDoc = { id: data.newId("dev"), name, role: "score", createdAt: now(), lastSeen: now(), tokenHash: hashToken(token) };
     save(d); byHash.set(d.tokenHash, d); byId.set(d.id, d);
+    addAudit(store, { action: "device.paired", actor: "remote", target: d.id, detail: { name, role: d.role, ip: normIp(ip) } }, now());
     diag.log("INFO", `Phone paired: ${name} (${normIp(ip)})`); app.changed();
     return jsonRes({ ok: true, token, device: publicDev(d) }, 200, { "set-cookie": `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${COOKIE_AGE}` });
   }
@@ -247,6 +249,7 @@ export function createRemote(deps: RemoteDeps) {
     const key = KEY_PREFIX + randomBytes(32).toString("base64url");
     const d: DeviceDoc = { id: data.newId("key"), name, role, createdAt: now(), lastSeen: 0, tokenHash: hashToken(key), key: true };
     save(d); byHash.set(d.tokenHash, d); byId.set(d.id, d);
+    addAudit(store, { action: "device.key-created", actor: "console", target: d.id, detail: { name, role } }, now());
     diag.log("INFO", `API key created: ${name} (${role})`); app.changed();
     return jsonRes({ ok: true, key, device: publicDev(d), note: "Copy this key now. It is shown only once and cannot be recovered." });
   }
@@ -429,6 +432,7 @@ export function createRemote(deps: RemoteDeps) {
     const d = byId.get(id); if (!d) return fail(404, "That phone is not paired.");
     byId.delete(id); byHash.delete(d.tokenHash); persistedAt.delete(id); buckets.delete(id); store.del("device", id);
     closeDevice(id, 4001, "revoked"); sockets.delete(id);
+    addAudit(store, { action: "device.revoked", actor: "console", target: id, detail: { name: d.name, role: d.role, key: !!d.key } }, now());
     diag.log("INFO", `Phone removed: ${d.name}`); app.changed();
   }
 
@@ -439,10 +443,10 @@ export function createRemote(deps: RemoteDeps) {
       if (m === "GET" && p === "/api/remote/status") return jsonRes(await status());
       if (m === "POST" && p === "/api/remote/pair") return await pair(req, "127.0.0.1");
       if (m === "GET" && p === "/api/remote/me") return jsonRes({ device: publicDev(authenticate(req, url)), locked });
-      if (m === "POST" && p === "/api/remote/code/rotate") { data.saveSettings(store, { remote: { code: data.newCode() } }); app.changed(); return jsonRes(await status()); }
+      if (m === "POST" && p === "/api/remote/code/rotate") { data.saveSettings(store, { remote: { code: data.newCode() } }); addAudit(store, { action: "remote.code-rotated" }, now()); app.changed(); return jsonRes(await status()); }
       if (m === "POST" && p === "/api/remote/lock") {
         const b = await readJson(req); if (typeof b.locked !== "boolean") fail(400, "locked must be true or false.");
-        locked = b.locked; if (locked) for (const id of [...streams.keys()]) closeStreams(id); diag.log("INFO", locked ? "Remote locked by the console" : "Remote unlocked by the console"); app.changed(); broadcast(); return jsonRes({ locked });
+        locked = b.locked; if (locked) for (const id of [...streams.keys()]) closeStreams(id); addAudit(store, { action: locked ? "remote.locked" : "remote.unlocked" }, now()); diag.log("INFO", locked ? "Remote locked by the console" : "Remote unlocked by the console"); app.changed(); broadcast(); return jsonRes({ locked });
       }
       if (p === "/api/remote/keys" && m === "GET") return jsonRes([...byId.values()].filter((x) => x.key).sort((a, b) => a.createdAt - b.createdAt).map(publicDev));
       if (p === "/api/remote/keys" && m === "POST") return await mintKey(await readJson(req));
@@ -450,7 +454,8 @@ export function createRemote(deps: RemoteDeps) {
       if (mt && m === "PUT") {
         const b = await readJson(req), d = byId.get(mt[1]); if (!d) fail(404, "That phone is not paired.");
         if (!ROLES.includes(b.role)) fail(400, "Choose a valid remote role.");
-        d!.role = b.role; save(d!); closeStreams(d!.id);
+        const previous = d!.role; d!.role = b.role; save(d!); closeStreams(d!.id);
+        addAudit(store, { action: "device.role-changed", actor: "console", target: d!.id, detail: { name: d!.name, from: previous, to: d!.role } }, now());
         for (const w of sockets.get(d!.id) ?? []) { send(w, JSON.stringify({ kind: "me", device: publicDev(d!) })); send(w, JSON.stringify(stateFor(d!.role))); } // takes effect on live sockets at once
         app.changed(); return jsonRes(publicDev(d!));
       }
@@ -459,7 +464,7 @@ export function createRemote(deps: RemoteDeps) {
       if (mt && m === "POST") {
         const b = await readJson(req), q = pending.get(mt[1]); if (!q || now() - q.createdAt > 120_000) fail(404, "That request is gone. The phone can ask again.");
         if (typeof b.allow !== "boolean") fail(400, "allow must be true or false.");
-        q!.state = b.allow ? "allowed" : "denied"; diag.log("INFO", `${b.allow ? "Allowed" : "Denied"} phone: ${q!.name}`); app.changed(); return jsonRes({ ok: true });
+        q!.state = b.allow ? "allowed" : "denied"; addAudit(store, { action: b.allow ? "device.pair-allowed" : "device.pair-denied", actor: "console", target: q!.id, detail: { name: q!.name } }, now()); diag.log("INFO", `${b.allow ? "Allowed" : "Denied"} phone: ${q!.name}`); app.changed(); return jsonRes({ ok: true });
       }
       return jsonRes({ error: "Not found." }, 404);
     } catch (e) { return errRes(e); }

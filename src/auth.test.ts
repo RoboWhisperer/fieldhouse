@@ -3,6 +3,7 @@ import { join as __join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { listAudit } from "./audit";
 import { createApp } from "./app";
 import { createRemote, hashToken, isLoopback, isPrivate, lanAddresses, type Remote } from "./auth";
 import { saveSettings, seedDemo } from "./data";
@@ -240,6 +241,19 @@ test("revoking a device ends its access at once; the code can be rotated; device
   expect(rotated).not.toBe(old); expect(rotated).toMatch(/^[A-Z]+-\d{4}$/);
   expect((await call("192.168.1.60", "POST", "/api/remote/pair", { code: old, name: "late" })).status).toBe(401);
   expect((await call("192.168.1.60", "POST", "/api/remote/pair", { code: rotated, name: "ok" })).status).toBe(200);
+});
+
+test("remote pairings, role changes, revocation, locking and code rotation are audited", async () => {
+  const { store, pair, admin } = await rig();
+  const p = await pair("Coach Dana");
+  expect((await admin("PUT", "/devices/" + p.id, { role: "producer" })).status).toBe(200);
+  expect((await admin("POST", "/lock", { locked: true })).status).toBe(200);
+  expect((await admin("POST", "/code/rotate")).status).toBe(200);
+  expect((await admin("DELETE", "/devices/" + p.id)).status).toBe(200);
+  const entries = listAudit(store);
+  for (const action of ["device.paired", "device.role-changed", "remote.locked", "remote.code-rotated", "device.revoked"]) expect(entries.some((e) => e.action === action)).toBe(true);
+  expect(JSON.stringify(entries)).not.toContain(p.token);
+  expect(JSON.stringify(entries)).not.toContain("tokenHash");
 });
 
 test("approval mode (code not required): the phone waits, the console allows or denies", async () => {

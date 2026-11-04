@@ -17,6 +17,8 @@ Built:
 - Sponsor library with rules, break planning and a proof-of-play CSV report
 - Marked moments and highlight export (needs `ffmpeg`)
 - Diagnostics bundle export
+- Safe game deletion from Home or the All games screen, with recordings kept unless you choose to remove them
+- Local audit trail, service health check and a portable data export that strips secrets
 - Sport profiles: basketball, soccer, football, volleyball and hockey built in, plus your own (periods, clock, scoring buttons, counters, set rules); each game keeps the profile it started with
 - Custom graphics: restyle the built-in ones, write your own HTML graphics, import CasparCG HTML templates, show any URL overlay as its own layer, and drive Singular/UNO, a CasparCG server or any HTTP system
 - Automation: rules, macros, custom data fields, webhooks and API keys (Companion, Stream Deck)

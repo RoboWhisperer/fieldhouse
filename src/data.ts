@@ -273,6 +273,42 @@ export function saveGame(store: Store, input: any): GameDoc {
   return store.put("game", g);
 }
 
+export interface GameDeleteOptions { deleteRecordings?: boolean }
+export interface GameDeleteResult {
+  game: GameDoc;
+  events: number;
+  airings: number;
+  recordings: number;
+  wasActive: boolean;
+}
+
+/** Remove a game and everything attached to it. Recordings are kept unless explicitly included. Live games must be stopped first. */
+export function deleteGame(store: Store, id: string, options: GameDeleteOptions = {}): GameDeleteResult {
+  const game = getGame(store, id);
+  if (!game) throw new Error("That game no longer exists");
+  if (game.status === "live") throw new Error("Stop this game before deleting it");
+  let events = 0, airings = 0, recordings = 0;
+  events = store.deleteEvents(id);
+  for (const a of store.list<{ id: string; gameId: string }>("airing")) {
+    if (a.gameId !== id) continue;
+    store.del("airing", a.id);
+    airings++;
+  }
+  if (options.deleteRecordings) {
+    for (const r of store.list<RecordingDoc>("recording")) {
+      if (r.gameId !== id) continue;
+      try { rmSync(r.file, { force: true }); } catch {}
+      store.del("recording", r.id);
+      recordings++;
+    }
+  }
+  const wasActive = getSettings(store).activeGameId === id;
+  if (wasActive) saveSettings(store, { activeGameId: "" });
+  store.del("health", id);
+  store.del("game", id);
+  return { game, events, airings, recordings, wasActive };
+}
+
 export function saveVenue(store: Store, input: any): VenueDoc {
   if (!isObj(input) || typeof input.name !== "string" || !input.name.trim()) throw new Error("Give the venue a name");
   const slots = input.slots ?? [];

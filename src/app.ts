@@ -31,16 +31,30 @@ import { BASKETBALL } from "./profiles/builtins";
 import { breakTrigger, summary } from "./profiles/lib";
 import { checkDestination } from "./destination-check";
 import type { ObsLogWatcher } from "./obs-log";
+import { addAudit, listAudit } from "./audit";
+import { exportBundle } from "./export";
 
-export const VERSION = "1.1.0";
-const json = (x: unknown, status = 200) => Response.json(x, { status });
+export const VERSION = "1.1.1";
+const SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "referrer-policy": "no-referrer",
+  "cross-origin-resource-policy": "same-origin",
+  "content-security-policy": "frame-ancestors 'self'",
+};
+const secure = (r: Response) => { for (const [k, v] of Object.entries(SECURITY_HEADERS)) if (!r.headers.has(k)) r.headers.set(k, v); return r; };
+const json = (x: unknown, status = 200) => { const r = Response.json(x, { status }); r.headers.set("cache-control", "no-store"); return secure(r); };
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 const bad = (msg: string, status = 400): never => { throw new HttpError(status, msg); };
 
 export function createApp(deps: { store: Store; engine: Engine; now?: () => number; fetch?: typeof fetch; demo?: boolean; checkDestination?: typeof checkDestination; graphicsDir?: string }) {
   const { store, engine } = deps;
   const now = deps.now ?? Date.now;
+  const startedAt = now();
   const listeners = new Set<() => void>();
+  const recordAudit = (action: string, target?: string, detail?: Record<string, unknown>) => {
+    try { addAudit(store, { action, target, detail }, now()); } catch {}
+  };
   // server.ts plugs in the phone-remote summary (src/auth.ts), the video-engine supervisor/installer and the OBS log watcher
   const hooks: { remote: () => unknown; logs?: ObsLogWatcher; graphics?: GraphicsControl } & EngineHooks = { remote: () => null };
   const changed = () => { logGame = ""; for (const f of listeners) f(); };
@@ -257,13 +271,23 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("POST", "/recovered/dismiss", () => { recovered = null; changed(); return { ok: true }; });
 
   on("GET", "/games", () => data.listGames(store).sort((a: GameDoc, b: GameDoc) => a.startsAt - b.startsAt));
-  on("POST", "/games", ({ body }) => { const g = data.saveGame(store, body); changed(); return g; });
+  on("POST", "/games", ({ body }) => { const g = data.saveGame(store, body); recordAudit("game.created", g.id, { title: g.title, status: g.status, startsAt: g.startsAt }); changed(); return g; });
   on("GET", "/games/:id", ({ params }) => data.getGame(store, params[0]) ?? bad("Game not found.", 404));
-  on("PUT", "/games/:id", ({ body, params }) => { const g = data.saveGame(store, { ...body, id: params[0] }); changed(); return g; });
-  on("POST", "/games/:id/activate", ({ params }) => { const g = activate(params[0]); changed(); return g; });
+  on("PUT", "/games/:id", ({ body, params }) => { const g = data.saveGame(store, { ...body, id: params[0] }); recordAudit("game.updated", g.id, { title: g.title, status: g.status, startsAt: g.startsAt }); changed(); return g; });
+  on("DELETE", "/games/:id", ({ params, body }) => {
+    const g = data.getGame(store, params[0]) ?? bad("Game not found.", 404);
+    if (g!.status === "live") bad("Finish the live game before deleting it.", 409);
+    if (store.list<RecordingDoc>("recording").some((r) => r.gameId === g!.id && !r.endedAt)) bad("Stop the recording before deleting this game.", 409);
+    const deleteRecordings = body?.deleteRecordings === true;
+    const result = data.deleteGame(store, g!.id, { deleteRecordings });
+    recordAudit("game.deleted", g!.id, { title: g!.title, status: g!.status, startsAt: g!.startsAt, events: result.events, airings: result.airings, recordings: result.recordings, wasActive: result.wasActive, deleteRecordings });
+    changed();
+    return { ok: true, deleted: result };
+  });
+  on("POST", "/games/:id/activate", ({ params }) => { const g = activate(params[0]); recordAudit("game.activated", g.id, { title: g.title }); changed(); return g; });
   on("POST", "/games/:id/finish", async ({ params }) => {
     const g = data.getGame(store, params[0]) ?? bad("Game not found.", 404);
-    if (activeId() === g!.id) { const s = fold(gameLog(), profileOf(g)); await broadcastStop(); store.put("game", { ...g!, status: "final", finalScore: { home: s.home.score, away: s.away.score } }); automation.onGameEnd(); }
+    if (activeId() === g!.id) { const s = fold(gameLog(), profileOf(g)); await broadcastStop(); store.put("game", { ...g!, status: "final", finalScore: { home: s.home.score, away: s.away.score } }); automation.onGameEnd(); recordAudit("game.finished", g!.id, { title: g!.title, home: s.home.score, away: s.away.score }); }
     changed(); return data.getGame(store, g!.id);
   });
   on("POST", "/roster/parse", ({ body }) => data.parseRosterCsv(String(body?.text ?? ""), body?.mapping));
@@ -285,7 +309,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
 
   on("GET", "/destinations", () => data.listDestinations(store));
   on("POST", "/destinations", ({ body }) => { const d = data.saveDestination(store, body); changed(); return d; });
-  on("DELETE", "/destinations/:id", ({ params }) => { store.del("destination", params[0]); changed(); return { ok: true }; });
+  on("DELETE", "/destinations/:id", ({ params }) => { const d = data.getDestinationWithKey(store, params[0]); store.del("destination", params[0]); if (d) recordAudit("destination.deleted", d.id, { name: d.name, kind: d.kind }); changed(); return { ok: true }; });
   on("POST", "/destinations/:id/test", async ({ params }) => {
     const d = data.getDestinationWithKey(store, params[0]) ?? bad("Destination not found.", 404);
     if (d!.kind === "record") return { ok: true, message: "Recording to this computer needs no connection." };
@@ -296,8 +320,8 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   });
 
   on("POST", "/preflight", async () => runChecks({ engine: engine.status(), game: activeGame(), destinations: store.list<any>("destination"), settings: settings(), profile: profileOf(activeGame()) }));
-  on("POST", "/broadcast/start", async () => { await broadcastStart(); changed(); return { ok: true }; });
-  on("POST", "/broadcast/stop", async () => { await broadcastStop(); changed(); return { ok: true }; });
+  on("POST", "/broadcast/start", async () => { await broadcastStart(); recordAudit("broadcast.started", activeId() ?? undefined); changed(); return { ok: true }; });
+  on("POST", "/broadcast/stop", async () => { await broadcastStop(); recordAudit("broadcast.stopped", activeId() ?? undefined); changed(); return { ok: true }; });
   on("POST", "/games/:id/auto-highlights", async ({ params }) => { const out = await autoHighlights(params[0]); changed(); return out; });
   on("POST", "/games/:id/stats", ({ body, params }) => {
     const g = data.getGame(store, params[0]) ?? bad("Game not found.", 404);
@@ -322,7 +346,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
 
   on("GET", "/sponsors", () => { const air = store.list<AiringDoc>("airing"); return sponsors.listSponsors(store).map((s) => ({ ...s, usage: sponsors.seasonUsage(s, air) })); });
   on("POST", "/sponsors", ({ body }) => { const s = sponsors.saveSponsor(store, body); changed(); return s; });
-  on("DELETE", "/sponsors/:id", ({ params }) => { sponsors.deleteSponsor(store, params[0]); changed(); return { ok: true }; });
+  on("DELETE", "/sponsors/:id", ({ params }) => { const s = sponsors.listSponsors(store).find((x) => x.id === params[0]); sponsors.deleteSponsor(store, params[0]); if (s) recordAudit("sponsor.deleted", s.id, { name: s.name }); changed(); return { ok: true }; });
   on("GET", "/sponsors/plan", () => { const list = sponsors.listSponsors(store); return { plan: sponsors.planGame(list, profileOf(activeGame())), conflicts: sponsors.conflicts(list) }; });
   on("POST", "/sponsors/fire", ({ body }) => { const a = fire(body ?? {}); changed(); return a; });
 
@@ -330,7 +354,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("GET", "/reports/airings.csv", ({ q }) => new Response(reports.toCsv(reports.airingRows(store, filterOf(q))), { headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="proof-of-play.csv"' } }));
 
   on("GET", "/recordings", () => storage.listRecordings(store));
-  on("DELETE", "/recordings/:id", ({ params }) => { storage.deleteRecording(store, params[0]); changed(); return { ok: true }; });
+  on("DELETE", "/recordings/:id", ({ params }) => { const r = store.get<RecordingDoc>("recording", params[0]); storage.deleteRecording(store, params[0]); recordAudit("recording.deleted", params[0], r ? { gameId: r.gameId, bytes: r.bytes } : undefined); changed(); return { ok: true }; });
   on("GET", "/storage", () => storage.storageUsage(settings().storageDir, store));
   on("GET", "/highlights/:id", ({ params }) => {
     const rec = store.list<RecordingDoc>("recording").filter((r) => r.gameId === params[0]).at(-1);
@@ -348,11 +372,41 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   });
 
   on("GET", "/settings", () => settings());
-  on("PUT", "/settings", ({ body }) => { const s = data.saveSettings(store, body); changed(); return data.settingsView(s); });
+  on("PUT", "/settings", ({ body }) => {
+    const keys = body && typeof body === "object" && !Array.isArray(body) ? Object.keys(body) : [];
+    const s = data.saveSettings(store, body);
+    recordAudit("settings.updated", "main", { keys });
+    changed();
+    return data.settingsView(s);
+  });
 
   const dctx = () => ({ settings: settings(), engine: engine.status(), destinations: store.list<any>("destination"), gameId: activeId(), obsLog: hooks.logs?.highlights() });
   on("GET", "/diagnostics", ({ q }) => ({ logs: diag.recentLogs(Number(q.get("n") ?? 50), (q.get("level") as any) || undefined), bundle: diag.previewBundle(dctx()), series: lastSeries(store, gameTitle) }));
   on("POST", "/diagnostics/bundle", () => diag.buildBundle(dctx()));
+
+  function health() {
+    let schema = 0, dbOk = true;
+    try { schema = store.version(); } catch { dbOk = false; }
+    const e = engine.status(), g = activeGame(), lowDisk = e.diskFreeBytes < settings().lowSpaceGb * 1e9;
+    const degraded = !dbOk || (g?.status === "live" && (!e.connected || lowDisk));
+    return {
+      status: degraded ? "degraded" : "ok",
+      version: VERSION,
+      uptimeSec: Math.max(0, Math.floor((now() - startedAt) / 1000)),
+      serverTime: new Date(now()).toISOString(),
+      database: { ok: dbOk, schema },
+      engine: { kind: e.engine, connected: e.connected, streaming: e.stream.live, recording: e.record.active, diskFreeBytes: e.diskFreeBytes },
+      storage: { lowDisk, lowSpaceGb: settings().lowSpaceGb },
+      activeGame: g ? { id: g.id, title: g.title, status: g.status } : null,
+    };
+  }
+  on("GET", "/health", () => health());
+  on("GET", "/audit", ({ q }) => ({ rows: listAudit(store, { limit: Number(q.get("limit") ?? 100), action: q.get("action") || undefined, target: q.get("target") || undefined, since: q.get("since") ? Number(q.get("since")) : undefined, before: q.get("before") ? Number(q.get("before")) : undefined }) }));
+  on("GET", "/export", () => {
+    recordAudit("data.exported", "main");
+    const file = `fieldhouse-export-${new Date(now()).toISOString().slice(0, 10)}.json`;
+    return new Response(JSON.stringify(exportBundle(store, VERSION, now()), null, 2), { headers: { "content-type": "application/json", "cache-control": "no-store", "content-disposition": `attachment; filename="${file}"` } });
+  });
 
   on("GET", "/retention/plan", () => retentionPlan(store, settings(), now())); // dry run
   on("GET", "/update", ({ q }) => checkUpdate(q.get("force") === "1"));
@@ -363,6 +417,7 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   on("POST", "/reset", () => {
     if (activeId()) bad("Finish the active game before resetting Fieldhouse.", 409);
     const removed = data.resetAllData(store);
+    recordAudit("data.reset", "main", { removed });
     changed();
     diag.log("INFO", `Reset: cleared ${removed} documents and recording files`);
     return { ok: true, removed };
@@ -382,14 +437,15 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
       const origin = req.headers.get("origin");
       if (origin && new URL(origin).host !== url.host) bad("Cross-origin requests are not allowed.", 403);
       const multipart = (req.headers.get("content-type") ?? "").startsWith("multipart/form-data") && path === "/graphics/import"; // file uploads (graphic import)
-      if (!multipart && (req.method === "POST" || req.method === "PUT") && !(req.headers.get("content-type") ?? "").includes("json") && (await req.clone().text())) bad("Send JSON with content-type: application/json.", 415);
+      const sendsBody = req.method === "POST" || req.method === "PUT" || req.method === "DELETE";
+      if (!multipart && sendsBody && !(req.headers.get("content-type") ?? "").includes("json") && (await req.clone().text())) bad("Send JSON with content-type: application/json.", 415);
       for (const [m, re, h] of routes) {
         const mt = re.exec(path);
         if (m !== req.method || !mt) continue;
         let body: any;
-        if (!multipart && (req.method === "POST" || req.method === "PUT")) { const t = await req.text(); if (t) { try { body = JSON.parse(t); } catch { bad("That request was not valid JSON."); } } }
+        if (!multipart && sendsBody) { const t = await req.text(); if (t) { try { body = JSON.parse(t); } catch { bad("That request was not valid JSON."); } } }
         const out = await h({ body, params: mt.slice(1).map(decodeURIComponent), q: url.searchParams, req });
-        return out instanceof Response ? out : json(out);
+        return out instanceof Response ? secure(out) : json(out);
       }
       return json({ error: "Not found." }, 404);
     } catch (e: any) {
@@ -401,10 +457,10 @@ export function createApp(deps: { store: Store; engine: Engine; now?: () => numb
   /** GET /rec/:id[?download=1] -> the recording (or "highlights-<gameId>") with Range support. */
   function rec(req: Request): Response {
     const u = new URL(req.url);
-    if (req.method !== "GET" && req.method !== "HEAD") return new Response("method not allowed", { status: 405 });
-    let id: string; try { id = decodeURIComponent(u.pathname.replace(/^\/rec\//, "")); } catch { return new Response("bad path", { status: 400 }); }
+    if (req.method !== "GET" && req.method !== "HEAD") return secure(new Response("method not allowed", { status: 405 }));
+    let id: string; try { id = decodeURIComponent(u.pathname.replace(/^\/rec\//, "")); } catch { return secure(new Response("bad path", { status: 400 })); }
     const file = resolveMedia(id, store.list<RecordingDoc>("recording"), settings().storageDir);
-    return file ? serveFile(req, file, u.searchParams.get("download") === "1") : new Response("not found", { status: 404 });
+    return secure(file ? serveFile(req, file, u.searchParams.get("download") === "1") : new Response("not found", { status: 404 }));
   }
 
   return { handle, rec, graphics: gfx, profile: () => profileOf(activeGame()), tick, retention, notify, endBroadcast: broadcastStop, stop: () => { timers.forEach(clearInterval); clearInterval(autoTick); automation.stop(); gfx.close(); }, automation, hooks, state, onChange: (f: () => void) => (listeners.add(f), () => listeners.delete(f)), changed, engine, store, snapshot: (id: string) => engine.snapshot(id) };

@@ -34,7 +34,8 @@ export default {
   async load(ctx) {
     const [venues, dests, games, profiles] = await Promise.all([api.get("/venues"), api.get("/destinations"), api.get("/games"), api.get("/profiles")]);
     const cur = S.state?.gameDoc;
-    const editing = !ctx.query.fresh && cur && cur.status !== "final" ? cur : null;
+    const picked = ctx.query.game ? games.find((g) => g.id === ctx.query.game) : null;
+    const editing = picked && picked.status !== "final" ? picked : !ctx.query.fresh && cur && cur.status !== "final" ? cur : null;
     const last = games.filter((g) => g.status === "final").sort((a, b) => b.startsAt - a.startsAt)[0];
     const clone = !editing && !ctx.query.blank && last ? last : null;
     const src = editing || clone;

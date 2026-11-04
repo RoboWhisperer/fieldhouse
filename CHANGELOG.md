@@ -2,6 +2,21 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.1.1] - 2026-11-04
+
+### Added
+- **Delete games safely** — Home and the new All games screen can remove upcoming or final games. Deletion removes the event log, sponsor airings and health history, clears the active game if needed, and writes an audit entry. Recordings are kept by default; `DELETE /api/games/:id` with `{"deleteRecordings":true}` removes them too. Live games must be finished first.
+- **Audit trail** — operator changes to games, broadcasts, recordings, destinations, sponsors, settings, exports, resets, remote pairing, devices and API keys are recorded in an append-only local log, capped at the 10,000 most recent entries. See Settings > Audit and data or `GET /api/audit`.
+- **Service health** — `GET /api/health` reports app version, uptime, database schema, engine connection, live/recording state, disk space and the active game, without secrets.
+- **Data export** — Settings > Audit and data downloads a portable JSON export of games, events, venues, sponsors, profiles, automation, recordings metadata and the audit log. Stream keys, passwords, remote codes, device token hashes, webhook secrets and HTTP header values are removed.
+- **API security headers** — responses now send `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Cross-Origin-Resource-Policy`, a frame-ancestors CSP and `no-store` on JSON.
+
+### Changed
+- The all-games screen can open a scheduled game for editing by id, and links finished games to their proof-of-play report.
+- Version bumped to 1.1.1 across the app, the desktop shell and the root package.
+
 ## [1.1.0] - 2026-10-31
 
 ### Added
@@ -18,9 +33,6 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Not verified
 - Simultaneous streaming to more than one destination (OBS obs-websocket supports one active stream; second destination requires Advanced Output mode).
 - Windows and macOS installers are built but have not been verified on real hardware.
-
-## [Unreleased]
-
 
 ## [1.0.0-beta.1] - 2026-10-05
 

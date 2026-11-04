@@ -7,6 +7,7 @@ Fieldhouse works on your own computer. It has no accounts and no cloud service.
 | What | Where |
 |------|-------|
 | Games, teams, rosters, scores, event log, sponsors, settings, airings | `fieldhouse.db` in the data folder: Linux `~/.local/share/fieldhouse`, macOS `~/Library/Application Support/Fieldhouse`, Windows `%APPDATA%\Fieldhouse`. Running from source uses the project's `data/` folder |
+| Audit trail of operator changes (game edits and deletion, broadcasts, settings, exports, resets) | The same `fieldhouse.db`, capped at the 10,000 most recent entries |
 | Logs | `logs` inside the data folder (they rotate) |
 | Daily database backups | `backups` inside the data folder |
 | Recordings and exported highlights | `~/Videos/Fieldhouse` (installed app); `data/recordings` from source |
