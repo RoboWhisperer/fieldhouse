@@ -66,20 +66,20 @@ test("dry-run of a sample can override facts", () => {
 test("web request: templated URL is encoded, headers cannot inject lines, status is logged, no redirects, 5 s timeout", async () => {
   const r = rig();
   r.auto.custom.define("who", { value: "a b/../c?x=1" });
-  addRule(r, { trigger: { type: "manual", name: "hook" }, actions: [{ type: "http", method: "POST", url: "https://example.com/api/{{custom.who}}?team={{home.abbr}}", headers: { "X-Token": "abc{{trigger.data.v}}", "X-Empty": "" }, body: '{"name":"{{custom.who|json}}"}' }] });
+  addRule(r, { trigger: { type: "manual", name: "hook" }, actions: [{ type: "http", method: "POST", url: "https://example.com/api/{{custom.who}}?team={{home.abbr}}", headers: { "X-Token": "secret-header{{trigger.data.v}}", "X-Empty": "" }, body: '{"name":"{{custom.who|json}}"}' }] });
   r.auto.runner.trigger("hook", { v: "\r\nEvil: yes" }); await r.settle();
   expect(r.sent).toHaveLength(1);
   const { url, init } = r.sent[0];
   expect(url).toBe("https://example.com/api/a%20b%2F..%2Fc%3Fx%3D1?team=HOM");
   expect(init.redirect).toBe("manual");
   expect(init.signal).toBeInstanceOf(AbortSignal);
-  expect(init.headers["X-Token"]).toBe("abc Evil: yes");
+  expect(init.headers["X-Token"]).toBe("secret-header Evil: yes");
   expect(init.headers["X-Empty"]).toBeUndefined();
   expect(init.headers["content-type"]).toBe("application/json");
   expect(JSON.parse(init.body)).toEqual({ name: "a b/../c?x=1" });
   const entry = r.auto.runner.log()[0];
   expect(entry.steps[0].text).toBe("send POST to example.com/api/a%20b%2F..%2Fc%3Fx%3D1 (POST example.com/api/a%20b%2F..%2Fc%3Fx%3D1 answered 200)");
-  expect(JSON.stringify(entry)).not.toContain("abc"); // header values never reach the log
+  expect(JSON.stringify(entry)).not.toContain("secret-header"); // header values never reach the log
 });
 
 test("web request failures are plain sentences without the query, header or body", async () => {

@@ -180,6 +180,7 @@ test("reset wipes every game, venue, sponsor, setting and recording", async () =
 });
 
 test("auto-highlights assembles scored events into an exported file", async () => {
+  if (!Bun.which("ffmpeg")) return; // the fake engine writes a real recording, and highlights are cut, only when ffmpeg exists
   const st = openStore(":memory:"), e5 = new FakeEngine(); seedDemo(st);
   const a5 = createApp({ store: st, engine: e5 });
   const rr = async (m: string, p: string, b?: unknown) => {

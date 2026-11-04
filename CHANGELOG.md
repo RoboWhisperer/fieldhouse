@@ -17,6 +17,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - The all-games screen can open a scheduled game for editing by id, and links finished games to their proof-of-play report.
 - Version bumped to 1.1.1 across the app, the desktop shell and the root package.
 
+### Fixed
+- Release builds install ffmpeg before running tests, and the auto-highlights test skips cleanly when ffmpeg is unavailable.
+
 ## [1.1.0] - 2026-10-31
 
 ### Added
