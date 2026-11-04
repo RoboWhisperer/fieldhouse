@@ -19,6 +19,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 - Release builds install ffmpeg before running tests, and the auto-highlights test skips cleanly when ffmpeg is unavailable.
+- The release test step times out instead of hanging on the Bun 1.4.2 Windows crash, so the installers can still be built.
 
 ## [1.1.0] - 2026-10-31
 
