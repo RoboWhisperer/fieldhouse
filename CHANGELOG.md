@@ -10,6 +10,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 - The **Producer** role now appears in the remote permissions menu instead of being hidden under Admin, so the graphics operator can be assigned directly.
+- Desktop Graphics view previews now render. The Electron CSP lets the app frame `/overlay` and run its inline bootstrap script, while `/gfx` pages keep the sidecar's sandboxed CSP.
 
 ## [1.1.1] - 2026-11-04
 

@@ -5,6 +5,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { cspFor } = require("./csp");
 
 const pkg = require("./package.json");
 const REPO = pkg.repository.url.replace(/\.git$/, "");
@@ -187,10 +188,8 @@ function hardenSession() {
   ses.setPermissionRequestHandler((_wc, perm, cb) => cb(allowed.has(perm)));
   ses.setPermissionCheckHandler((_wc, perm) => allowed.has(perm));
   ses.webRequest.onHeadersReceived((d, cb) => {
-    if (origin && d.url.startsWith(origin)) {
-      const ws = origin.replace("http:", "ws:");
-      d.responseHeaders["Content-Security-Policy"] = [`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' ${ws}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`];
-    }
+    const csp = cspFor(d.url, origin);
+    if (csp) d.responseHeaders["Content-Security-Policy"] = [csp];
     cb({ responseHeaders: d.responseHeaders });
   });
 }

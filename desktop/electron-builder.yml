@@ -6,6 +6,7 @@ directories:
   buildResources: build
 files:
   - main.js
+  - csp.js
   - preload.js
   - error.html
   - error.js
