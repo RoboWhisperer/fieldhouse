@@ -17,6 +17,8 @@ export interface Staged {
 export const MAX_UPLOAD = LIMITS.totalBytes + 1024 * 1024;
 const IGNORE = /(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db)(\/|$)/;
 const cleanName = (name: string) => name.replace(/[_-]+/g, " ").replace(/[^\w \-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+/** An SPX/NoaCG description is an authored title: keep its punctuation and spacing, only trim and cap it. */
+const titleName = (name: string) => name.trim().slice(0, 60);
 
 /** If every file sits inside one folder (a typical "zip the folder" archive), move them up so the entry file is at the top. */
 export function stripCommonDir(files: Entry[]): Entry[] {
@@ -69,7 +71,7 @@ function productionPackage(entries: Entry[], name: string, token: string, now: n
     const entry = chosen.entry.slice(prefix.length);
     if (!v.files.some((f) => f.path === entry)) throw new ImportError(`The package's "${folder}" template is missing its entry file.`);
     const analysis = analyzeTemplate(v.files, entry);
-    const templateName = cleanName(analysis.title ?? folder) || "Imported graphic";
+    const templateName = (analysis.title ? titleName(analysis.title) : cleanName(folder)) || "Imported graphic";
     templates.push({ key: folder, entry, name: templateName, role: roleFor(templateName, entry), layer: analysis.layer, files: v.files, skipped: v.skipped, analysis });
     skipped.push(...v.skipped);
   }

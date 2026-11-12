@@ -347,6 +347,22 @@ test("import: a production package becomes one graphic per template folder", asy
   expect((await call("POST", "/graphics/import/commit", { token: a.body.token })).status).toBe(410);
   await close();
 });
+test("import: an SPX description keeps its punctuation", async () => {
+  const { call, close } = await rig();
+  const tpl = (name: string) => `<script>window.SPXGCTemplateDefinition = ${JSON.stringify({ description: name, playlayer: "40", dataformat: "json", DataFields: [{ field: "f0", ftype: "textfield", title: "Name", value: "x" }] })}; function play(){} function stop(){} function update(d){}</script>`;
+  const zip = writeZip([
+    { path: "pkg/halftime_card/halftime_card.html", data: enc(tpl("Halftime — Sponsored (HD)")) },
+    { path: "pkg/volt_sign_off/volt_sign_off.html", data: enc(tpl("Volt Sign-off")) },
+  ]);
+  const fd = new FormData(); fd.append("file", new File([zip as BlobPart], "titles.zip"));
+  const a = await call("POST", "/graphics/import", fd);
+  expect(a.status).toBe(200);
+  expect(a.body.templates.map((t: any) => t.name)).toEqual(["Halftime — Sponsored (HD)", "Volt Sign-off"]); // descriptions are not title-cased or stripped
+  const c = await call("POST", "/graphics/import/commit", { token: a.body.token });
+  expect(c.status).toBe(200);
+  expect(c.body.graphics.map((g: any) => g.name)).toEqual(["Halftime — Sponsored (HD)", "Volt Sign-off"]);
+  await close();
+});
 test("import: a template zip is analysed, mapped and committed; hostile uploads get plain errors", async () => {
   const { call, close } = await rig();
   const zip = writeZip([{ path: "tpl/index.html", data: enc(EXAMPLES[1].html) }, { path: "tpl/logo.png", data: new Uint8Array([1, 2]) }, { path: "tpl/readme.txt", data: enc("hi") }]);
