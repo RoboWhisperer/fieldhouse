@@ -91,7 +91,6 @@ export function analyzeTemplate(files: Entry[], entry?: string): TemplateAnalysi
   const warnings: string[] = [];
   if (!pick) return { entry: "", entries, functions: { play: false, stop: false, update: false, next: false }, fields: [], dataFormat: "xml", needsNetwork: false, warnings: ["There is no .html file in this upload."], width: 1920, height: 1080 };
   const code = files.filter((f) => ["html", "htm", "js"].includes(extOf(f.path))).map(text).join("\n");
-  const css = files.filter((f) => ["html", "css"].includes(extOf(f.path))).map(text).join("\n");
   const fn = (n: string) => new RegExp(`function\\s+${n}\\s*\\(|(?:window\\.|\\b)${n}\\s*=\\s*(?:async\\s*)?(?:function|\\([^)]*\\)\\s*=>|\\w+\\s*=>)|\\b${n}\\s*:\\s*function`).test(code);
   const functions = { play: fn("play"), stop: fn("stop"), update: fn("update"), next: fn("next") };
   if (!functions.play) warnings.push("No play() function was found. The graphic will appear without a start animation.");
@@ -133,11 +132,20 @@ export function analyzeTemplate(files: Entry[], entry?: string): TemplateAnalysi
   const declared = definition?.dataformat === "json" ? "json" : definition?.dataformat === "xml" ? "xml" : undefined;
   const dataFormat = declared ?? (jsonish && !xmlish ? "json" : "xml");
   const stripComments = (s: string) => s.replace(/<!--[\s\S]*?-->/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
-  const scan = stripComments(code), scanCss = stripComments(css);
+  // Only the entry page and the files it can load are the playout template. A control panel next to it is operator UI, not part of the graphic.
+  const entryHtml = pickFile ? text(pickFile) : "";
+  const assets = files.filter((f) => f.path !== pick && ["js", "css"].includes(extOf(f.path))).map(text).join("\n");
+  const scan = stripComments(entryHtml + "\n" + assets);
+  // 3D in a bundled animation library (GSAP and friends) is support code, not use, so only look at real CSS.
+  const styleText = [...entryHtml.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).join("\n");
+  const inlineStyles = [...entryHtml.matchAll(/\bstyle\s*=\s*["']([^"']*)["']/gi)].map((m) => m[1]).join("\n");
+  const stylesheets = files.filter((f) => extOf(f.path) === "css").map(text).join("\n");
+  const scanCss = stripComments(styleText + "\n" + inlineStyles + "\n" + stylesheets);
+  const threeD = /transform-style\s*:\s*preserve-3d|perspective\s*:|(?:transform|rotate|translate|scale)\s*:\s*[^;}]*\b(?:translate3d|rotate3d|matrix3d|rotateX|rotateY)\b/i.test(scanCss);
   const ext = String.raw`https?:\/\/(?!www\.w3\.org|localhost|127\.0\.0\.1)`;
   const net = new RegExp(String.raw`(?:(?:src|href|poster|action)\s*=\s*["']${ext}|@import\s+(?:url\(\s*)?["']?${ext}|url\(\s*["']?${ext}|\b(?:fetch|import|importScripts|sendBeacon)\(\s*["'` + "`" + String.raw`]${ext}|\bnew\s+(?:WebSocket|EventSource|Worker)\(\s*["'` + "`" + String.raw`](?:https?|wss?):\/\/(?!www\.w3\.org|localhost|127\.0\.0\.1)|\.open\(\s*["'][A-Z]+["']\s*,\s*["']${ext})`, "i").test(scanCss + scan);
   if (net) warnings.push("This template loads something from the internet (a link, script or font). It needs \"Allow network\" and the venue's internet to look right.");
-  if (/preserve-3d|translate3d|rotate3d|perspective\s*[:(]|matrix3d|rotateX|rotateY/i.test(scanCss + scan)) warnings.push("This template uses 3D transforms. They may look different in OBS than in CasparCG; check the preview.");
+  if (threeD) warnings.push("This template uses 3D transforms. They may look different in OBS than in CasparCG; check the preview.");
   if (files.some((f) => /\.(ft|swf)$/i.test(f.path))) warnings.push("A Flash template (.ft / .swf) was included. Flash cannot run here; only the HTML template is used.");
   if (!fields.length) warnings.push("No data fields were found. You can still add the field ids by hand.");
   const layer = Number(definition?.playlayer);

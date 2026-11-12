@@ -126,6 +126,27 @@ test("caspar analysis of the shipped examples", () => {
   expect(mention.needsNetwork).toBe(false);
 });
 
+test("caspar analysis: a bundled animation library and an operator control page raise no warnings", () => {
+  const def = `<script>window.SPXGCTemplateDefinition = ${JSON.stringify({ dataformat: "json", DataFields: [{ field: "f0", title: "Name", value: "x" }] })}; function play(){} function stop(){} function update(d){}</script>`;
+  const a = analyzeTemplate([
+    // GSAP's support code mentions translate3d/perspective/rotateX in strings, but the template itself uses no CSS 3D.
+    { path: "pkg/index.html", data: enc(`<style>body{color:#fff}</style><script>/*! GSAP 3.15 */ var t="translate3d(0,0,0) perspective(800px) rotateX(1deg)";</script>${def}`) },
+    // The control panel is operator UI, not the playout page, so its network call must not mark the graphic as online.
+    { path: "pkg/controlpanel.html", data: enc(`<script>fetch('https://example.supabase.co/realtime/v1/api/broadcast',{method:'POST'})</script>`) },
+  ]);
+  expect(a.warnings).toEqual([]);
+  expect(a.needsNetwork).toBe(false);
+});
+
+test("caspar analysis: real CSS 3D and a network reference still warn", () => {
+  const play = `<script>function play(){} function stop(){} function update(d){}</script>`;
+  const css = analyzeTemplate([{ path: "index.html", data: enc(`<style>div{transform:translate3d(0,0,1px)}</style>${play}`) }]);
+  expect(css.warnings.join(" ")).toMatch(/3D/);
+  const net = analyzeTemplate([{ path: "index.html", data: enc(`<link rel="stylesheet" href="https://cdn.example.com/f.css">${play}`) }]);
+  expect(net.needsNetwork).toBe(true);
+  expect(net.warnings.join(" ")).toMatch(/internet/);
+});
+
 // ---------------------------------------------------------------- AMCP against a fake CasparCG
 function fakeCaspar(reply: (cmd: string) => string) {
   const got: string[] = [], socks = new Set<any>();
