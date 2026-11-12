@@ -33,7 +33,7 @@ The video is drawn by OBS, which only has the fonts installed on the computer it
 
 ## Adding a graphic
 
-**Import** takes a `.html` file, a `.zip` of a template folder, a `.fhgfx` pack, or several files at once. Nothing is stored until you finish four steps: choose, check what Fieldhouse found (and any warnings), match each value to the game, then name and place it. **Try an example** adds one of three small CasparCG-style templates. **Web overlay by its address** adds a page from the internet as its own layer (needs internet while broadcasting).
+**Import** takes a `.html` file, a `.zip` of a template folder, a production package (several template folders in one zip, such as a NoaCG Studio/SPX export), a `.fhgfx` pack, or several files at once. A package adds one graphic per template in a single step. Nothing is stored until you finish four steps: choose, check what Fieldhouse found (and any warnings), match each value to the game, then name and place it. **Try an example** adds one of three small CasparCG-style templates. **Web overlay by its address** adds a page from the internet as its own layer (needs internet while broadcasting).
 
 ## Connectors and remote graphics
 

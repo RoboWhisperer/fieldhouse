@@ -37,8 +37,18 @@ function startHtml(w, d) {
       <div><button type="button" class="btn" data-act="addurl" ${w.busy ? "disabled" : ""}>${icon("plus")}Add web overlay</button></div>`)}`;
 }
 
+function packageHtml(r) {
+  return sec(`What is in the package (${r.templates.length} graphics)`, html`
+    <div class="banner ok">${icon("check", "lg")}<div><b>${r.name}</b> <span class="muted">is a production package. Fieldhouse found ${r.templates.length} templates. Each will be added as its own CasparCG graphic, with its own layer, fields and default values.</span></div></div>
+    <div class="gx-stack" style="gap:8px">${r.templates.map((t) => html`<div class="gx-fld gx-ex"><div><b>${t.name}</b><p class="hint">${ROLE_LABEL[t.role] || t.role} · ${t.fields.length} field${t.fields.length === 1 ? "" : "s"} · layer ${t.layer ?? "auto"} · ${t.files.length} file${t.files.length === 1 ? "" : "s"}</p>
+      <p class="hint">${t.fields.map((f) => `${f.label} (${f.id})${f.suggestion ? ` ← ${f.suggestion.value}` : ""}`).join(" · ")}</p></div>${t.warnings.length ? pill("check", `${t.warnings.length} note${t.warnings.length === 1 ? "" : "s"}`) : pill("ready", "Ready")}</div>`)}</div>
+    ${r.skipped?.length ? html`<p class="hint">${r.skipped.length} file${r.skipped.length === 1 ? " was" : "s were"} left out (README and other non-template files).</p>` : ""}
+    <p class="muted">The package keeps each template's playout layer as its stacking order. You can change names, values and placement in each graphic's settings after adding it.</p>`);
+}
+
 function checkHtml(w) {
   const r = w.res, a = r.analysis;
+  if (r.kind === "package") return packageHtml(r);
   if (r.kind === "pack") { const g = r.graphic; return html`${sec("What is in the pack", html`<div class="banner ok">${icon("check", "lg")}<div><b>${g.name}</b> <span class="muted">is a ${ROLE_LABEL[g.role] || g.role} (${g.kind}) with ${g.fields.length} field${g.fields.length === 1 ? "" : "s"} and ${r.files.length} file${r.files.length === 1 ? "" : "s"}.</span></div></div>
       <p class="muted">A pack made by Fieldhouse already has its values, place and animation set. You can still rename it on the next step.</p>${filesHtml(r)}`)}`; }
   return html`${sec("What Fieldhouse found", html`
@@ -65,6 +75,9 @@ function mapHtml(w, d) {
 }
 
 function nameHtml(w) {
+  if (w.res.kind === "package") return sec("Add the package", html`
+    <p class="muted">Fieldhouse will add ${w.res.templates.length} graphics with their own names, fields, layers and default values. Nothing goes on air. You can edit or rename each one after adding it.</p>
+    <div class="banner ok">${icon("check", "lg")}<div><b>${w.res.name}</b> <span class="muted">${w.res.templates.length} templates ready to add.</span></div></div>`);
   const p = w.placement, a = w.res.analysis;
   return sec("Name it and place it", html`
     <div class="gx-g2">${text("name", w.name, "Name", { max: 60 })}${sel("role", w.role, "What kind of graphic is it", Object.entries(ROLE_LABEL).map(([k, v]) => [k, `${v} - ${ROLE_HELP[k]}`]))}</div>
@@ -81,9 +94,10 @@ export default {
     const w = fresh(), box = root.querySelector("[data-wz]"), un = [];
     const paint = () => {
       const w2 = w, body = w2.step === 0 ? startHtml(w2, d) : w2.step === 1 ? checkHtml(w2) : w2.step === 2 ? mapHtml(w2, d) : nameHtml(w2);
-      const last = w2.step === 3, skipMap = w2.res?.kind === "pack";
+      const last = w2.step === 3, skipMap = w2.res?.kind === "pack" || w2.res?.kind === "package";
+      const addLabel = last ? (w2.res?.kind === "package" ? `Add ${w2.res.templates.length} graphics` : "Add graphic") : `Next${icon("right")}`;
       box.innerHTML = html`${w2.step ? stepper(w2) : ""}${w2.step ? errBox(w2) : ""}${body}
-        ${w2.step ? html`<div class="gx-ft"><button type="button" class="btn ghost gx-l" data-act="back">${icon("left")}Back</button><button type="button" class="btn pri" data-act="${last || (skipMap && w2.step === 1) ? (last ? "commit" : "next") : "next"}" ${w2.busy ? "disabled" : ""}>${last ? html`${icon("check")}Add graphic` : html`Next${icon("right")}`}</button></div>` : ""}`.s;
+        ${w2.step ? html`<div class="gx-ft"><button type="button" class="btn ghost gx-l" data-act="back">${icon("left")}Back</button><button type="button" class="btn pri" data-act="${last ? "commit" : "next"}" ${w2.busy ? "disabled" : ""}>${last ? html`${icon("check")}${addLabel}` : addLabel}</button></div>` : ""}`.s;
     };
     un.push(bindForm(box, w, { onRedraw: (p) => { if (p === "kind" && w.kind === "html") w.dataFormat = w.dataFormat; paint(); } }));
     un.push(bindFieldButtons(box, () => w.fields, paint));
@@ -92,7 +106,7 @@ export default {
       try {
         const r = await upload([...files]); w.res = r; w.token = r.token; w.name = r.name || ""; w.busy = false; w.step = 1;
         if (r.kind === "pack") { w.role = r.graphic.role; }
-        else { const a = r.analysis; w.entry = a.entry; w.dataFormat = a.dataFormat; w.width = a.width; w.height = a.height; w.allowNetwork = a.needsNetwork; w.kind = a.functions.play || a.functions.update || a.functions.stop ? "caspar" : "html"; w.fields = a.fields.map((f) => ({ name: f.id, label: f.id, type: "text", default: "", binding: f.suggestion ? { ...f.suggestion } : { kind: "manual", value: "" } })); }
+        else if (r.kind !== "package") { const a = r.analysis; w.entry = a.entry; w.dataFormat = a.dataFormat; w.width = a.width; w.height = a.height; w.allowNetwork = a.needsNetwork; w.kind = a.functions.play || a.functions.update || a.functions.stop ? "caspar" : "html"; w.fields = a.fields.map((f) => ({ name: f.id, label: f.label || f.id, type: f.type || "text", default: f.default || "", binding: f.suggestion ? { ...f.suggestion } : { kind: "manual", value: "" } })); }
       } catch (e) { w.busy = false; w.err = e.message; w.step = 0; }
       paint();
     };
@@ -107,14 +121,16 @@ export default {
         w.busy = true; w.err = ""; paint();
         try { const g = await api.post("/graphics/create", { kind: "url", name: slugName(u.name), role: u.role, source: { url: u.url.trim(), width: u.width, height: u.height, css: "" } }); toast("Web overlay added."); go(`/graphics?edit=${encodeURIComponent(g.id)}`); } catch (x) { w.busy = false; w.err = x.message; paint(); }
       }
-      if (a === "back") { w.err = ""; if (w.step === 1) { w.step = 0; w.res = null; } else w.step = w.res.kind === "pack" ? 1 : w.step - 1; paint(); }
-      if (a === "next") { w.err = ""; w.step = w.res.kind === "pack" ? 3 : w.step + 1; paint(); }
+      if (a === "back") { w.err = ""; if (w.step === 1) { w.step = 0; w.res = null; } else w.step = w.res.kind === "pack" || w.res.kind === "package" ? 1 : w.step - 1; paint(); }
+      if (a === "next") { w.err = ""; w.step = w.res.kind === "pack" || w.res.kind === "package" ? 3 : w.step + 1; paint(); }
       if (a === "commit") {
-        if (!slugName(w.name)) { w.err = "Give the graphic a name."; return paint(); }
+        const isPackage = w.res.kind === "package";
+        if (!isPackage && !slugName(w.name)) { w.err = "Give the graphic a name."; return paint(); }
         w.busy = true; w.err = ""; paint();
         try {
-          const body = w.res.kind === "pack" ? { token: w.token, name: slugName(w.name) } : { token: w.token, name: slugName(w.name), kind: w.kind, entry: w.entry, role: w.role, fields: w.fields, dataFormat: w.dataFormat, allowNetwork: w.allowNetwork, width: w.width, height: w.height, placement: w.placement, requiresGame: w.requiresGame };
-          const g = await api.post("/graphics/import/commit", body); toast(`Added ${g.name}.`); go(`/graphics?edit=${encodeURIComponent(g.id)}`);
+          const body = isPackage ? { token: w.token } : w.res.kind === "pack" ? { token: w.token, name: slugName(w.name) } : { token: w.token, name: slugName(w.name), kind: w.kind, entry: w.entry, role: w.role, fields: w.fields, dataFormat: w.dataFormat, allowNetwork: w.allowNetwork, width: w.width, height: w.height, placement: w.placement, requiresGame: w.requiresGame };
+          const r = await api.post("/graphics/import/commit", body);
+          if (isPackage) { toast(`Added ${r.count} graphics.`); go("/graphics"); } else { toast(`Added ${r.name}.`); go(`/graphics?edit=${encodeURIComponent(r.id)}`); }
         } catch (x) { w.busy = false; w.err = /expired|410/.test(x.message) ? "The upload expired. Choose the files again." : x.message; if (/expired/.test(w.err)) { w.step = 0; w.res = null; } paint(); }
       }
     };

@@ -229,11 +229,26 @@ export function createGraphics(deps: GraphicsDeps) {
       let s; try { s = stages.get(String(body?.token ?? "")); } catch (e: any) { throw new GfxError(410, e.message); }
       let d: GraphicDoc;
       try {
+        if (s.kind === "package") {
+          const overrides = new Map<string, any>();
+          if (Array.isArray(body?.templates)) for (const o of body.templates) if (o && typeof o.key === "string") overrides.set(o.key, o);
+          const planned = s.package!.map((t, i) => {
+            const o = overrides.get(t.key) ?? {}, z = Number.isFinite(Number(o.placement?.z)) ? Number(o.placement.z) : t.layer ?? 30 + i;
+            const doc = createGraphic({ kind: "caspar", name: o.name ?? t.name, role: o.role ?? t.role,
+              fields: o.fields ?? t.analysis.fields.map((f) => ({ name: f.id, label: f.label, type: f.type, default: f.default, binding: f.suggestion ?? { kind: "manual", value: "" } })),
+              placement: { anchor: "top-left", x: 0, y: 0, scale: 1, z: Math.max(-100, Math.min(1000, Math.round(z))), opacity: 1, ...(o.placement ?? {}) },
+              animation: o.animation, show: o.show ?? { mode: "manual" }, requiresGame: o.requiresGame,
+              source: { entry: t.entry, width: t.analysis.width, height: t.analysis.height, allowNetwork: o.allowNetwork ?? false, dataFormat: o.dataFormat ?? t.analysis.dataFormat, stopHoldMs: o.stopHoldMs ?? 1500 } }, now());
+            return { doc, files: t.files };
+          });
+          for (const p of planned) { store.put("graphic", p.doc); files.write(p.doc.id, p.files); }
+          stages.drop(s.token); touch(); return { graphics: planned.map((p) => p.doc), count: planned.length };
+        }
         if (s.kind === "pack") { d = { ...s.pack!, ...(body?.name ? { name: String(body.name).slice(0, 60) } : {}) } as GraphicDoc; d.createdAt = d.updatedAt = now(); }
         else {
           const a = s.analysis!, kind = body?.kind === "html" ? "html" : "caspar", entry = String(body?.entry ?? a.entry);
           if (!s.files.some((f) => f.path === entry)) throw new ImportError(`The entry file "${entry}" is not in the upload.`);
-          d = createGraphic({ kind, name: body?.name ?? s.name, role: body?.role ?? "other", fields: body?.fields ?? a.fields.map((f) => ({ name: f.id, label: f.id, type: "text", default: "", binding: f.suggestion ?? { kind: "manual", value: "" } })),
+          d = createGraphic({ kind, name: body?.name ?? s.name, role: body?.role ?? "other", fields: body?.fields ?? a.fields.map((f) => ({ name: f.id, label: f.label, type: f.type, default: f.default, binding: f.suggestion ?? { kind: "manual", value: "" } })),
             placement: body?.placement ?? { anchor: "top-left", x: 0, y: 0, scale: 1, z: 30, opacity: 1 }, animation: body?.animation, show: body?.show, requiresGame: body?.requiresGame,
             source: { entry, width: body?.width ?? a.width, height: body?.height ?? a.height, allowNetwork: body?.allowNetwork ?? a.needsNetwork, dataFormat: body?.dataFormat ?? a.dataFormat, stopHoldMs: body?.stopHoldMs ?? 1500 } }, now());
         }

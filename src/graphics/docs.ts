@@ -38,7 +38,7 @@ function fields(v: unknown, cur: FieldDef[]): FieldDef[] {
     if (seen.has(name)) throw new Error(`Two fields are called "${name}".`);
     seen.add(name);
     const b = isObj(x.binding) ? x.binding : {};
-    return { name, label: txt(x.label, 60, "A field label", name), type: oneOf(x.type, ["text", "number", "color", "image", "bool"] as const, "A field type", "text"), default: txt(x.default, 2000, "A field default"),
+    return { name, label: txt(x.label, 60, "A field label", name), type: oneOf(x.type, ["text", "multiline", "number", "color", "image", "bool"] as const, "A field type", "text"), default: txt(x.default, 2000, "A field default"),
       binding: { kind: oneOf(b.kind, ["var", "const", "manual"] as const, "A binding kind", "manual"), value: txt(b.value, 2000, "A binding value") } };
   });
 }

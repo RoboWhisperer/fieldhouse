@@ -2,9 +2,9 @@
 // A field is a named value a graphic uses. Where its value comes from is its binding: a live variable, fixed text, or typed in when shown.
 import { html, raw, esc, icon } from "../app.js";
 import { VAR_LABEL, varGroups } from "./graphics-lib.js";
-import { text, sel } from "./graphics-ui.js";
+import { text, sel, area } from "./graphics-ui.js";
 
-export const TYPES = [["text", "Text"], ["number", "Number"], ["color", "Color"], ["image", "Image address"], ["bool", "Yes or no"]];
+export const TYPES = [["text", "Text"], ["multiline", "Long text"], ["number", "Number"], ["color", "Color"], ["image", "Image address"], ["bool", "Yes or no"]];
 export const BINDINGS = [["var", "A live value from the game"], ["const", "Fixed text (can include live values)"], ["manual", "Typed in when I show it"]];
 let n = 0;
 
@@ -22,6 +22,7 @@ export function varSelect(path, value, vars, label = "Which value") {
 function defaultControl(path, f) {
   if (f.type === "bool") return sel(path, f.default === "true" ? "true" : "false", "Starts as", [["false", "No"], ["true", "Yes"]]);
   if (f.type === "color") { const hex = /^#[0-9a-f]{6}$/i.test(f.default); return html`<div class="field"><span class="fl">Starts as</span><div class="row"><input type="color" value="${hex ? f.default : "#000000"}" data-p="${path}" aria-label="Pick a color"><input class="input mono" value="${f.default}" data-p="${path}" data-hex aria-label="Color code" placeholder="#1F7A8C"></div></div>`; }
+  if (f.type === "multiline") return area(path, f.default, "Starts as", { rows: 4 });
   return text(path, f.default, "Starts as", { type: f.type === "number" ? "number" : "text", hint: undefined });
 }
 

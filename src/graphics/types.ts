@@ -20,7 +20,7 @@ export interface Animation { in: AnimSpec; out: AnimSpec }
 /** manual: only commands. always: on whenever enabled. while-live: on while a broadcast (stream or recording) runs. auto-hide: manual, then off after `seconds`. */
 export interface ShowPolicy { mode: "manual" | "always" | "while-live" | "auto-hide"; seconds?: number; startVisible?: boolean }
 
-export type FieldType = "text" | "number" | "color" | "image" | "bool";
+export type FieldType = "text" | "multiline" | "number" | "color" | "image" | "bool";
 /** var: value of a variable path (e.g. "home.score"). const: fixed text, may contain {{path}} and {{path|fallback}}. manual: only what show/update send, else `default`. */
 export interface FieldBinding { kind: "var" | "const" | "manual"; value: string }
 export interface FieldDef { name: string; label: string; type: FieldType; default: string; binding: FieldBinding }

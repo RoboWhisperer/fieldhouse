@@ -117,8 +117,13 @@ test("caspar analysis of the shipped examples", () => {
   const sb = an("caspar-score-bug"); expect(sb.dataFormat).toBe("json"); expect(sb.fields.map((f) => f.id)).toEqual(expect.arrayContaining(["home", "homeScore", "clock"]));
   expect(sb.fields.find((f) => f.id === "homeScore")?.suggestion?.value).toBe("home.score");
   const card = an("caspar-fullscreen-card"); expect(card.functions.next).toBe(true);
+  const spx = analyzeTemplate([{ path: "index.html", data: enc(`<script>window.SPXGCTemplateDefinition = ${JSON.stringify({ description: "Angle Slab", playlayer: "20", dataformat: "json", DataFields: [{ field: "f0", ftype: "textfield", title: "Name", value: "JAKE MORRISON" }, { field: "f1", ftype: "textfield", title: "Title", value: "24 PTS" }] })}; function play(){} function stop(){} function update(d){}</script>`) }]);
+  expect(spx).toMatchObject({ title: "Angle Slab", layer: 20, dataFormat: "json" });
+  expect(spx.fields.map((f) => [f.id, f.label, f.type, f.default, f.suggestion?.value])).toEqual([["f0", "Name", "text", "JAKE MORRISON", "lower.title"], ["f1", "Title", "text", "24 PTS", "lower.sub"]]);
   const odd = analyzeTemplate([{ path: "t.html", data: enc('<script>function update(d){}</script><link href="https://fonts.example.com/x.css"><style>div{transform:translate3d(0,0,1px)}</style>') }, { path: "old.ft", data: enc("x") }]);
   expect(odd.needsNetwork).toBe(true); expect(odd.warnings.join(" ")).toMatch(/internet/); expect(odd.warnings.join(" ")).toMatch(/3D/); expect(odd.warnings.join(" ")).toMatch(/Flash/); expect(odd.warnings.join(" ")).toMatch(/play\(\)/);
+  const mention = analyzeTemplate([{ path: "m.html", data: enc('<script>console.log("https://gsap.com")</script>') }]);
+  expect(mention.needsNetwork).toBe(false);
 });
 
 // ---------------------------------------------------------------- AMCP against a fake CasparCG
@@ -307,6 +312,39 @@ test("packs: export then import round-trips with a new id, no secrets; bad packs
   const evil = writeZip([{ path: "manifest.json", data: enc(JSON.stringify({ schema: 1, graphic: { kind: "caspar", name: "x", source: { entry: "index.html" } } })) }]);
   expect(() => readPack(readZip(evil))).toThrow(/missing its entry/);
   expect(() => readPack(readZip(writeZip([{ path: "manifest.json", data: enc(JSON.stringify({ schema: 2, graphic: {} })) }])))).toThrow(/newer version/);
+  await close();
+});
+test("import: a production package becomes one graphic per template folder", async () => {
+  const { call, close } = await rig();
+  const template = (name: string, layer: string, fields: { field: string; ftype: string; title: string; value: string }[]) =>
+    `<script>window.SPXGCTemplateDefinition = ${JSON.stringify({ description: name, playlayer: layer, dataformat: "json", DataFields: fields })}; function play(){} function stop(){} function update(d){}</script>`;
+  const zip = writeZip([
+    { path: "sports/README.md", data: enc("# Sports") },
+    { path: "sports/angle_slab/angle_slab.html", data: enc(template("Angle Slab", "22", [{ field: "f0", ftype: "textfield", title: "Name", value: "JAKE MORRISON" }, { field: "f1", ftype: "textfield", title: "Title", value: "24 PTS" }, { field: "f2", ftype: "textarea", title: "Notes", value: "First line\nSecond line" }])) },
+    { path: "sports/angle_slab/controlpanel.html", data: enc("<html><body>panel</body></html>") },
+    { path: "sports/volt_scorebug/volt_scorebug.html", data: enc(template("Volt Scorebug", "21", [
+      { field: "f0", ftype: "textfield", title: "Team A", value: "LAL" }, { field: "f1", ftype: "number", title: "Score A", value: "88" },
+      { field: "f2", ftype: "textfield", title: "Team B", value: "BOS" }, { field: "f3", ftype: "number", title: "Score B", value: "84" },
+      { field: "f4", ftype: "textfield", title: "Period", value: "Q4" }, { field: "f5", ftype: "textfield", title: "Clock", value: "12:00" },
+      { field: "f6", ftype: "color", title: "Team A colour", value: "#fdb927" }, { field: "f7", ftype: "color", title: "Team B colour", value: "#007a33" },
+    ])) },
+    { path: "sports/volt_scorebug/logo.png", data: new Uint8Array([1, 2, 3]) },
+  ]);
+  const fd = new FormData(); fd.append("file", new File([zip as BlobPart], "sports_production_casparcg.zip"));
+  const a = await call("POST", "/graphics/import", fd);
+  expect(a.status).toBe(200); expect(a.body.kind).toBe("package"); expect(a.body.name).toBe("sports production casparcg");
+  expect(a.body.templates.map((t: any) => [t.key, t.name, t.role, t.layer])).toEqual([["angle_slab", "Angle Slab", "lowerthird", 22], ["volt_scorebug", "Volt Scorebug", "scorebug", 21]]);
+  const angle = a.body.templates[0], bug = a.body.templates[1];
+  expect(angle.fields.map((f: any) => [f.label, f.type, f.default, f.suggestion?.value])).toEqual([["Name", "text", "JAKE MORRISON", "lower.title"], ["Title", "text", "24 PTS", "lower.sub"], ["Notes", "multiline", "First line\nSecond line", undefined]]);
+  expect(bug.fields.find((f: any) => f.id === "f1")).toMatchObject({ label: "Score A", type: "number", default: "88", suggestion: { kind: "var", value: "home.score" } });
+  expect(bug.fields.find((f: any) => f.id === "f6")).toMatchObject({ label: "Team A colour", type: "color", suggestion: { kind: "var", value: "home.color" } });
+  const c = await call("POST", "/graphics/import/commit", { token: a.body.token });
+  expect(c.status).toBe(200); expect(c.body.count).toBe(2); expect(c.body.graphics.map((g: any) => [g.name, g.role, g.placement.z])).toEqual([["Angle Slab", "lowerthird", 22], ["Volt Scorebug", "scorebug", 21]]);
+  const made = c.body.graphics[0];
+  expect(made.source).toMatchObject({ entry: "angle_slab.html", dataFormat: "json", width: 1920, height: 1080 });
+  expect(made.fields[0]).toMatchObject({ name: "f0", label: "Name", default: "JAKE MORRISON", binding: { kind: "var", value: "lower.title" } });
+  expect((await call("GET", `/graphics/${made.id}/files`)).body.map((f: any) => f.path)).toEqual(["angle_slab.html", "controlpanel.html"]);
+  expect((await call("POST", "/graphics/import/commit", { token: a.body.token })).status).toBe(410);
   await close();
 });
 test("import: a template zip is analysed, mapped and committed; hostile uploads get plain errors", async () => {
