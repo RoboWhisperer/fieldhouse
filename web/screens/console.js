@@ -45,6 +45,14 @@ const css = SP.CSS + `
 .gfx .btn .st{margin-left:auto;font-size:11px;font-weight:800;letter-spacing:.07em;color:var(--text-3)}
 .gfx .btn.on{border-color:var(--ready);background:var(--ready-wash)}.gfx .btn.on .st{color:var(--ready)}
 .gfx select.select{appearance:auto;width:100%;font-weight:600;cursor:pointer}
+.gfxp>.pb{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start;overflow:auto}.gfxp.has-more>.pb{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.gfx-more{display:grid;gap:8px;border-left:1px solid var(--line);padding-left:12px;min-width:0}
+.gfx-more-h{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.gfx-list{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding-right:2px}
+.gfx-list .btn{height:36px;justify-content:flex-start;min-width:0;gap:8px}
+.gfx-list .btn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.gfx-list .btn .st{margin-left:auto;flex:none;font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--text-3)}
+.gfx-list .btn.on{border-color:var(--ready);background:var(--ready-wash)}.gfx-list .btn.on .st{color:var(--ready)}
 .mix{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;height:100%}
 .ch{display:grid;gap:6px;align-content:start;min-width:0}
 .ch .nm{display:flex;align-items:center;gap:8px;font-weight:600;min-width:0}.ch .nm .nt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -158,7 +166,9 @@ function render(ctx) {
      <button class="btn" data-five="away">${icon("users")}Starting five · Away</button>
      <button class="btn" id="g-slate">${icon("clock")}Halftime card <span class="st"></span></button>
      <button class="btn" id="g-spon">${icon("sponsor")}Sponsor corner <span class="st"></span></button>
-    </div></div></div>
+    </div>
+    <div class="gfx-more hidden" id="gfx-more"><div class="gfx-more-h"><span>Your graphics</span><span class="sp"></span><span id="gfx-more-n"></span></div><div class="gfx-list" id="gfx-list" role="group" aria-label="Custom graphics"></div></div>
+    </div></div>
    <div class="panel audp" data-panel="audio"><div class="ph"><h3>Audio</h3></div><div class="pb"><div class="mix" id="mix"></div></div></div>
   </div>
  </section>
@@ -269,6 +279,7 @@ function bind(root, ctx) {
     if (b("#g-bug")) return graphics({ scorebug: !st().graphics.scorebug });
     if (b("#g-slate")) return graphics({ slate: st().graphics.slate ? null : "Halftime" });
     if (b("#g-spon")) return st().graphics.sponsor ? null : fire();
+    if ((x = b("[data-gfx-toggle]"))) return run(() => api.post("/graphics/" + encodeURIComponent(x.dataset.gfxToggle) + "/toggle"));
     if (b("#sp-fire")) return fire();
     if (b("#sp-skip")) return fire("skipped");
     if (b("#sp-delay")) return fire("delayed");
@@ -385,6 +396,19 @@ function bind(root, ctx) {
     sig(pl, d.id + d.home.roster.length + d.away.roster.length, () => put(pl, html`<option value="">Player lower third…</option>${["home", "away"].map((t) => html`<optgroup label="${d[t].name}">${d[t].roster.map((p, i) => html`<option value="${t}:${i}">#${p.number} ${p.name}</option>`)}</optgroup>`)}`));
     const noRoster = !d.home.roster.length && !d.away.roster.length; pl.disabled = noRoster; pl.title = noRoster ? "Add a roster to use player graphics" : "";
     $$("[data-five]").forEach((b) => { const r = d[b.dataset.five].roster; b.disabled = !r.some((p) => p.starter); b.title = b.disabled ? "No starters marked in the roster" : ""; });
+    patchCustomGfx();
+  }
+  function patchCustomGfx() {
+    const box = $("#gfx-list"), wrap = $("#gfx-more"); if (!box || !wrap) return;
+    const items = (st().graphics.items ?? []).filter((i) => !i.builtin);
+    wrap.classList.toggle("hidden", !items.length);
+    wrap.closest(".gfxp")?.classList.toggle("has-more", !!items.length);
+    if (!items.length) return;
+    const k = items.map((i) => `${i.id}:${i.name}:${i.visible ? 1 : 0}`).join("|");
+    if (box.dataset.k === k) return;
+    box.dataset.k = k;
+    put(box, html`${items.map((i) => html`<button class="btn ${i.visible ? "on" : ""}" data-gfx-toggle="${i.id}" aria-pressed="${i.visible ? "true" : "false"}" title="${i.visible ? "Hide" : "Show"} ${i.name}">${icon(i.visible ? "eye" : "play", "sm")}<span class="nm">${i.name}</span><span class="st">${i.visible ? "ON AIR" : "OFF"}</span></button>`)}`);
+    text($("#gfx-more-n"), String(items.length));
   }
   function patchMixer() {
     const mx = st().engine.mixer;
