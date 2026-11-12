@@ -1,6 +1,6 @@
 // Run: bun test web/screens/settings.test.js
 import { expect, test } from "bun:test";
-import { contrast, rate, normKey, conflicts, hoursLeft } from "./settings-lib.js";
+import { contrast, rate, normKey, conflicts, hoursLeft, ROLES, ROLE_NOTE, selectedRole, roleMenu } from "./settings-lib.js";
 import { qrMatrix, rsEc, formatBits } from "./settings-qr.js";
 
 test("contrast follows WCAG", () => {
@@ -58,4 +58,24 @@ test("QR round-trips for versions 1-4", () => {
     const m = qrMatrix(t); expect(m).not.toBeNull(); expect(decode(m)).toBe(t);
   }
   expect(qrMatrix("x".repeat(79))).toBeNull();
+});
+
+test("remote permissions menu offers every role, including Graphics and Producer", () => {
+  const menu = roleMenu("dev_1", "graphics");
+  for (const [key, label] of ROLES) {
+    expect(menu).toContain(`data-role="${key}"`);
+    expect(menu).toContain(`>${label}</button>`);
+    expect(ROLE_NOTE[key]).toBeTruthy();
+  }
+  expect(menu).toMatch(/<button[^>]*class="on"[^>]*aria-pressed="true"[^>]*data-role="graphics"/);
+  expect(menu).not.toMatch(/aria-pressed="true"[^>]*data-role="producer"/);
+});
+
+test("remote role selection: legacy score maps to Scoreboard, Producer stays separate from Admin", () => {
+  expect(roleMenu("dev_2", "score")).toMatch(/<button[^>]*class="on"[^>]*aria-pressed="true"[^>]*data-role="scoreboard"/);
+  expect(roleMenu("dev_2", "score+marks")).toMatch(/aria-pressed="true"[^>]*data-role="scoreboard"/);
+  expect(roleMenu("dev_3", "producer")).toMatch(/<button[^>]*class="on"[^>]*aria-pressed="true"[^>]*data-role="producer"/);
+  expect(roleMenu("dev_3", "producer")).not.toMatch(/aria-pressed="true"[^>]*data-role="admin"/);
+  expect(selectedRole("graphics", "producer")).toBe(false);
+  expect(roleMenu('dev_"><b>', "camera")).toContain("dev_&quot;&gt;&lt;b&gt;"); // device ids cannot inject markup
 });

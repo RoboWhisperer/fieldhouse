@@ -22,11 +22,11 @@ import { addAudit } from "./audit";
 import { parseEv } from "./game";
 import type { Store } from "./store";
 
-export type Role = "score" | "score+marks" | "producer" | "controller" | "commentator" | "camera" | "replay" | "scoreboard" | "admin"; // legacy roles remain valid for paired devices and API keys
+export type Role = "score" | "score+marks" | "producer" | "controller" | "commentator" | "camera" | "replay" | "scoreboard" | "graphics" | "admin"; // legacy roles remain valid for paired devices and API keys
 export interface DeviceDoc { id: string; name: string; role: Role; createdAt: number; lastSeen: number; tokenHash: string; key?: boolean } // key: an API key (Authorization: Bearer fhk_...) instead of a paired phone
 export type WsData = { dev: string };
 
-const ROLES: Role[] = ["score", "score+marks", "producer", "controller", "commentator", "camera", "replay", "scoreboard", "admin"];
+const ROLES: Role[] = ["score", "score+marks", "producer", "controller", "commentator", "camera", "replay", "scoreboard", "graphics", "admin"];
 const KEY_ROLES: Role[] = ["controller", "producer"];
 const KEY_PREFIX = "fhk_";
 const SCORE_EVENTS = ["clock.start", "clock.stop", "clock.set", "period.set", "score", "foul", "timeout", "counter", "undo"];
@@ -112,6 +112,7 @@ const errRes = (e: unknown) => {
 export interface RemoteDeps { app: App; store: Store; now?: () => number; webDir?: string; avoidPorts?: number[] }
 export interface RemoteRoute { roles: Role[]; method: string; re: RegExp; keyOnly?: boolean; sanitize?: (b: Record<string, any>) => Record<string, unknown> }
 const PRO: Role[] = ["producer", "controller", "admin"];
+const GRAPHICS: Role[] = [...PRO, "graphics"];
 /** Routes a phone or API key may call besides the scoring/production basics. Allowlist: anything not listed answers 403. */
 export const REMOTE_ROUTES: RemoteRoute[] = [
   { roles: PRO, method: "GET", re: /^\/api\/macros$/ },
@@ -119,15 +120,15 @@ export const REMOTE_ROUTES: RemoteRoute[] = [
   { roles: PRO, method: "POST", re: /^\/api\/automation\/trigger$/, sanitize: (b) => ({ name: b.name, ...(b.data !== undefined ? { data: b.data } : {}) }) },
   { roles: PRO, method: "GET", re: /^\/api\/custom$/ },
   { roles: PRO, method: "PUT", re: /^\/api\/custom$/, sanitize: (b) => ({ values: b.values }) }, // text values only; fields cannot be redefined from outside
-  { roles: PRO, method: "POST", re: /^\/api\/graphics\/(clear|[\w-]{1,80}\/(show|hide|toggle|update|next))$/, sanitize: (b) => ({ ...(b.fields && typeof b.fields === "object" ? { fields: b.fields } : {}) }) }, // put graphics on and off air
+  { roles: GRAPHICS, method: "POST", re: /^\/api\/graphics\/(clear|[\w-]{1,80}\/(show|hide|toggle|update|next))$/, sanitize: (b) => ({ ...(b.fields && typeof b.fields === "object" ? { fields: b.fields } : {}) }) }, // put graphics on and off air
   { roles: PRO, method: "GET", re: /^\/api\/stream$/, keyOnly: true }, // read-only event stream (SSE) for tools
 ];
 /** Let another module (graphics routes) open one more route to API keys / producers. Call while createApp() runs. */
 export const allowRemote = (r: RemoteRoute) => { REMOTE_ROUTES.push(r); };
 export type HandleOpts = { lan?: boolean; upgrade?: (req: Request, data: WsData) => boolean };
 
-/** Phones get the four original on-air fields; producers also get a short list of graphics to put on and off air. No designs, variables or connector details. */
-  const phoneGraphics = (g: any, role: Role) => ({ scorebug: g.scorebug, lower: g.lower, slate: g.slate, sponsor: g.sponsor, ...(FULL_PRO.includes(role) ? { items: (g.items ?? []).map((i: any) => ({ id: i.id, name: i.name, role: i.role, visible: i.visible })) } : {}) });
+/** Phones get the four original on-air fields; producers, admins and graphics operators also get the enabled graphics with their field definitions and current values. No designs, variables or connector details. */
+  const phoneGraphics = (g: any, role: Role) => ({ scorebug: g.scorebug, lower: g.lower, slate: g.slate, sponsor: g.sponsor, ...(FULL_PRO.includes(role) || role === "graphics" ? { items: (g.items ?? []).map((i: any) => ({ id: i.id, name: i.name, role: i.role, kind: i.kind, builtin: i.builtin, visible: i.visible, phase: i.phase, showMode: i.showMode, fieldDefs: (i.fieldDefs ?? []).map((f: any) => ({ name: f.name, label: f.label, type: f.type, default: f.default })), fields: i.fields })) } : {}) });
 export function createRemote(deps: RemoteDeps) {
   const { app, store } = deps;
   const now = deps.now ?? Date.now;
@@ -363,7 +364,7 @@ export function createRemote(deps: RemoteDeps) {
     return res;
   }
   async function producer(req: Request, url: URL, key: string, d: DeviceDoc) {
-    if (!(FULL_PRO.includes(d.role) || (d.role === "replay" && ["POST /api/replay", "POST /api/replay/stop"].includes(key)) || (d.role === "controller" && CONTROLLER_KEYS.has(key)))) fail(403, "This device is not allowed to do that. Ask the person at the console for the appropriate role.");
+    if (!(FULL_PRO.includes(d.role) || (d.role === "graphics" && key === "POST /api/graphics") || (d.role === "replay" && ["POST /api/replay", "POST /api/replay/stop"].includes(key)) || (d.role === "controller" && CONTROLLER_KEYS.has(key)))) fail(403, "This device is not allowed to do that. Ask the person at the console for the appropriate role.");
     if (key.includes("/broadcast/") && !settings().remote.producerCanBroadcast) fail(403, "Starting and stopping the broadcast is turned off for remote devices. Do it on the console, or allow it in Settings > Remote access.");
     if (locked) fail(423, "The console has locked the remote");
     sameOrigin(req, url);

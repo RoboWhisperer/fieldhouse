@@ -4,6 +4,13 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Added
+- **Graphics remote role** — a new Graphics role controls only what is on air: the built-in scorebug, halftime card and player lower third, plus the fields of every enabled custom graphic. It cannot score, change cameras or audio, fire sponsors, or start and stop the broadcast.
+- **Producer remote graphics editor** — a Producer device now lists every enabled custom graphic with all of its data fields (text, multiline text, number, color, image, yes/no), its current values, and Show, Update, Hide and Next controls. Built-in scorebug, halftime card and lower-third controls stay in the Graphics panel, and the scoring panel keeps the clock, team points, fouls and timeouts.
+
+### Fixed
+- The **Producer** role now appears in the remote permissions menu instead of being hidden under Admin, so the graphics operator can be assigned directly.
+
 ## [1.1.1] - 2026-11-04
 
 ### Added

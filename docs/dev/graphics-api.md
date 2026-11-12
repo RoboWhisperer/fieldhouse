@@ -4,7 +4,7 @@ Everything about graphics goes through `/api/graphics/...` (JSON unless noted) o
 
 Rules that hold everywhere:
 
-- **Loopback only.** `/gfx/*`, `/overlay` and every `/api/graphics*` route are unreachable from other devices (the remote gate answers 403). The only exception is the Producer role of a paired phone: it may call `show`, `hide`, `toggle`, `update`, `next` and `clear` (and sees a short list of graphics in its state).
+- **Loopback only.** `/gfx/*`, `/overlay` and every `/api/graphics*` route are unreachable from other devices (the remote gate answers 403). The exception is the Producer, Admin and Graphics roles of a paired device: they may call `show`, `hide`, `toggle`, `update`, `next` and `clear` (and see the enabled graphics, their field definitions and current values in their state).
 - **Errors** are `{ "error": "plain sentence" }` with status 400 (bad input), 404 (unknown id), 409 (not allowed right now, for example hiding a graphic that is "always on"), 410 (an import expired), 415 (wrong content type) or 502 (a remote system refused).
 - **Secrets are write-only.** A connector's app token or API key is accepted on create/update and never returned, logged or put in an error message; the API shows `secretSet: true`.
 - **Live state** is pushed over `/ws` like everything else: `state.graphics` keeps the original fields (`scorebug`, `lower`, `slate`, `sponsor`) and adds `items`, `vars` and `engineLayers` (see [Live state](#live-state)).
@@ -41,7 +41,7 @@ Rules that hold everywhere:
 
 **Show policy** (`show.mode`): `manual` (only commands), `always` (on whenever enabled), `while-live` (on while a stream or recording runs), `auto-hide` (manual, then off after `show.seconds`, 1 to 3600). `show.startVisible` puts a manual graphic on air when a game starts (the score bug uses it). Commands on `always` and `while-live` graphics answer 409. `clear` leaves them alone.
 
-**Fields.** A field is a named value a graphic uses: the data a template expects. `type` is `text number color image bool`. `binding.kind`:
+**Fields.** A field is a named value a graphic uses: the data a template expects. `type` is `text multiline number color image bool`; `multiline` is text that may contain line breaks. `binding.kind`:
 
 - `var`: the value of a variable path such as `home.score` (falls back to `default` when empty).
 - `const`: fixed text; `{{path}}` and `{{path|fallback}}` inside it are replaced from the variables.
@@ -127,7 +127,7 @@ Variables (all flat keys): `home.` and `away.` + `name abbr color score fouls ti
 ### Examples and import
 
 - `GET /api/graphics/examples` lists three small CasparCG-compatible templates: `caspar-lower-third` (XML data), `caspar-score-bug` (JSON data), `caspar-fullscreen-card` (two steps with `next`). `POST /api/graphics/examples/:id/install` creates a graphic from one.
-- **Import is two steps.** `POST /api/graphics/import` takes `multipart/form-data` with one or more `file` parts: a `.html`, a `.zip` of a template folder, several loose files (the file name may be a relative path such as `img/logo.png`), or a `.fhgfx` pack. Nothing is stored yet. The answer:
+- **Import is two steps.** `POST /api/graphics/import` takes `multipart/form-data` with one or more `file` parts: a `.html`, a `.zip` of a template folder, a production package (several template folders in one zip, as exported by NoaCG Studio/SPX), several loose files (the file name may be a relative path such as `img/logo.png`), or a `.fhgfx` pack. Nothing is stored yet. The answer:
 
 ```json
 { "token": "uuid", "kind": "template", "name": "Score Bug",
@@ -135,12 +135,12 @@ Variables (all flat keys): `home.` and `away.` + `name abbr color score fouls ti
   "skipped": [{ "path": "readme.txt", "why": "The file type .txt is not allowed." }],
   "analysis": { "entry": "index.html", "entries": ["index.html"],
     "functions": { "play": true, "stop": true, "update": true, "next": false },
-    "fields": [{ "id": "homeScore", "found": ["element id", "json key"], "suggestion": { "kind": "var", "value": "home.score" } }],
+    "fields": [{ "id": "homeScore", "label": "Home score", "type": "number", "default": "0", "found": ["element id", "json key"], "suggestion": { "kind": "var", "value": "home.score" } }],
     "dataFormat": "json", "needsNetwork": false, "warnings": ["..."], "width": 1920, "height": 1080 },
   "graphic": null }
 ```
 
-  For a `.fhgfx` pack `kind` is `pack`, `analysis` is null and `graphic` is the validated document. Then `POST /api/graphics/import/commit { token, name?, kind?: "caspar"|"html", entry?, role?, fields?, dataFormat?, allowNetwork?, width?, height?, stopHoldMs?, placement?, animation?, show?, requiresGame? }` stores it and answers the new document. Defaults come from the analysis (fields: one per detected id, with the suggested variable binding). A token lives for an hour; using it twice answers 410.
+  For a `.fhgfx` pack `kind` is `pack`, `analysis` is null and `graphic` is the validated document. For a production package `kind` is `package`, `files` is empty, and `templates` lists every template: `{ key, entry, name, role, layer, dataFormat, width, height, needsNetwork, warnings, functions, fields, files }`. Then `POST /api/graphics/import/commit { token, name?, kind?: "caspar"|"html", entry?, role?, fields?, dataFormat?, allowNetwork?, width?, height?, stopHoldMs?, placement?, animation?, show?, requiresGame? }` stores one graphic and answers the new document. Defaults come from the analysis (fields: one per detected id, with its label, type, default and suggested variable binding). A package commit takes only `{ token, templates? }` (optional per-template overrides keyed by `key`) and answers `{ count, graphics: [...] }`; each template becomes its own CasparCG graphic, using its declared playout layer as `placement.z`. A token lives for an hour; using it twice answers 410.
 - **Safety limits** (checked before anything is written): at most 50 MB in total, 25 MB per file, 500 files; allowed types `html css js json svg png jpg jpeg gif webp woff woff2 ttf otf mp4 webm` (others are skipped and listed); paths must be relative, without `..`, backslashes, hidden names or odd characters; symbolic links, encrypted zips, zip64 and archives whose files are bigger than they say are refused; two files that differ only in letter case are refused.
 - `GET /api/graphics/:id/export` answers a `.fhgfx` file (`application/zip`): `manifest.json` (`{ schema: 1, app, graphic, files }` with the document without id, timestamps or secrets; a remote graphic loses its connector link and any `token/key/secret/password` in `target`) plus `files/...`. Importing a pack makes a new graphic with a new id.
 
@@ -189,14 +189,14 @@ URL graphics and remote graphics with an `outputUrl` are not drawn in the overla
   "engineLayers": true,
   "vars": { "home.score": 3, "clock": "07:56", "...": "..." },
   "items": [ { "id": "builtin-scorebug", "name": "Score bug", "kind": "builtin", "role": "scorebug", "builtin": "scorebug", "z": 20,
-      "visible": true, "phase": "on", "seq": 1, "nextSeq": 0,
-      "placement": {}, "animation": {}, "style": {}, "fields": {},
+      "visible": true, "phase": "on", "showMode": "manual", "seq": 1, "nextSeq": 0,
+      "placement": {}, "animation": {}, "style": {}, "fieldDefs": [ { "name": "home.score", "label": "Home score", "type": "number", "default": "0" } ], "fields": {},
       "source": { "entry": "index.html", "src": "/gfx/gfx_1/index.html?v=...", "width": 1920, "height": 1080, "dataFormat": "xml" },
       "data": "<templateData>...</templateData>",
       "external": { "url": "https://...", "width": 1920, "height": 1080, "css": "" } } ] }
 ```
 
-`phase` is `on`, `stopping` (just hidden but still drawn so a template can play its exit) or `off`. `seq` changes every time the graphic is put on air again, `nextSeq` every time `next` is called. `items` holds the enabled graphics sorted by `z` (remote graphics without an `outputUrl` are not drawn by anyone, so they are not in it). Phones only get the four original fields (producers also a short `items` list of id, name, role and visible).
+`phase` is `on`, `stopping` (just hidden but still drawn so a template can play its exit) or `off`. `seq` changes every time the graphic is put on air again, `nextSeq` every time `next` is called. `items` holds the enabled graphics sorted by `z` (remote graphics without an `outputUrl` are not drawn by anyone, so they are not in it). Phones only get the four original fields. Producers, Admins and Graphics devices also get an `items` list with `id`, `name`, `kind`, `role`, `builtin`, `visible`, `phase`, `showMode`, `fieldDefs` and the resolved `fields` for each enabled graphic, so the remote operator can edit every parameter. The definitions contain labels, types and defaults; bindings and connector details stay on the console.
 
 ## Where things are
 

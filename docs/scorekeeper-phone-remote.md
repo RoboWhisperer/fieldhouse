@@ -18,19 +18,25 @@ The page works on a phone (portrait or landscape) and on a laptop or desktop bro
 
 The person at the console chooses a role for every device. A new device starts as **Score**. A device can never promote itself, and the console can change a role or disconnect a device at any time; it takes effect at once, without reloading the page.
 
-| | Commentator | Camera | Replay | Scoreboard | Admin |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Roster and player scoring stats | yes | no | no | no | yes |
-| Camera source feeds | no | yes | yes | yes | yes |
-| Score, clock, fouls, timeouts, period | no | no | no | yes | yes |
-| Instant replay and key plays | no | no | yes | no | yes |
-| Cut/fade, graphics, audio, sponsor controls | no | no | no | no | yes |
-| Start or stop the broadcast | no | no | no | no | only if allowed below |
-| Change local settings, destinations, games, rosters, recordings, storage | never | never | never | never | never |
-| See stream keys, file paths, or the pairing code | never | never | never | never | never |
-| Watch recordings or load the OBS overlay | never | never | never | never | never |
+| | Commentator | Camera | Replay | Scoreboard | Graphics | Producer | Admin |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Roster and player scoring stats | yes | no | no | no | roster only | yes | yes |
+| Camera source feeds | no | yes | yes | yes | no | yes | yes |
+| Score, clock, fouls, timeouts, period | no | no | no | yes | no | yes | yes |
+| Instant replay and key plays | no | no | yes | no | no | replay | yes |
+| Cut/fade, graphics, audio, sponsor controls | no | no | no | no | graphics only | yes | yes |
+| Start or stop the broadcast | no | no | no | no | no | only if allowed below | only if allowed below |
+| Change local settings, destinations, games, rosters, recordings, storage | never | never | never | never | never | never | never |
+| See stream keys, file paths, or the pairing code | never | never | never | never | never | never | never |
+| Watch recordings or load the OBS overlay | never | never | never | never | never | never | never |
 
-Each paired computer gets its own role view. **Camera** is a live source monitor, **Replay** adds replay controls and key plays, and **Scoreboard** combines live feeds with game controls. **Admin** provides the existing full remote production console. **Commentator** shows roster and player scoring totals without controls.
+Each paired computer gets its own role view. **Camera** is a live source monitor, **Replay** adds replay controls and key plays, and **Scoreboard** combines live feeds with game controls. **Graphics** shows only the built-in graphics controls and the full editor for every enabled custom graphic; it has no scoring, camera, audio, sponsor, or broadcast controls. **Producer** provides the full remote production console: cameras, cut/fade, replay, audio, sponsors, and graphics. **Admin** has the same production controls plus the start/stop permission below. **Commentator** shows roster and player scoring totals without controls.
+
+### Graphics editor (Producer and Graphics)
+
+A Producer or Graphics device gets a **Graphic controls** panel with every enabled custom graphic. Each card lists all of that graphic's data fields, including text, multiline text, number, color, image, and yes/no fields. Type a new value and press **Show** or **Update**; leave a field blank to keep its current value. **Hide** takes the graphic off air, and **Next** advances graphics that have steps. A graphic that follows an automatic show policy shows its policy instead of Show/Hide.
+
+The built-in score bug, halftime card, and player lower third keep their quick controls in the **Graphics** panel above. On a Producer device, the scoring panel on the right includes the clock, team points, fouls, and timeouts. A Graphics device sees the same graphics panels without the scoring, camera, audio, or broadcast panels.
 
 ### Starting and stopping the broadcast
 
@@ -60,7 +66,7 @@ If the console and a remote device both change the score, the last change wins a
 ## Safety: use a trusted network
 
 - **The connection is plain HTTP.** On an open or shared Wi-Fi network, someone nearby could copy a device's access. Use a password-protected network (WPA2 or WPA3) and do not use it on public Wi-Fi.
-- **An Admin device can drive your live broadcast** (cameras, graphics, sponsors, and the stream itself if you allow it). Give the Admin role only to people and devices you trust.
+- **An Admin device can drive your live broadcast** (cameras, graphics, sponsors, and the stream itself if you allow it). Producer and Graphics devices can also put graphics on air. Give these roles only to people and devices you trust.
 - The other devices connect through a separate listener that exists only when you turn it on in **Settings, Remote access**. Turn it off after the game if you like. Pairing codes are limited in how often they can be tried, and each paired device gets its own access token.
 - By default Fieldhouse answers only on the main computer itself. When remote access is on, its separate listener binds to all local interfaces, including Wi-Fi/WLAN and Ethernet. **Only allow devices on this local network** refuses addresses outside a private network, and **Require the pairing code** (on by default) needs the code. Keep both on.
 - Anyone on the same local network who has the code can connect as a Score device. Do not share the code in public chat or on screen. Use **New code** between games.

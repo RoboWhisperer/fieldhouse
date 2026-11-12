@@ -36,6 +36,16 @@ export const SHORTCUT_LABEL = {
   homePlus1: "Home +1", homePlus2: "Home +2", homePlus3: "Home +3", awayPlus1: "Away +1", awayPlus2: "Away +2", awayPlus3: "Away +3",
 };
 
+// ---- remote permissions (Settings > Remote access). src/auth.ts accepts exactly these roles.
+export const ROLES = [["commentator", "Commentator"], ["camera", "Camera"], ["replay", "Replay"], ["scoreboard", "Scoreboard"], ["graphics", "Graphics"], ["producer", "Producer"], ["admin", "Admin"]];
+export const ROLE_NOTE = { commentator: "Roster and player scoring totals; read only.", camera: "Live source feeds only; no production controls.", replay: "Source feeds, instant replay controls and key plays.", scoreboard: "Source feeds plus score, clock and game controls.", graphics: "Graphics controls only: show, update, hide and advance every enabled graphic. No scoring, cameras, audio, sponsors or broadcast controls.", producer: "Full production controls: cameras, cut/fade, replay, audio, sponsors and the graphics editor. It can start or stop the broadcast only if you allow that below.", admin: "All remote production and game controls. Local settings and secrets stay on the console.", score: "Legacy scorekeeper access.", "score+marks": "Legacy scorekeeper access with marking." };
+export const selectedRole = (role, key) => role === key || (key === "scoreboard" && ["score", "score+marks"].includes(role));
+/** The role buttons for one paired device, as markup (settings-remote.js injects it unescaped). Escape here so a device id can never inject attributes. */
+export function roleMenu(id, role) {
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  return ROLES.map(([key, label]) => { const on = selectedRole(role, key); return `<button type="button" class="${on ? "on" : ""}" aria-pressed="${on}" data-act="role" data-id="${esc(id)}" data-role="${key}">${esc(label)}</button>`; }).join("");
+}
+
 // ---- misc
 export const sportSummary = (p) => `${p.periods} periods of ${p.periodMin}:00, counting down. Bonus after ${p.bonusAt} team fouls. ${p.timeouts} timeouts per team, overtime periods of ${p.overtimeMin} min.`;
 export function hoursLeft(freeBytes, recs) {

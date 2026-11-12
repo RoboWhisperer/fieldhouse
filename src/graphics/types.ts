@@ -60,8 +60,9 @@ export type ConnectorView = Omit<ConnectorDoc, "secret"> & { secretSet: boolean;
 /** One graphic as the overlay page needs it. */
 export interface RenderItem {
   id: string; name: string; kind: GraphicKind; role: GraphicRole; builtin?: string; z: number;
-  visible: boolean; phase: "on" | "stopping" | "off"; seq: number; nextSeq: number;
+  visible: boolean; phase: "on" | "stopping" | "off"; showMode: ShowPolicy["mode"]; seq: number; nextSeq: number;
   placement: Placement; animation: Animation; style: GraphicStyle;
+  fieldDefs: FieldDef[]; // the fields this graphic exposes (labels, types, defaults)
   fields: Record<string, string>; // resolved values by field name
   source?: Record<string, unknown>; // kind-specific (html/caspar: entry, width, height, allowNetwork, dataFormat; url: url...)
   data?: string; // caspar: the string handed to update() (XML or JSON)

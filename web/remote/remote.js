@@ -256,34 +256,36 @@
   const hooks = [];
   const wide = window.matchMedia ? window.matchMedia("(min-width: 900px)") : { matches: false };
   const isProd = () => !!me && (me.role === "producer" || me.role === "admin");
+  const isGfx = () => !!me && me.role === "graphics";
   const roleView = () => !!me && ["commentator", "camera", "replay"].includes(me.role);
   const isScoreboard = () => !!me && me.role === "scoreboard";
-  const desk = () => wide.matches && !isProd() && !roleView(); // desktop scorekeeper layout: every panel visible, no tabs
+  const desk = () => wide.matches && !isProd() && !isGfx() && !roleView(); // desktop scorekeeper layout: every panel visible, no tabs
   const showTab = (t) => desk() || tab === t;
   if (wide.addEventListener) wide.addEventListener("change", () => { $("#pbtns").dataset.k = ""; $("#log").dataset.k = ""; render(); });
 
-  // The console decides the role; it can change at any time. Producers get the producer layout around the same scoring panel.
+  // The console decides the role; it can change at any time. Producers and graphics operators get their own layout around the same scoring panel.
   function applyRole() {
-    const prod = isProd(), live = $("#s-live"), box = $("#s-prod");
+    const prod = isProd(), gfx = isGfx(), live = $("#s-live"), box = $("#s-prod");
     document.body.classList.toggle("is-prod", prod);
+    document.body.classList.toggle("is-gfx", gfx);
     if (prod && live.parentNode !== $("#pside")) $("#pside").append(live);
     if (!prod && live.parentNode !== document.body) document.body.insertBefore(live, box);
-    box.hidden = !(prod && screen === "live");
+    box.hidden = !((prod || gfx) && screen === "live");
     document.body.classList.toggle("is-role-view", roleView());
     $("#role-view").hidden = !(roleView() && screen === "live");
     $("#s-live .main").hidden = roleView(); $("#s-live .sheet").hidden = roleView();
     $("#score-feeds").hidden = !isScoreboard();
     $("#mark").hidden = !me || !["score+marks", "producer", "admin"].includes(me.role);
-    if (prod) loadProducer(); else if (window.FHR.producer) window.FHR.producer.unmount();
+    if (prod || gfx) loadProducer(gfx); else if (window.FHR.producer) window.FHR.producer.unmount();
     $("#pbtns").dataset.k = ""; $("#log").dataset.k = "";
     render();
   }
   let prodLoading = false;
-  function loadProducer() {
-    if (window.FHR.producer) return window.FHR.producer.mount();
+  function loadProducer(graphicsOnly) {
+    if (window.FHR.producer) return window.FHR.producer.mount({ graphicsOnly });
     if (prodLoading) return; prodLoading = true;
     const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "/remote/producer.css"; document.head.append(l);
-    const sc = document.createElement("script"); sc.src = "/remote/producer.js"; sc.onload = () => { if (isProd() && window.FHR.producer) window.FHR.producer.mount(); }; sc.onerror = () => { prodLoading = false; note("err", "Could not load the producer screen", "Reload the page to try again."); };
+    const sc = document.createElement("script"); sc.src = "/remote/producer.js"; sc.onload = () => { if (isProd() || isGfx()) window.FHR.producer.mount({ graphicsOnly: isGfx() }); }; sc.onerror = () => { prodLoading = false; note("err", "Could not load the graphics screen", "Reload the page to try again."); };
     document.head.append(sc);
   }
   function render() {

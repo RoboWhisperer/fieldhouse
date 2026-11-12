@@ -110,7 +110,7 @@ export function createGraphics(deps: GraphicsDeps) {
     for (const { d, vis, phase, fields } of rs) {
       const external = externalOf(d);
       if (d.kind === "remote" && !external) continue; // drawn by another system with no page to show: nothing for us to draw
-      const it: RenderItem = { id: d.id, name: d.name, kind: d.kind, role: d.role, builtin: d.builtinId, z: d.placement.z, visible: vis, phase, seq: oa.seq(d.id), nextSeq: oa.nextSeq(d.id), placement: d.placement, animation: d.animation, style: d.style, fields, external };
+      const it: RenderItem = { id: d.id, name: d.name, kind: d.kind, role: d.role, builtin: d.builtinId, z: d.placement.z, visible: vis, phase, showMode: d.show.mode, seq: oa.seq(d.id), nextSeq: oa.nextSeq(d.id), placement: d.placement, animation: d.animation, style: d.style, fieldDefs: d.fields, fields, external };
       if (d.kind === "html" || d.kind === "caspar") it.source = { ...d.source, src: `/gfx/${d.id}/${d.source.entry}?v=${d.updatedAt}.${fileRev.get(d.id) ?? 0}` }; // the ?v= part makes the overlay reload the frame after its files change
       if (d.kind === "caspar") it.data = casparData(fields, d.source.dataFormat, d.fields);
       items.push(it);

@@ -496,6 +496,33 @@ test("operator roles expose the right state and only their assigned controls ove
   expect((await call(LAN, "GET", "/api/state", undefined, guest.cookie)).body.engine.mixer).toBeDefined();
 });
 
+test("graphics role: gets graphics state and only graphics controls", async () => {
+  const { call, pair, admin } = await rig();
+  const g = await pair("Graphics Gina", "192.168.1.63");
+  expect((await admin("PUT", "/devices/" + g.id, { role: "graphics" })).status).toBe(200);
+  const st = (await call("192.168.1.63", "GET", "/api/state", undefined, g.cookie)).body;
+  expect(st.role).toBe("graphics");
+  expect(Object.keys(st).sort()).toEqual(["events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "profile", "role", "serverNow", "sport"]);
+  expect(st.engine).toBeUndefined(); expect(st.next).toBeUndefined(); expect(st.canBroadcast).toBeUndefined();
+  expect(st.gameDoc.home.roster.length).toBeGreaterThan(0);
+  const item = st.graphics.items.find((x: any) => x.builtin && x.showMode === "manual" && x.fieldDefs.length > 0);
+  expect(item).toBeTruthy();
+  const field = item.fieldDefs[0];
+  expect(typeof field.name).toBe("string"); expect(typeof field.label).toBe("string"); expect(typeof field.type).toBe("string");
+  expect(field).not.toHaveProperty("binding");
+  expect((await call(LAN, "POST", "/api/graphics", { scorebug: false, slate: "Halftime", lower: { title: "#3 Reyes", sub: "Guard" } }, g.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", "/api/graphics", { lower: { title: "x".repeat(200) } }, g.cookie)).status).toBe(400);
+  expect((await call(LAN, "POST", `/api/graphics/${item.id}/show`, { fields: {} }, g.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", `/api/graphics/${item.id}/update`, { fields: { [field.name]: "Graphics test" } }, g.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", `/api/graphics/${item.id}/hide`, {}, g.cookie)).status).toBe(200);
+  expect((await call(LAN, "POST", "/api/graphics/clear", {}, g.cookie)).status).toBe(200);
+  for (const [m, path, body] of [["POST", "/api/engine/cut", {}], ["POST", "/api/event", { type: "score", team: "home", points: 1 }], ["POST", "/api/sponsors/fire", { outcome: "aired" }], ["POST", "/api/replay", { secondsBack: 10 }], ["POST", "/api/broadcast/start", {}], ["GET", "/snap/cam1", undefined], ["GET", "/api/settings", undefined], ["GET", "/api/macros", undefined], ["POST", "/api/macros/x/run", {}], ["GET", "/api/custom", undefined], ["PUT", "/api/custom", { values: {} }], ["GET", "/api/stream", undefined]] as const)
+    expect([path, (await call(LAN, m, path, body, g.cookie)).status]).toEqual([path, 403]);
+  await admin("POST", "/lock", { locked: true });
+  expect((await call(LAN, "POST", "/api/graphics", { scorebug: true }, g.cookie)).status).toBe(423);
+  expect((await call(LAN, "GET", "/api/state", undefined, g.cookie)).body.locked).toBe(true);
+});
+
 test("producer state carries no settings, destinations, pairing code, file paths or stream keys", async () => {
   const { call, p, store, dir } = await producerRig({ producerCanBroadcast: true });
   await call(LAN, "POST", "/api/broadcast/start", {}, p.cookie); // recording is live: a file path exists on the server
@@ -508,6 +535,11 @@ test("producer state carries no settings, destinations, pairing code, file paths
   expect(Object.keys(st.engine.sources[0]).sort()).toEqual(["audio", "id", "kind", "label", "slot", "status"]);
   expect(st.engine.record.active).toBe(true); expect(st.engine.graphicsInProgram).toBe(false); expect(st.canBroadcast).toBe(true);
   expect(Object.keys(st).sort()).toEqual(["canBroadcast", "engine", "events", "game", "gameDoc", "gameId", "graphics", "kind", "locked", "next", "profile", "role", "serverNow", "sport"]);
+  const item = st.graphics.items.find((x: any) => x.fieldDefs.length > 0);
+  expect(item).toBeTruthy();
+  expect(item.fields).toBeDefined();
+  expect(item.fieldDefs[0]).toMatchObject({ name: expect.any(String), label: expect.any(String), type: expect.any(String) });
+  expect(item.fieldDefs[0]).not.toHaveProperty("binding");
   void store;
 });
 
