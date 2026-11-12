@@ -1,5 +1,6 @@
 // Fieldhouse web app core: html templating, api, live state, router, shells, keys, toasts.
 // No build step: native ES modules. Screens live in /screens/<name>.js (see the contract in web/README.md).
+import { enhancePanels, installPanelResizing } from "./resize.js";
 
 // ---------------------------------------------------------------- html templating (escapes by default)
 class Raw { constructor(s) { this.s = s; } }
@@ -173,6 +174,8 @@ async function navigate() {
     root.scrollTop = scroll;
     applyBindings(root);
     cleanup = mod.bind?.(root, ctx, data) || null;
+    enhancePanels(root);
+    installPanelResizing();
   }
   try {
     if (!name) throw new Error("That page does not exist.");
