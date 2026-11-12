@@ -3,3 +3,12 @@ design/_shots/
 node_modules/
 desktop/dist/
 desktop/build/server-*/
+
+# Local-only session transcripts and downloaded test archives
+/session-*.md
+/sports_production_casparcg.zip
+
+# Stray lockfiles from local installs; the repo uses Bun, and desktop/package-lock.json is kept
+/package-lock.json
+/pnpm-lock.yaml
+/desktop/pnpm-lock.yaml

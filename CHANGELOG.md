@@ -5,6 +5,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ## [Unreleased]
 
 ### Added
+- **Production package import** — a zipped NoaCG Studio/SPX export with several template folders is recognised as one package. Every template becomes its own CasparCG graphic with its declared layer, field labels, types and default values. Long-text fields stay multiline in the editor and on remote controls.
 - **Graphics remote role** — a new Graphics role controls only what is on air: the built-in scorebug, halftime card and player lower third, plus the fields of every enabled custom graphic. It cannot score, change cameras or audio, fire sponsors, or start and stop the broadcast.
 - **Producer remote graphics editor** — a Producer device now lists every enabled custom graphic with all of its data fields (text, multiline text, number, color, image, yes/no), its current values, and Show, Update, Hide and Next controls. Built-in scorebug, halftime card and lower-third controls stay in the Graphics panel, and the scoring panel keeps the clock, team points, fouls and timeouts.
 
