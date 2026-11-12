@@ -95,7 +95,7 @@ export default {
     const paint = () => {
       const w2 = w, body = w2.step === 0 ? startHtml(w2, d) : w2.step === 1 ? checkHtml(w2) : w2.step === 2 ? mapHtml(w2, d) : nameHtml(w2);
       const last = w2.step === 3, skipMap = w2.res?.kind === "pack" || w2.res?.kind === "package";
-      const addLabel = last ? (w2.res?.kind === "package" ? `Add ${w2.res.templates.length} graphics` : "Add graphic") : `Next${icon("right")}`;
+      const addLabel = last ? (w2.res?.kind === "package" ? `Add ${w2.res.templates.length} graphics` : "Add graphic") : html`Next${icon("right")}`;
       box.innerHTML = html`${w2.step ? stepper(w2) : ""}${w2.step ? errBox(w2) : ""}${body}
         ${w2.step ? html`<div class="gx-ft"><button type="button" class="btn ghost gx-l" data-act="back">${icon("left")}Back</button><button type="button" class="btn pri" data-act="${last ? "commit" : "next"}" ${w2.busy ? "disabled" : ""}>${last ? html`${icon("check")}${addLabel}` : addLabel}</button></div>` : ""}`.s;
     };
