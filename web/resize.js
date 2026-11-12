@@ -16,10 +16,14 @@ export const clampSize = (v, min, max) => Math.min(Math.max(Math.round(v), min),
 export const sizeKey = (scope, name, occurrence) => `${scope}::${name}::${occurrence}`;
 
 const scope = () => (location.hash.slice(1) || "/").split("?")[0] || "/";
-const viewportMax = (start, edge) => Math.max(MIN_W, (edge === "w" ? window.innerWidth : window.innerHeight) - start - 16);
 
 /** Clamp a panel's width to the right edge of its column, never below a usable minimum. */
 export const clampPanelWidth = (width, left, right) => clampSize(width, MIN_W, Math.max(MIN_W, Math.round(right - left)));
+/** Clamp a panel's height to the bottom of its column or the panel below. Use all the room when it is short; never overlap. */
+export const clampPanelHeight = (height, top, bottom) => {
+  const room = Math.max(0, Math.round(bottom - top));
+  return Math.min(Math.max(Math.round(height), Math.min(MIN_H, room)), room);
+};
 
 // A display:contents wrapper has no box of its own, so use the nearest ancestor that does.
 function boxedParent(p) {
@@ -45,6 +49,28 @@ function rightLimit(p) {
   return right;
 }
 
+// The bottom edge a panel may reach: its column's content edge, or the nearest sibling below in the same column.
+function bottomLimit(p) {
+  const parent = boxedParent(p);
+  const r = p.getBoundingClientRect();
+  let bottom = window.innerHeight - 16;
+  if (!parent) return bottom;
+  const cs = getComputedStyle(parent);
+  if (cs.overflowY !== "visible") { // a visible parent grows with its content; a scrolling one ends at its scroll extent
+    const pr = parent.getBoundingClientRect();
+    const edge = cs.overflowY === "auto" || cs.overflowY === "scroll" ? parent.scrollHeight : parent.clientHeight;
+    bottom = Math.min(bottom, pr.top + parent.clientTop + edge - (parseFloat(cs.paddingBottom) || 0));
+  }
+  for (const sib of p.parentElement?.children ?? []) {
+    if (sib === p || !(sib instanceof HTMLElement)) continue;
+    const s = sib.getBoundingClientRect();
+    if (!s.width || !s.height || s.top <= r.top + 1) continue; // not below
+    if (s.right <= r.left + 1 || s.left >= r.right - 1) continue; // another column
+    bottom = Math.min(bottom, s.top);
+  }
+  return bottom;
+}
+
 function panelName(p) {
   return (p.dataset.panel || p.id || p.querySelector("h2, h3")?.textContent || "panel").trim().slice(0, 60) || "panel";
 }
@@ -57,16 +83,29 @@ function fitWidth(p, desired) {
   return clampPanelWidth(r.width, r.left, rightLimit(p));
 }
 
+function fitHeight(p, desired) {
+  const first = clampPanelHeight(desired, p.getBoundingClientRect().top, bottomLimit(p));
+  p.style.height = `${first}px`;
+  const r = p.getBoundingClientRect();
+  return clampPanelHeight(r.height, r.top, bottomLimit(p));
+}
+
 function apply(p, key, saved) {
   p.dataset.fhResize = key;
   if (saved) {
     p.classList.add("fh-sized");
-    p.style.height = `${saved.h}px`; // height can add a scrollbar and narrow the column, so set it first
+    // Height affects a scrolling column's width (scrollbar), and width affects which sibling is below, so fit both and settle.
+    const r = p.getBoundingClientRect();
+    p.style.height = `${clampPanelHeight(saved.h, r.top, bottomLimit(p))}px`;
     const w = fitWidth(p, saved.w);
     p.style.width = `${w}px`;
-    if (w !== saved.w) {
+    const h = fitHeight(p, saved.h);
+    p.style.height = `${h}px`;
+    const w2 = fitWidth(p, w);
+    p.style.width = `${w2}px`;
+    if (w2 !== saved.w || h !== saved.h) {
       const all = read();
-      if (all[key]) { all[key].w = w; write(all); }
+      if (all[key]) { all[key] = { w: w2, h }; write(all); }
     }
   }
 }
@@ -112,13 +151,16 @@ function wire(p, key, label) {
     if (e.button !== 0) return;
     e.preventDefault();
     const r = p.getBoundingClientRect();
-    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, w: r.width, h: r.height, left: r.left, right: rightLimit(p), maxH: viewportMax(r.top, "h") };
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, w: r.width, h: r.height, left: r.left, right: rightLimit(p), top: r.top, bottom: bottomLimit(p) };
     try { grip.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
     document.body.classList.add("fh-resizing");
   });
   grip.addEventListener("pointermove", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    setSize(p, key, clampPanelWidth(drag.w + e.clientX - drag.x, drag.left, drag.right), clampSize(drag.h + e.clientY - drag.y, MIN_H, drag.maxH), false);
+    const width = clampPanelWidth(drag.w + e.clientX - drag.x, drag.left, drag.right);
+    p.style.width = `${width}px`; // widening can bring a panel below into the same column, so re-measure the height limit
+    const height = clampPanelHeight(drag.h + e.clientY - drag.y, drag.top, Math.min(drag.bottom, bottomLimit(p)));
+    setSize(p, key, width, height, false);
   });
   grip.addEventListener("pointerup", (e) => {
     if (!drag) return;
@@ -141,7 +183,9 @@ function wire(p, key, label) {
     else if (e.key === "ArrowUp") h -= step;
     else return;
     e.preventDefault();
-    setSize(p, key, clampPanelWidth(w, r.left, rightLimit(p)), clampSize(h, MIN_H, viewportMax(r.top, "h")), true);
+    const width = clampPanelWidth(w, r.left, rightLimit(p));
+    p.style.width = `${width}px`;
+    setSize(p, key, width, clampPanelHeight(h, r.top, bottomLimit(p)), true);
   });
 }
 
@@ -174,8 +218,9 @@ export function installPanelResizing() {
     document.querySelectorAll(".panel.fh-sized[data-fh-resize]").forEach((p) => {
       const key = p.dataset.fhResize;
       const r = p.getBoundingClientRect();
+      const h = fitHeight(p, r.height);
       const w = fitWidth(p, r.width);
-      if (Math.round(r.width) !== w) setSize(p, key, w, r.height, true);
+      if (Math.round(r.width) !== w || Math.round(r.height) !== h) setSize(p, key, w, h, true);
     });
   });
 }
